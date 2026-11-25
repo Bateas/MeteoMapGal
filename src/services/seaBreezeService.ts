@@ -1,7 +1,7 @@
 /**
  * Sea-breeze (viración térmica) sector-level detector — Phase A.
  *
- * T2-4 (S136+3+5). DISTINCT from `viracionDetector.ts` (which classifies the
+ * DISTINCT from `viracionDetector.ts` (which classifies the
  * per-spot phase of the daily wind cycle). This service computes the
  * SECTOR-WIDE physical DRIVER of the sea breeze: the coast-inland temperature
  * gradient. When inland heats well above the coast on a sunny afternoon, the

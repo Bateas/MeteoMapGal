@@ -9,19 +9,18 @@
  * popup), not the whole map.
  *
  * IMPORTANT: render order here mirrors the exact previous JSX order inside
- * WeatherMap (WindFieldOverlay -> TempOnlyOverlay -> StationSymbolLayer) —
+ * WeatherMap (WindFieldOverlay -> StationSymbolLayer) —
  * Source/Layer mount order determines MapLibre z-order. Do not reorder.
  */
 import { memo, useMemo } from 'react';
 import { useWeatherStore } from '../../store/weatherStore';
 import { StationSymbolLayer } from './StationSymbolLayer';
-import { TempOnlyOverlay } from './TempOnlyMarker';
 import { WindFieldOverlay } from './WindFieldOverlay';
 import { StationPopup } from './StationPopup';
 import type { BuoyReading } from '../../api/buoyClient';
 
 interface ReadingsLayersProps {
-  /** Simple mode keeps stations and their wind; it only drops the source initials. */
+  /** Simple mode keeps stations and their wind, quieter so the spots lead, and drops the source initials. */
   simpleMode: boolean;
   /** Buoy readings for hex wind arrows — pass undefined for inland sectors. */
   buoys?: BuoyReading[];
@@ -43,21 +42,20 @@ export const ReadingsLayers = memo(function ReadingsLayers({
   return (
     <>
       {/* Wind field arrows around stations + buoys. Shown in simple mode too:
-          a map with only the spots looked empty, and the arrows are the wind. */}
+          a map with only the spots looked empty, and the arrows are the wind.
+          There they are smaller and fainter, keeping their colour, so the spots lead. */}
       <WindFieldOverlay
         stations={stations}
         readings={currentReadings}
         buoys={buoys}
         compact={stations.length > 35}
         zoomLevel={zoomLevel}
+        muted={simpleMode}
       />
 
-      {/* Temp-only station dots — GPU-accelerated. Kept visible in simpleMode
-          (small temp dots are informational without overwhelming). */}
-      <TempOnlyOverlay stations={stations} readings={currentReadings} />
 
       {/* Station markers — GPU symbol layer. In simple mode they stay, without
-          the source initials and muted to grey, so the spots lead. */}
+          the source initials and fainter, so the spots lead. */}
       <StationSymbolLayer
         stations={stations}
         readings={currentReadings}
@@ -65,7 +63,7 @@ export const ReadingsLayers = memo(function ReadingsLayers({
         onSelectStation={onSelectStation}
         zoomLevel={zoomLevel}
         hideSourceLabels={simpleMode}
-        muted={simpleMode}
+        faint={simpleMode}
       />
     </>
   );
@@ -87,6 +85,7 @@ export function SelectedStationPopup({ selectedStationId }: { selectedStationId:
   if (!selectedStation) return null;
   return (
     <StationPopup
+      key={selectedStation.id}
       station={selectedStation}
       reading={currentReadings.get(selectedStation.id)}
     />

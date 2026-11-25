@@ -82,7 +82,7 @@ describe('SpotTideSummary — meteorological tide line', () => {
     useBuoyStore.setState({ buoys: [vigoGauge(2.31)] });
     render(<SpotTideSummary tideStationId="29" />);
 
-    expect(await screen.findByText(/por encima de tabla/)).toBeInTheDocument();
+    expect(await screen.findByText(/más alta de lo previsto/)).toBeInTheDocument();
   });
 
   it('stays quiet when the water sits where the table says', async () => {
@@ -107,7 +107,7 @@ describe('SpotTideSummary — meteorological tide line', () => {
     expect(await screen.findByText(/06:22/)).toBeInTheDocument();
     await waitFor(() => expect(fetchTides48h).toHaveBeenCalled());
     await act(async () => { await Promise.resolve(); });
-    expect(screen.queryByText(/por encima de tabla/)).toBeNull();
+    expect(screen.queryByText(/más alta de lo previsto/)).toBeNull();
   });
 
   it('does not even ask for predictions when no gauge reports a level', async () => {
@@ -124,7 +124,7 @@ describe('SpotTideSummary — meteorological tide line', () => {
     window.history.replaceState({}, '', '/?simsurge=250');
     render(<SpotTideSummary tideStationId="29" />);
 
-    expect(await screen.findByText(/por encima de tabla/)).toBeInTheDocument();
+    expect(await screen.findByText(/más alta de lo previsto/)).toBeInTheDocument();
   });
 
   it('leaves the tide table itself untouched', async () => {

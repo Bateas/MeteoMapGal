@@ -7,9 +7,10 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { WeatherIcon } from '../icons/WeatherIcons';
+import { useSpotStore } from '../../store/spotStore';
+import { countVisitDay } from '../../services/visitDays';
 
 const STORAGE_KEY = 'pwa-install-dismissed';
-const VISIT_COUNT_KEY = 'pwa-visit-count';
 const MIN_VISITS = 2;
 
 function isIos(): boolean {
@@ -23,8 +24,10 @@ function isStandalone(): boolean {
 
 export function PwaInstallBanner() {
   const [show, setShow] = useState(false);
+  const spotCardOpen = useSpotStore((s) => s.activeSpotId !== '');
   const [isIosDevice] = useState(isIos);
   const promptRef = useRef<BeforeInstallPromptEvent | null>(null);
+  const [canPrompt, setCanPrompt] = useState(false);
 
   useEffect(() => {
     // Already installed or dismissed
@@ -33,10 +36,9 @@ export function PwaInstallBanner() {
     // Only show on mobile — desktop users don't need PWA install prompt
     if (window.innerWidth > 768) return;
 
-    // Count visits
-    const count = parseInt(localStorage.getItem(VISIT_COUNT_KEY) || '0', 10) + 1;
-    localStorage.setItem(VISIT_COUNT_KEY, String(count));
-    if (count < MIN_VISITS) return;
+    // Count visits by DAY: every load counted, so two reloads on the first day put the card over the map
+    // of someone who had not yet seen it (18-nov). A visit is a new day.
+    if (countVisitDay(localStorage) < MIN_VISITS) return;
 
     // iOS: show manual instructions
     if (isIos()) {
@@ -48,6 +50,7 @@ export function PwaInstallBanner() {
     const handler = (e: Event) => {
       e.preventDefault();
       promptRef.current = e as BeforeInstallPromptEvent;
+      setCanPrompt(true);
       setShow(true);
     };
     window.addEventListener('beforeinstallprompt', handler);
@@ -81,39 +84,32 @@ export function PwaInstallBanner() {
     localStorage.setItem(STORAGE_KEY, '1');
   }, []);
 
-  if (!show) return null;
+  // A spot card open on a phone peeks over this very place: the invitation waits until it closes.
+  if (!show || spotCardOpen) return null;
 
   return (
-    <div className="pointer-events-auto bg-slate-800 border border-slate-600 rounded-xl p-3 shadow-2xl animate-in slide-in-from-bottom-2">
-      <div className="flex items-start gap-3">
-        <div className="shrink-0 w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center">
-          <WeatherIcon id="wind" size={20} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-white">Instalar MeteoMapGal</p>
+    <div className="g-theme gc-card">
+      <div className="gc-card-head">
+        <div>
+          <p className="gc-card-title">Instalar MeteoMapGal</p>
           {isIosDevice ? (
-            <p className="text-[11px] text-slate-400 mt-0.5">
+            <p className="gc-card-text">
               Toca <strong>Compartir</strong> y luego <strong>Añadir a pantalla de inicio</strong>
             </p>
           ) : (
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              Accede sin navegador, datos en tiempo real en tu pantalla de inicio
+            <p className="gc-card-text">
+              {canPrompt
+                ? 'Ábrela sin navegador, desde tu pantalla de inicio'
+                : 'En el menú de tu navegador, elige «Instalar aplicación» o «Añadir a pantalla de inicio»'}
             </p>
           )}
         </div>
-        <button
-          onClick={handleDismiss}
-          className="shrink-0 text-slate-500 hover:text-slate-300 min-w-[32px] min-h-[32px] flex items-center justify-center"
-          aria-label="Cerrar"
-        >
+        <button type="button" onClick={handleDismiss} className="gc-btn gc-btn--plain gc-btn--icon" aria-label="Cerrar">
           <WeatherIcon id="x" size={14} />
         </button>
       </div>
-      {!isIosDevice && (
-        <button
-          onClick={handleInstall}
-          className="mt-2 w-full py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors min-h-[40px]"
-        >
+      {!isIosDevice && canPrompt && (
+        <button type="button" onClick={handleInstall} className="gc-btn gc-btn--primary">
           Instalar app
         </button>
       )}

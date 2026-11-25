@@ -2,25 +2,66 @@
 // never exported it, so every Record<SpotVerdict, T> here was keyed by `any`
 // and the comparator's order map silently accepted anything at all.
 import type { SpotVerdict } from '../services/spotScoringEngine';
+import { windTone, WIND_TONE_NAMES, WIND_TONES_ON_DARK, type WindToneName } from '../services/windUtils';
 
-/** Verdict → Tailwind classes + label. Shared across SpotSelector, ConditionsTicker, MobileSailingBanner. */
-/**
- * Verdict visual styles — aligned with simplified windSpeedColor() scale.
- * Calma=slate, Flojo=sky-blue, Navegable=green, Buen día=yellow, Fuerte=orange.
- */
-export const VERDICT_STYLE: Record<SpotVerdict, { label: string; bg: string; border: string; text: string; dot: string }> = {
-  calm:    { label: 'Calma',     bg: 'bg-slate-500/10',   border: 'border-slate-500/40',   text: 'text-slate-400',   dot: 'bg-slate-400' },
-  light:   { label: 'Flojo',     bg: 'bg-sky-500/10',     border: 'border-sky-500/40',     text: 'text-sky-400',     dot: 'bg-sky-400' },
-  sailing: { label: 'Navegable', bg: 'bg-green-500/10',   border: 'border-green-500/40',   text: 'text-green-400',   dot: 'bg-green-400' },
-  good:    { label: 'Buen d\u00eda',  bg: 'bg-yellow-500/10', border: 'border-yellow-500/40', text: 'text-yellow-400', dot: 'bg-yellow-400' },
-  strong:  { label: 'Fuerte',    bg: 'bg-orange-500/10',  border: 'border-orange-500/40',  text: 'text-orange-400',  dot: 'bg-orange-400' },
-  unknown: { label: 'Sin datos', bg: 'bg-slate-500/10',   border: 'border-slate-500/40',   text: 'text-slate-400',   dot: 'bg-slate-400' },
+/** The word for each verdict, the same on every surface. Its colours are VERDICT_FILL and VERDICT_LINE. */
+export const VERDICT_STYLE: Record<SpotVerdict, { label: string }> = {
+  calm: { label: 'Calma' },
+  light: { label: 'Flojo' },
+  sailing: { label: 'Navegable' },
+  good: { label: 'Bueno' },
+  strong: { label: 'Fuerte' },
+  unknown: { label: 'Sin datos' },
 };
 
-/** Verdict hex colors for inline styles. Matches simplified windSpeedColor() scale. */
+/**
+ * The map's scale as tokens (v3tokens.css), one value per theme: marker, card, list and forecast read the same five
+ * colours. Adjacent steps checked with the palette validator in both themes (normal vision >= 15, colour blindness
+ * >= 8): dark 21,4 and 10,5; light 18,2 and 9,1. A tone more colour on 5-nov: the map read as washed out.
+ * The shape and the figure inside say it as well: colour never goes alone.
+ */
+export const VERDICT_FILL: Record<SpotVerdict, string> = {
+  calm: 'var(--g-c-calma)', light: 'var(--g-c-flojo)', sailing: 'var(--g-c-navegable)',
+  good: 'var(--g-c-bueno)', strong: 'var(--g-c-fuerte)', unknown: 'var(--g-hair)',
+};
+/** A surf level on the map's scale: flat, small, good, classic, big read like calma, flojo, navegable, bueno, fuerte. */
+export function surfTone(level: number): SpotVerdict {
+  return (['calm', 'light', 'sailing', 'good', 'strong'] as const)[level] ?? 'unknown';
+}
+/** Text on VERDICT_FILL. */
+export const VERDICT_FILL_TEXT: Record<SpotVerdict, string> = {
+  calm: 'var(--g-ct-calma)', light: 'var(--g-ct-flojo)', sailing: 'var(--g-ct-navegable)',
+  good: 'var(--g-ct-bueno)', strong: 'var(--g-ct-fuerte)', unknown: 'var(--g-ink)',
+};
+/** The same scale for a line beside text: >= 3:1 on the background. */
+export const VERDICT_LINE: Record<SpotVerdict, string> = {
+  calm: 'var(--g-s-calma)', light: 'var(--g-s-flojo)', sailing: 'var(--g-s-navegable)',
+  good: 'var(--g-s-bueno)', strong: 'var(--g-s-fuerte)', unknown: 'var(--g-rule)',
+};
+
+/** The same scale as plain hex, for what cannot read a token and is drawn dark: the shared image and the widget. */
 export const VERDICT_HEX: Record<SpotVerdict, string> = {
-  calm: '#94a3b8', light: '#38bdf8', sailing: '#22c55e',
-  good: '#eab308', strong: '#f97316', unknown: '#64748b',
+  calm: '#a3aca7', light: '#62a8f5', sailing: '#37bd78', good: '#f5b82e', strong: '#ff8a3d', unknown: '#64748b',
+};
+
+/**
+ * A spot's colour is the greater of its verdict's and its wind's (18-nov). Only a
+ * «Fuerte» spot moves: from 22 kt it takes the red, magenta or violet of the arrow beside it. Below, the verdict's
+ * colour stands, so a spot «Fuerte» on its gusts with a 14 kt mean stays orange. Null: the verdict's colour.
+ */
+export function windToneOver(verdict: SpotVerdict, kt: number | null | undefined): WindToneName | null {
+  if (verdict !== 'strong' || kt == null || !Number.isFinite(kt)) return null;
+  const tone = windTone(kt);
+  return tone > 4 ? WIND_TONE_NAMES[tone] : null;
+}
+export const fillOf = (verdict: SpotVerdict, tone: WindToneName | null) => (tone ? `var(--g-c-${tone})` : VERDICT_FILL[verdict]);
+export const fillTextOf = (verdict: SpotVerdict, tone: WindToneName | null) => (tone ? `var(--g-ct-${tone})` : VERDICT_FILL_TEXT[verdict]);
+export const lineOf = (verdict: SpotVerdict, tone: WindToneName | null) => (tone ? `var(--g-s-${tone})` : VERDICT_LINE[verdict]);
+export const hexOf = (verdict: SpotVerdict, tone: WindToneName | null) => (tone ? WIND_TONES_ON_DARK[WIND_TONE_NAMES.indexOf(tone)] : VERDICT_HEX[verdict]);
+
+/** Short labels for a marker's badge */
+export const VERDICT_MAP_LABEL: Record<SpotVerdict, string> = {
+  calm: 'CALMA', light: 'FLOJO', sailing: 'NAVEG.', good: 'BUENO', strong: 'FUERTE', unknown: '—',
 };
 
 // ── Provisional scores: one place, so every surface agrees ────
@@ -58,6 +99,7 @@ export interface VerdictSource {
   wind?: { avgSpeedKt: number } | null;
   hardGateKind?: 'wind' | 'wave' | null;
   hardGateTriggered?: string | null;
+  gustKt?: number | null;
   waves?: { waveHeight: number | null; sourceBuoy?: string | null; localHeight?: number | null; localSource?: 'swan' | 'estimate' | 'buoy' | null } | null;
 }
 
@@ -109,7 +151,7 @@ export function verdictDoubt(score: VerdictSource | undefined | null): { low: Sp
   return { low: line.low, high: line.high };
 }
 
-/** «entre Navegable y Buen día», or null. */
+/** «entre Navegable y Bueno», or null. */
 export function verdictDoubtText(score: VerdictSource | undefined | null): string | null {
   const d = verdictDoubt(score);
   return d ? `entre ${VERDICT_STYLE[d.low].label} y ${VERDICT_STYLE[d.high].label}` : null;
@@ -136,13 +178,13 @@ export function gateWaveText(score: VerdictSource | undefined | null): string | 
   return score!.waves?.localSource === 'estimate' ? `≈${m}` : m;
 }
 
-/** Where that sea comes from, as a phrase: «en la zona, SWAN (modelo)», «estimada desde Cabo
+/** Where that sea comes from, as a phrase: «en la zona, según el modelo», «estimada desde Cabo
  *  Silleiro» or «en Cabo Silleiro, mar abierto» (a spot with no local estimate). */
 export function gateWaveWhere(score: VerdictSource | undefined | null): string | null {
   if (!isWaveGate(score)) return null;
   const w = score!.waves;
   const buoy = w?.sourceBuoy;
-  if (w?.localSource === 'swan') return 'en la zona, SWAN (modelo)';
+  if (w?.localSource === 'swan') return 'en la zona, según el modelo';
   if (w?.localSource === 'estimate') return buoy ? `estimada desde ${buoy}` : 'estimada';
   return buoy ? `en ${buoy}, mar abierto` : 'mar abierto';
 }
@@ -169,6 +211,29 @@ export function verdictFigure(score: VerdictSource | undefined | null): string |
 export function displayWindKt(score: VerdictSource | undefined | null): number | null {
   if (!score || score.provisional) return null;
   return score.effectiveWindKt ?? score.wind?.avgSpeedKt ?? null;
+}
+
+// ── A light mean with strong gusts: say so ────
+//
+// The verdict comes from the mean, and the gust gate only closes a spot at 30 kt backed by 25. In
+// between, a card read «Calma, 5 kt» beside «racha 21» as if the two were one thing (24-nov: Liméns
+// and Lourido through a front; Castrelo on 17-nov with white water). Over 30 days, 9-19 h, a gust of
+// 18 kt and twice the mean under «Calma» or «Flojo» happened in 279 ten-minute steps across eleven
+// spots, nearly all on the frontal days; at 15 kt it was 497 and showed one day in three.
+
+/** The gust that makes a light mean «racheado», and how many times the mean it has to be. */
+export const GUSTY_MIN_KT = 18;
+export const GUSTY_RATIO = 2;
+export const GUSTY_LABEL = 'racheado';
+
+/** Whether a spot shown «Calma» or «Flojo» carries gusts worth a word. `gustKt` is the gust the
+ *  surface shows, when it differs from the measured one. Never while loading or closed by a gate. */
+export function isGusty(score: VerdictSource | undefined | null, gustKt: number | null | undefined = score?.gustKt): boolean {
+  if (!score || score.provisional || score.hardGateTriggered || score.hardGateKind) return false;
+  if (score.verdict !== 'calm' && score.verdict !== 'light') return false;
+  const kt = displayWindKt(score);
+  if (kt == null || gustKt == null) return false;
+  return Math.round(gustKt) >= GUSTY_MIN_KT && gustKt >= GUSTY_RATIO * kt;
 }
 
 // ── Wind direction: "variable" when the sources disagree ────

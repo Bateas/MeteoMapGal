@@ -79,14 +79,6 @@ const PASS_WINDOW_MS = 10 * 60_000;
  */
 export const FIRE_ACTIVE_MAX_MIN = 360;
 
-/**
- * Smoke may only be drawn from detections this recent.
- * Stricter than the active gate: a plume crosses CURRENT wind with the fire's
- * position, and pairing a 20h-old hotspot with the wind blowing right now
- * paints smoke where there is none.
- */
-export const FIRE_SMOKE_MAX_MIN = 180;
-
 // ── Helpers ───────────────────────────────────────────────
 
 const CONFIDENCE_RANK: Record<FireConfidence, number> = { low: 0, nominal: 1, high: 2 };
@@ -109,11 +101,6 @@ export function clusterAgeMin(cluster: FireCluster, now = Date.now()): number {
 /** Recent enough to be called an active fire. */
 export function isFireActive(cluster: FireCluster, now = Date.now()): boolean {
   return clusterAgeMin(cluster, now) <= FIRE_ACTIVE_MAX_MIN;
-}
-
-/** Recent enough to cross with the wind blowing right now. */
-export function canDrawSmoke(cluster: FireCluster, now = Date.now()): boolean {
-  return clusterAgeMin(cluster, now) <= FIRE_SMOKE_MAX_MIN;
 }
 
 // ── Public API ────────────────────────────────────────────
@@ -241,7 +228,7 @@ function buildCluster(group: ActiveFire[]): FireCluster {
  * THE cluster list every surface must read.
  *
  * The hotspot array lives in the store; clustering it independently in the
- * ticker, the map and the smoke layer is how surfaces silently drift apart
+ * ticker and the map is how surfaces silently drift apart
  * (documented project trap). This memoises on the array reference, so all
  * callers holding the same store value get the identical cluster objects and
  * pay for the computation once per poll.

@@ -1,27 +1,7 @@
-/*
- * The weather point's card: V3 paper and ink on today's map popup. The !important rules beat the popup
- * overrides in index.css, which use it too. When V3 lands this card moves into Ficha and this file goes.
- */
-.gf-popup, .gf-sheetwrap { --gfp-1: #3b6ea5; --gfp-2: #4a97f0; --gfp-3: #d6e8fc; }
-:root[data-theme="light"] .gf-popup, :root[data-theme="light"] .gf-sheetwrap { --gfp-1: #86b3e0; --gfp-2: #2a74c8; --gfp-3: #123f75; }
+/* The weather point's card inside the V3 cards (dock and phone sheet). */
+.gf-dock, .gf-sheetwrap { --gfp-1: #3b6ea5; --gfp-2: #4a97f0; --gfp-3: #d6e8fc; }
+:root[data-theme="light"] .gf-dock, :root[data-theme="light"] .gf-sheetwrap { --gfp-1: #86b3e0; --gfp-2: #2a74c8; --gfp-3: #123f75; }
 
-.gf-popup .maplibregl-popup-content {
-  padding: 14px 16px 10px !important;
-  background: var(--g-bg) !important;
-  color: var(--g-ink) !important;
-  border: 1px solid var(--g-hair) !important;
-  border-top: 2px solid var(--g-rule) !important;
-  border-radius: 4px !important;
-  box-shadow: var(--g-shadow-lg) !important;
-  max-width: none !important;
-}
-.gf-popup .maplibregl-popup-tip { border-top-color: var(--g-bg) !important; }
-.gf-popup .maplibregl-popup-close-button { top: 6px; right: 6px; color: var(--g-muted) !important; font-size: 20px !important; padding: 2px 8px !important; }
-.gf-popup .maplibregl-popup-close-button:hover { color: var(--g-ink) !important; }
-
-.gfp-body { width: min(400px, calc(100vw - 72px)); max-height: 66dvh; overflow-x: hidden; overflow-y: auto; }
-.gfp-close { position: absolute; top: 8px; right: 6px; z-index: 1; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: 0; background: transparent; color: var(--g-muted); cursor: pointer; }
-.gfp-close:focus-visible { outline: 2px solid var(--g-ink); outline-offset: -2px; }
 .gfp-first { margin-top: 0; }
 
 /* The rain now against the model: colour only in the bar */
@@ -38,7 +18,6 @@
 .gfp-fallen b { font: 700 19px/1.15 var(--g-font); font-variant-numeric: tabular-nums; color: var(--g-ink); }
 .gfp-fallen b small { font-size: 12.5px; font-weight: 400; color: var(--g-muted); }
 .gfp-fallen span { font-size: 12.5px; color: var(--g-muted); }
-.gfp-noalert { margin: 12px 0 0; }
 .gfp-now { margin: 12px 0 0; }
 
 /* The chart: three rows that share the hours, one column per day */
@@ -60,6 +39,10 @@
 .gfp-w[data-w="2"] { fill: var(--g-c-navegable); }
 .gfp-w[data-w="3"] { fill: var(--g-c-bueno); }
 .gfp-w[data-w="4"] { fill: var(--g-c-fuerte); }
+.gfp-w[data-w="5"] { fill: var(--g-c-duro); }
+.gfp-w[data-w="6"] { fill: var(--g-c-temporal); }
+.gfp-w[data-w="7"] { fill: var(--g-c-tduro); }
+.gfp-w[data-w="8"] { fill: var(--g-c-tmduro); }
 .gfp-arrow { fill: var(--g-muted); }
 .gfp-temp { fill: none; stroke: var(--g-ink); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .gfp-cursor { stroke: var(--g-rule); stroke-width: 1; }

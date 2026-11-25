@@ -1,412 +1,232 @@
-import { useState, useEffect, useMemo, memo } from 'react';
-import { Popup } from 'react-map-gl/maplibre';
-import { PopupFit } from './PopupFit';
+/**
+ * Card of a station: what it measures now, whether that is recent, where it is going and how it got here.
+ * Its history is the panel's. Shell: Ficha.
+ */
+import { useMemo, useCallback, memo, useId } from 'react';
+import { Ficha, FichaGroup, Note, dec } from './Ficha';
+import { Cell } from '../spot/Cell';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
-import { useSwipeToDismiss } from '../../hooks/useSwipeToDismiss';
-import {
-  formatWindSpeed,
-  formatTemperature,
-  formatHumidity,
-  formatPrecipitation,
-  formatSolarRadiation,
-  formatPressure,
-  formatDewPoint,
-  windSpeedColor,
-  precipitationColor,
-  temperatureColor,
-  solarRadiationColor,
-  solarRadiationIcon,
-  pressureColor,
-  dewPointSpreadColor,
-} from '../../services/windUtils';
+import { degreesToCardinal, msToKnots, temperatureColor, windTone, WIND_TONE_NAMES } from '../../services/windUtils';
+
+/**
+ * The colour of a figure goes in a chip, the words stay in ink (18-nov): the eye found the wind and the gust by their
+ * colour in the old card, and colouring the text itself read badly on the light theme. Same tokens as the spot shapes,
+ * the app's one wind scale, past the verdict too.
+ */
+const toneChip = (kt: number) => {
+  const name = WIND_TONE_NAMES[windTone(kt)];
+  return { background: `var(--g-c-${name})`, color: `var(--g-ct-${name})` };
+};
+/** Under this, the dew point is near the air: fog close (the same reading as the fog detectors, in words). */
+const FOG_NEAR_SPREAD = 1;
+import { isWindBlacklisted } from '../../services/spotScoringEngine';
+import { windDrift } from '../../services/windTrendService';
+import { TrendMark } from '../spot/TrendMark';
+import { WindPlot, type PlotStop } from '../spot/WindPlot';
 import { WindCompass } from '../common/WindCompass';
 import { SOURCE_CONFIG } from '../../config/sourceConfig';
-import { formatDistanceToNow } from 'date-fns';
-import { es } from 'date-fns/locale';
-import { loadAemetHistory, filterByStation, filterBySeason, buildWindRose } from '../../services/aemetHistoryParser';
-import type { WindRoseData } from '../../types/campo';
+import { timeAgoEs } from '../spot/spotColors';
+import { ageMinutes, dataAge } from '../../services/dataAge';
 import { useUIStore } from '../../store/uiStore';
-import { WeatherIcon } from '../icons/WeatherIcons';
-import type { IconId } from '../icons/WeatherIcons';
-
-// AEMET stations with historical data
-const AEMET_HISTORY_STATIONS = ['aemet_1701X', 'aemet_1690A', 'aemet_1700X'];
 
 interface StationPopupProps {
   station: NormalizedStation;
   reading?: NormalizedReading;
 }
 
-/** Reusable data cell: label + colored value */
-function DataCell({ label, value, color, icon, children }: {
-  label: string;
-  value?: string;
-  color?: string;
-  icon?: IconId;
-  children?: React.ReactNode;
-}) {
-  return (
-    <div>
-      <div className="text-slate-500 text-[11px] mb-0.5 flex items-center gap-0.5">
-        {icon && <WeatherIcon id={icon} size={10} />}
-        {label}
-      </div>
-      {children ?? (
-        <div className="font-semibold" style={color ? { color } : undefined}>{value}</div>
-      )}
-    </div>
-  );
-}
+/** Past this, the big figure is not «now»: AEMET publishes every hour with some lag, and the rest far sooner. */
+const STALE_MIN = 90;
+/** What the page loads on opening (`/api/v1/readings/recent`): no request of its own. */
+const TREND_HOURS = 3;
+/** Past this between two readings the line breaks: joining them would draw a wind nobody measured. */
+const TREND_GAP_MIN = 40;
 
-// ── Wind sparkline (last ~1h trend) — reused from StationCard pattern ──
-const SPK_W = 40, SPK_H = 14, SPK_PTS = 12;
+const hhmm = (d: Date) => d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 
-function PopupSparkline({ stationId }: { stationId: string }) {
+/** The last hours of wind, mean and gust. A figure alone does not say whether it is rising or dying. */
+function WindLastHours({ stationId }: { stationId: string }) {
   const history = useWeatherStore((s) => s.readingHistory.get(stationId));
-  const path = useMemo(() => {
-    if (!history || history.length < 3) return null;
-    const recent = history.slice(-SPK_PTS);
-    const speeds = recent.map((r) => r.windSpeed ?? 0);
-    const max = Math.max(...speeds, 1);
-    const step = SPK_W / (speeds.length - 1);
-    return speeds.map((s, i) => {
-      const x = (i * step).toFixed(1);
-      const y = (SPK_H - (s / max) * (SPK_H - 2) - 1).toFixed(1);
-      return `${i === 0 ? 'M' : 'L'}${x},${y}`;
-    }).join(' ');
+
+  const chart = useMemo(() => {
+    const now = Date.now();
+    const span = TREND_HOURS * 3_600_000;
+    const points = (history ?? [])
+      .filter((r) => r.windSpeed != null && r.timestamp && now - r.timestamp.getTime() <= span)
+      .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+    if (points.length < 3) return null;
+
+    const peak = points.reduce((a, b) => ((b.windGust ?? b.windSpeed ?? 0) > (a.windGust ?? a.windSpeed ?? 0) ? b : a));
+    const mean = points.map((r) => ({ t: r.timestamp.getTime(), kt: msToKnots(r.windSpeed!) }));
+    const gust = points.filter((r) => r.windGust != null).map((r) => ({ t: r.timestamp.getTime(), kt: msToKnots(r.windGust!) }));
+    const stops: PlotStop[] = points.map((r) => ({
+      t: r.timestamp.getTime(),
+      kt: msToKnots(r.windSpeed!),
+      value: `${msToKnots(r.windSpeed!).toFixed(0)} kt`,
+      note: `${r.windGust != null ? `racha ${msToKnots(r.windGust).toFixed(0)}, ` : ''}${hhmm(r.timestamp)}`,
+    }));
+    return { mean, gust, stops, from: now - span, to: now, peakKt: msToKnots(peak.windGust ?? peak.windSpeed ?? 0), peakAt: peak.timestamp };
   }, [history]);
-  if (!path) return null;
+
+  if (!chart) return null;
+
+  const sentence = `Viento de las últimas ${TREND_HOURS} horas. Racha máxima ${chart.peakKt.toFixed(0)} nudos a las ${hhmm(chart.peakAt)}`;
   return (
-    <svg width={SPK_W} height={SPK_H} className="ml-1 shrink-0 opacity-60" aria-label="Tendencia viento 1h">
-      <path fill="none" stroke="#64748b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" d={path} />
-    </svg>
+    <FichaGroup title={`Últimas ${TREND_HOURS} horas`} note={`máx. ${chart.peakKt.toFixed(0)} kt a las ${hhmm(chart.peakAt)}`}>
+      <WindPlot
+        from={chart.from}
+        to={chart.to}
+        series={[
+          { points: chart.gust, kind: 'thin', gapMs: TREND_GAP_MIN * 60_000 },
+          { points: chart.mean, kind: 'main', gapMs: TREND_GAP_MIN * 60_000 },
+        ]}
+        stops={chart.stops}
+        label={sentence}
+        foot={(
+          <>
+            <span>hace {TREND_HOURS} h</span>
+            <span>{chart.gust.length > 0 ? 'línea fina: racha' : ''}</span>
+            <span>ahora</span>
+          </>
+        )}
+      />
+    </FichaGroup>
   );
 }
 
-function usePopupWindTrend(stationId: string, currentSpeed: number | null) {
+/** Where its wind is going, from what the page already holds. */
+function StationDrift({ stationId }: { stationId: string }) {
   const history = useWeatherStore((s) => s.readingHistory.get(stationId));
-  return useMemo(() => {
-    if (currentSpeed == null || !history || history.length < 3) return null;
-    const prev = history.slice(-4, -1);
-    const avg = prev.reduce((s, r) => s + (r.windSpeed ?? 0), 0) / prev.length;
-    const diff = currentSpeed - avg;
-    if (Math.abs(diff) < 0.5) return { symbol: '\u2192', color: '#94a3b8' }; // stable
-    return diff > 0
-      ? { symbol: '\u2191', color: '#4ade80' }  // rising
-      : { symbol: '\u2193', color: '#f87171' };  // falling
-  }, [history, currentSpeed]);
+  const drift = useMemo(
+    () => windDrift((history ?? []).filter((r) => r.windSpeed != null && r.timestamp).map((r) => ({ t: r.timestamp.getTime(), kt: msToKnots(r.windSpeed!) }))),
+    [history],
+  );
+  return <TrendMark drift={drift} />;
 }
 
 export const StationPopup = memo(function StationPopup({ station, reading }: StationPopupProps) {
   const selectStation = useWeatherSelectionStore((s) => s.selectStation);
-  const toggleChartStation = useWeatherSelectionStore((s) => s.toggleChartStation);
   const openHistory = useWeatherSelectionStore((s) => s.openHistory);
   const setRequestedTab = useUIStore((s) => s.setRequestedTab);
-  const chartStations = useWeatherSelectionStore((s) => s.chartSelectedStations);
-  const isInChart = chartStations.includes(station.id);
-  const isMobile = useUIStore((s) => s.isMobile);
-  const dismiss = () => selectStation(null);
-  const { sheetRef, onTouchStart, onTouchMove, onTouchEnd } = useSwipeToDismiss(dismiss);
+  const simpleMode = useUIStore((s) => s.simpleMode);
+  const dismiss = useCallback(() => selectStation(null), [selectStation]);
+  const titleId = useId();
 
-  // Escape closes the station popup (mobile sheet and desktop popup). Same rules
-  // as SpotPopup: capture phase, an open aria-modal dialog owns the key, and a
-  // text field keeps its own Escape.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      if (document.querySelector('[aria-modal="true"]')) return;
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      selectStation(null);
-    };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [selectStation]);
-  const windTrend = usePopupWindTrend(station.id, reading?.windSpeed ?? null);
+  const sourceName = SOURCE_CONFIG[station.source]?.fullName ?? station.source;
+  const speedKt = reading?.windSpeed != null ? msToKnots(reading.windSpeed) : null;
+  const gustKt = reading?.windGust != null && reading.windGust > 0 ? msToKnots(reading.windGust) : null;
+  const hasTime = !!reading?.timestamp && !isNaN(reading.timestamp.getTime());
+  const isStale = hasTime && Date.now() - reading!.timestamp.getTime() > STALE_MIN * 60_000;
+  const ago = hasTime ? timeAgoEs(reading!.timestamp) : null;
+  // How recent it is says nothing while it is recent
+  const isOld = hasTime && dataAge(ageMinutes(reading!.timestamp, Date.now())) !== 'fresh';
 
-  // Mini wind rose for AEMET stations with historical data (lazy-loaded)
-  const hasHistory = AEMET_HISTORY_STATIONS.includes(station.id);
-  const [windRoseData, setWindRoseData] = useState<WindRoseData | null>(null);
-  useEffect(() => {
-    if (!hasHistory) {
-      setWindRoseData(null);
-      return;
-    }
-    let cancelled = false;
-    loadAemetHistory().then((records) => {
-      if (cancelled) return;
-      const indicativo = station.id.replace('aemet_', '');
-      const stationDays = filterByStation(records, indicativo);
-      const summerDays = filterBySeason(stationDays, [6, 7, 8, 9]);
-      setWindRoseData(buildWindRose(summerDays));
-    });
-    return () => { cancelled = true; };
-  }, [hasHistory, station.id]);
-
-  const sourceColor = SOURCE_CONFIG[station.source]?.color ?? '#059669';
-
-  // Gust factor
+  // Gust factor: how turbulent the wind is at this station
   const gustFactor = reading?.windGust != null && reading.windSpeed != null && reading.windSpeed > 0.5
     ? reading.windGust / reading.windSpeed
     : null;
+  const turbulence = gustFactor == null ? '' : gustFactor >= 2 ? 'turbulencia severa' : gustFactor >= 1.6 ? 'turbulencia moderada' : 'turbulencia ligera';
 
   // Dew point spread
   const dpSpread = reading?.temperature != null && reading?.dewPoint != null
     ? reading.temperature - reading.dewPoint
     : null;
 
-  // ── Shared popup content ──────────────────────────────
-  const popupContent = (
-    <div className="min-w-[200px] font-sans">
-      {/* Header */}
-      <div className="flex items-center gap-1.5 mb-2">
-        <span
-          className="text-[11px] font-bold px-1.5 py-px rounded text-white"
-          style={{ background: sourceColor }}
-        >
-          {SOURCE_CONFIG[station.source]?.fullName ?? station.source}
-        </span>
-        <strong className="text-[13px]">{station.name}</strong>
+  return (
+    <Ficha longitude={station.lon} latitude={station.lat} onClose={dismiss} titleId={titleId}>
+      <div className="gf-head">
+        <div className="gf-titles">
+          <h2 id={titleId} className="gf-name">{station.name}</h2>
+          {reading && !isStale && isOld && <div className="gf-sub">{ago}</div>}
+          {/* Peeking on a phone the credit line with the age is out of view: the head says it */}
+          {reading && !isStale && !isOld && ago && <div className="gf-sub gf-peekonly">{ago}</div>}
+        </div>
       </div>
 
       {reading ? (
         <>
-          {/* Wind compass + data grid */}
-          <div className="flex gap-2.5 items-start mb-1.5">
-            <WindCompass
-              direction={reading.windDirection}
-              speed={reading.windSpeed}
-              size={64}
-            />
-            <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs flex-1">
-              <DataCell label="Viento">
-                <div className="flex items-center gap-0.5">
-                  <span className="font-semibold" style={{ color: windSpeedColor(reading.windSpeed) }}>
-                    {formatWindSpeed(reading.windSpeed)}
-                  </span>
-                  {windTrend && (
-                    <span className="text-[11px] font-bold" style={{ color: windTrend.color }} title="Tendencia 1h">
-                      {windTrend.symbol}
-                    </span>
-                  )}
-                  <PopupSparkline stationId={station.id} />
-                </div>
-              </DataCell>
-              <DataCell label="Temperatura" value={formatTemperature(reading.temperature)} color={temperatureColor(reading.temperature)} />
-
-              {reading.windGust != null && reading.windGust > 0 && (
-                <DataCell label="Racha">
-                  <div className="flex items-baseline gap-1">
-                    <span className="font-semibold" style={{ color: windSpeedColor(reading.windGust) }}>
-                      {formatWindSpeed(reading.windGust)}
-                    </span>
-                    {gustFactor != null && gustFactor >= 1.3 && (
-                      <span
-                        className="text-[11px]"
-                        style={{ color: gustFactor >= 2 ? '#f87171' : gustFactor >= 1.6 ? '#fb923c' : '#94a3b8' }}
-                        title={`Factor racha: ${gustFactor.toFixed(1)}× — ${gustFactor >= 2 ? 'turbulencia severa' : gustFactor >= 1.6 ? 'turbulencia moderada' : 'ligera'}`}
-                      >
-                        ×{gustFactor.toFixed(1)}
-                      </span>
-                    )}
-                  </div>
-                </DataCell>
+          <div className="gf-big">
+            <WindCompass direction={reading.windDirection} speed={reading.windSpeed} size={56} ink hideLabel />
+            <span key={speedKt != null ? speedKt.toFixed(0) : ''} className={speedKt != null && !isStale ? 'gf-figure gf-figchip' : 'gf-figure'}
+              style={speedKt != null && !isStale ? toneChip(speedKt) : undefined}>{speedKt != null ? speedKt.toFixed(0) : '–'}</span>
+            <span className="gf-side">
+              <b>
+                nudos{reading.windDirection != null && speedKt != null && speedKt > 0.5
+                  ? ` del ${degreesToCardinal(reading.windDirection)}${simpleMode ? '' : ` ${Math.round(reading.windDirection)}°`}`
+                  : ''}
+              </b>
+              {!isStale && speedKt != null && <StationDrift stationId={station.id} />}
+              {gustKt != null && (
+                <span title={gustFactor != null ? `Factor de racha ×${dec(gustFactor)}: ${turbulence}` : undefined}>
+                  racha {isStale ? gustKt.toFixed(0) : <span className="gf-chip" style={toneChip(gustKt)}>{gustKt.toFixed(0)}</span>}
+                  {gustFactor != null && gustFactor >= 2 ? ', muy racheado' : gustFactor != null && gustFactor >= 1.6 ? ', racheado' : ''}
+                </span>
               )}
+            </span>
+          </div>
 
-              <DataCell label="Humedad" value={formatHumidity(reading.humidity)} />
-
-              {reading.precipitation != null && reading.precipitation > 0 && (
-                <DataCell label="Lluvia" value={formatPrecipitation(reading.precipitation)} color={precipitationColor(reading.precipitation)} />
-              )}
-
-              {reading.solarRadiation != null && (
-                <DataCell
-                  label="Radiación"
-                  value={formatSolarRadiation(reading.solarRadiation)}
-                  color={solarRadiationColor(reading.solarRadiation)}
-                  icon={solarRadiationIcon(reading.solarRadiation) as IconId | undefined}
-                />
-              )}
-
-              {reading.pressure != null && (
-                <DataCell label="Presión" value={formatPressure(reading.pressure)} color={pressureColor(reading.pressure)} />
-              )}
-
-              {reading.dewPoint != null && (
-                <DataCell label="P. rocío">
-                  <div className="flex items-baseline gap-1">
-                    <span className="font-semibold" style={{ color: dewPointSpreadColor(dpSpread) }}>
-                      {formatDewPoint(reading.dewPoint)}
-                    </span>
-                    {dpSpread != null && (
-                      <span className="text-[11px] text-slate-400" title="Spread T − Td">
-                        Δ{dpSpread.toFixed(1)}°
-                      </span>
-                    )}
-                  </div>
-                </DataCell>
-              )}
+          {isStale && (
+            <div className="gf-note gf-note--block gc-t-alto" style={{ display: 'block' }}>
+              Sin datos nuevos: último envío {ago}. Los valores son de entonces.
             </div>
-          </div>
-
-          {/* Altitude */}
-          <div className="text-[11px] text-slate-400 mt-1.5">
-            Alt: {station.altitude}m
-          </div>
-
-          {/* Mini wind rose for AEMET stations */}
-          {windRoseData && windRoseData.totalDays > 0 && (
-            <MiniWindRose data={windRoseData} />
           )}
 
-          {/* Timestamp */}
-          <div className="text-[11px] text-slate-400 mt-0.5">
-            {reading.timestamp && !isNaN(reading.timestamp.getTime())
-              ? `Actualizado ${formatDistanceToNow(reading.timestamp, { addSuffix: true, locale: es })}`
-              : 'Hora desconocida'}
-          </div>
+          {/* How the spots are worked out is for who asks for more */}
+          {!simpleMode && speedKt != null && isWindBlacklisted(station.id) && (
+            <div className="gf-notes gf-notes--now">
+              <Note icon="info">Su viento no entra en el cálculo de los spots.</Note>
+            </div>
+          )}
+
+          {speedKt != null && <WindLastHours stationId={station.id} />}
+
+          <FichaGroup title="Medido aquí">
+          <dl className="gf-data">
+            {reading.temperature != null && (
+              <Cell label="Temperatura">
+                {/* The colour of the station's centre on the map */}
+                <i className="gf-dot" style={{ background: temperatureColor(reading.temperature) }} aria-hidden="true" />
+                {dec(reading.temperature)} °C
+              </Cell>
+            )}
+            {reading.humidity != null && <Cell label="Humedad" value={`${reading.humidity.toFixed(0)} %`} />}
+            {reading.precipitation != null && reading.precipitation > 0 && (
+              <Cell label="Lluvia">
+                <i className="gf-dot" style={{ background: 'var(--g-s-flojo)' }} aria-hidden="true" />
+                {dec(reading.precipitation)} mm
+              </Cell>
+            )}
+            {!simpleMode && reading.solarRadiation != null && <Cell label="Radiación" value={`${reading.solarRadiation.toFixed(0)} W/m²`} />}
+            {!simpleMode && reading.pressure != null && <Cell label="Presión" value={`${reading.pressure.toFixed(0)} hPa`} />}
+            {!simpleMode && reading.dewPoint != null && (
+              <Cell label="Punto de rocío" title="La diferencia con la temperatura: cuanto menor, más cerca de la niebla">
+                {dec(reading.dewPoint)} °C
+                {dpSpread != null && <small> a {dec(dpSpread)}° del aire{dpSpread < FOG_NEAR_SPREAD ? ' · niebla cerca' : ''}</small>}
+              </Cell>
+            )}
+          </dl>
+          </FichaGroup>
         </>
       ) : (
-        <div className="text-xs text-slate-400">Sin datos disponibles</div>
+        <div className="gf-row gf-row--static">Sin datos disponibles</div>
       )}
 
-      {/* Add to chart button */}
-      <button
-        onClick={() => { toggleChartStation(station.id); if (!isInChart) setRequestedTab('chart'); }}
-        className={`mt-2 w-full py-1 px-2 text-[11px] font-semibold border rounded cursor-pointer transition-colors
-          ${isInChart
-            ? 'border-amber-600 bg-amber-900/30 text-amber-400 hover:bg-amber-900/50'
-            : 'border-slate-600 bg-slate-800 hover:bg-slate-700 text-slate-300'
-          }`}
-      >
-        {isInChart ? 'Quitar de gráfica' : 'Añadir a gráfica'}
-      </button>
-
-      {/* View history button — all sources have DB history */}
-      <button
-        onClick={() => { openHistory(station.id); setRequestedTab('history'); }}
-        className="mt-1 w-full py-1 px-2 text-[11px] font-semibold border rounded cursor-pointer transition-colors border-cyan-700 bg-slate-800 hover:bg-cyan-900/30 text-cyan-400"
-      >
-        Ver historial
-      </button>
-    </div>
-  );
-
-  // ── Mobile: bottom sheet ──────────────────────────────
-  if (isMobile) {
-    return (
-      <div className="fixed bottom-0 left-0 right-0 z-50 animate-slide-up">
-        <div ref={sheetRef} className="bg-slate-900 border-t border-slate-700 rounded-t-2xl shadow-2xl max-h-[60dvh] overflow-y-auto p-4"
-             style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
-          {/* Drag handle — swipe down to dismiss */}
-          <div className="flex justify-center mb-3" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
-            <div className="w-10 h-1 rounded-full bg-slate-600" />
-          </div>
-          {/* Close button */}
-          <button
-            onClick={() => selectStation(null)}
-            className="absolute top-3 right-3 p-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white min-w-[44px] min-h-[44px] flex items-center justify-center"
-            aria-label="Cerrar"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-          {popupContent}
-        </div>
-      </div>
-    );
-  }
-
-  // ── Desktop: MapLibre popup ───────────────────────────
-  return (
-    <Popup
-      longitude={station.lon}
-      latitude={station.lat}
-      anchor="bottom"
-      offset={[0, -40]}
-      closeOnClick={false}
-      onClose={() => selectStation(null)}
-      className="station-popup"
-      maxWidth="380px"
-    >
-      <PopupFit />
-      {popupContent}
-    </Popup>
+      {/* What has to be there and says nothing on a first read: at the foot, subtle. */}
+      {/* History is an advanced tab: in simple mode the panel would bounce back to the list. */}
+      {!simpleMode && (
+        <button
+          type="button"
+          className="gc-btn gf-action"
+          onClick={() => { openHistory(station.id); setRequestedTab('history'); }}
+        >
+          Ver historial
+        </button>
+      )}
+      <p className="gf-credit">
+        {sourceName}{!simpleMode && ` · a ${station.altitude} m`}
+        {reading && !isOld && ` · ${ago ?? 'hora desconocida'}`}
+      </p>
+    </Ficha>
   );
 });
-
-// ── Mini SVG wind rose for popups ────────────────────────────
-
-const ROSE_SIZE = 100;
-const ROSE_CENTER = ROSE_SIZE / 2;
-const ROSE_RADIUS = 38;
-
-const DIRS_16 = [
-  'N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
-  'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW',
-];
-
-const CARDINAL_LABELS = [
-  { label: 'N', angle: -90 },
-  { label: 'E', angle: 0 },
-  { label: 'S', angle: 90 },
-  { label: 'W', angle: 180 },
-] as const;
-
-function MiniWindRose({ data }: { data: WindRoseData }) {
-  const maxPct = Math.max(...data.points.map((p) => p.percentage), 1);
-
-  const polyPoints = data.points.map((p, i) => {
-    const angle = ((i * 360) / 16 - 90) * (Math.PI / 180);
-    const r = (p.percentage / maxPct) * ROSE_RADIUS;
-    const x = ROSE_CENTER + r * Math.cos(angle);
-    const y = ROSE_CENTER + r * Math.sin(angle);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(' ');
-
-  return (
-    <div className="mt-2 border-t border-slate-200 pt-1.5">
-      <div className="text-[11px] text-slate-400 mb-1 font-semibold">
-        Rosa Vientos (Jun-Sep, {data.totalDays} días)
-      </div>
-      <svg width={ROSE_SIZE} height={ROSE_SIZE} viewBox={`0 0 ${ROSE_SIZE} ${ROSE_SIZE}`} className="block mx-auto">
-        {[0.33, 0.66, 1].map((f) => (
-          <circle key={f} cx={ROSE_CENTER} cy={ROSE_CENTER} r={ROSE_RADIUS * f} fill="none" stroke="#e2e8f0" strokeWidth={0.5} />
-        ))}
-        {[0, 45, 90, 135].map((deg) => {
-          const rad = (deg - 90) * (Math.PI / 180);
-          return (
-            <line key={deg}
-              x1={ROSE_CENTER - ROSE_RADIUS * Math.cos(rad)} y1={ROSE_CENTER - ROSE_RADIUS * Math.sin(rad)}
-              x2={ROSE_CENTER + ROSE_RADIUS * Math.cos(rad)} y2={ROSE_CENTER + ROSE_RADIUS * Math.sin(rad)}
-              stroke="#e2e8f0" strokeWidth={0.3}
-            />
-          );
-        })}
-        <polygon points={polyPoints} fill="rgba(245, 158, 11, 0.3)" stroke="#f59e0b" strokeWidth={1.5} />
-        {CARDINAL_LABELS.map(({ label, angle }) => {
-          const rad = angle * (Math.PI / 180);
-          return (
-            <text key={label}
-              x={ROSE_CENTER + (ROSE_RADIUS + 8) * Math.cos(rad)}
-              y={ROSE_CENTER + (ROSE_RADIUS + 8) * Math.sin(rad)}
-              textAnchor="middle" dominantBaseline="central" fontSize={8} fontWeight={700} fill="#64748b"
-            >
-              {label}
-            </text>
-          );
-        })}
-        {data.points.length > 0 && (() => {
-          const dominant = data.points.reduce((a, b) => (b.percentage > a.percentage ? b : a));
-          const idx = DIRS_16.indexOf(dominant.direction);
-          if (idx < 0) return null;
-          const angle = ((idx * 360) / 16 - 90) * (Math.PI / 180);
-          const r = (dominant.percentage / maxPct) * ROSE_RADIUS;
-          return <circle cx={ROSE_CENTER + r * Math.cos(angle)} cy={ROSE_CENTER + r * Math.sin(angle)} r={2.5} fill="#f59e0b" stroke="white" strokeWidth={0.5} />;
-        })()}
-      </svg>
-    </div>
-  );
-}

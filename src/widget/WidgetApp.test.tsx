@@ -21,7 +21,7 @@ describe('widget spot card', () => {
     // It read fields that do not exist and printed "—" for every spot.
     render(<SpotCard spot={cesantes} score={score({})} />);
     expect(screen.getByText('13 kt')).toBeTruthy();       // the calibrated figure, as in the popup
-    expect(screen.getByText('Buen día')).toBeTruthy();
+    expect(screen.getByText('Bueno')).toBeTruthy();
     expect(screen.getByText('SW')).toBeTruthy();
     expect(screen.getByText('15 kt')).toBeTruthy();       // gust
   });

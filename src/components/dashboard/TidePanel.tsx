@@ -1,5 +1,5 @@
 /**
- * TidePanel — Compact tide predictions for Rías Baixas.
+ * TidePanel: tide predictions for Rías Baixas, in the Condiciones column.
  *
  * Shows today + tomorrow high/low tides from IHM API.
  * Includes a mini visual tide curve and next tide indicator.
@@ -9,11 +9,11 @@
 import { memo, useState, useMemo, useCallback } from 'react';
 import { fetchTides48h, RIAS_TIDE_STATIONS, DEFAULT_TIDE_STATION } from '../../api/tideClient';
 import type { TidePoint, TideStation } from '../../api/tideClient';
-import { Anchor, ChevronDown, ChevronUp } from 'lucide-react';
 import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 import { describeTideStrength, peakAmplitude } from '../../services/tideAlertService';
 import { useMeteoTide, useGaugeLevel } from '../../hooks/useMeteoTide';
 import { WeatherIcon } from '../icons/WeatherIcons';
+import { formatMeteoTide } from '../../services/meteoTideService';
 
 interface TideData {
   /** The IHM was failing and this is the last table it gave for the day. */
@@ -29,6 +29,21 @@ interface TideData {
 }
 
 const REFRESH_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+const PORT_KEY = 'meteomap-tide-port';
+
+/** The port chosen last time: it used to go back to Vigo on every opening. */
+function loadPort(): TideStation {
+  try {
+    const id = localStorage.getItem(PORT_KEY);
+    return RIAS_TIDE_STATIONS.find((s) => s.id === id) ?? DEFAULT_TIDE_STATION;
+  } catch {
+    return DEFAULT_TIDE_STATION;
+  }
+}
+
+function savePort(s: TideStation): void {
+  try { localStorage.setItem(PORT_KEY, s.id); } catch { /* private mode: it just will not be remembered */ }
+}
 
 /** Safely parse "HH:MM" → [hours, minutes]. Returns null if malformed. */
 function parseTimeHHMM(time: string): [number, number] | null {
@@ -42,7 +57,7 @@ export const TidePanel = memo(function TidePanel() {
   const [data, setData] = useState<TideData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [station, setStation] = useState<TideStation>(DEFAULT_TIDE_STATION);
+  const [station, setStation] = useState<TideStation>(loadPort);
   const [expanded, setExpanded] = useState(false);
   const meteoTide = useMeteoTide(station.id);
   const gaugeLevel = useGaugeLevel(station.id);
@@ -166,12 +181,6 @@ export const TidePanel = memo(function TidePanel() {
     () => (data ? describeTideStrength(peakAmplitude(data.today)) : null),
     [data],
   );
-  const strengthTone =
-    tideStrength?.category === 'extremas'
-      ? { text: 'text-amber-300', chip: 'bg-amber-500/20 text-amber-300', bar: 'linear-gradient(90deg, #f59e0b, #fbbf24)' }
-      : tideStrength?.category === 'vivas'
-        ? { text: 'text-cyan-300', chip: 'bg-cyan-500/20 text-cyan-300', bar: 'linear-gradient(90deg, #06b6d4, #22d3ee)' }
-        : { text: 'text-slate-300', chip: 'bg-slate-600/30 text-slate-300', bar: 'linear-gradient(90deg, #475569, #64748b)' };
 
   // Full semi-diurnal cycle for the visual curve (at least 4 points to show the complete wave):
   // When a day only has 3 events (because one shifted past midnight to tomorrow),
@@ -230,12 +239,12 @@ export const TidePanel = memo(function TidePanel() {
 
   if (loading && !data) {
     return (
-      <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 p-2.5">
-        <div className="flex items-center gap-2">
-          <Anchor className="w-3.5 h-3.5 text-cyan-500" />
-          <span className="text-[11px] font-bold text-slate-200">Mareas</span>
-          <span className="text-[11px] text-slate-500 ml-auto">Cargando...</span>
-        </div>
+      <div className="gc-condfold">
+        <WeatherIcon id="anchor" size={18} />
+        <span className="gc-condfold-text">
+          <b>Mareas</b>
+          <span>Cargando...</span>
+        </span>
       </div>
     );
   }
@@ -249,190 +258,120 @@ export const TidePanel = memo(function TidePanel() {
     // page is reloaded, so the text must not promise a retry.
     const ageMin = gaugeLevel ? Math.max(0, Math.round((Date.now() - gaugeLevel.at.getTime()) / 60_000)) : 0;
     return (
-      <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 p-2.5 space-y-1.5">
-        <div className="flex items-center gap-2">
-          <Anchor className="w-3.5 h-3.5 text-cyan-500" />
-          <span className="text-[11px] font-bold text-slate-200">Mareas</span>
-          <span className="text-[11px] text-slate-400 ml-auto">Tabla de mareas no disponible</span>
+      <>
+        <div className="gc-condfold">
+          <WeatherIcon id="anchor" size={18} />
+          <span className="gc-condfold-text">
+            <b>Mareas</b>
+            <span>Tabla de mareas no disponible</span>
+          </span>
         </div>
-        <p className="text-[10px] text-slate-500 leading-snug">
-          Ni el Instituto Hidrográfico ni MeteoGalicia responden ahora mismo. Se vuelve a consultar al recargar la página.
-        </p>
-        {gaugeLevel && (
-          <div className="text-[11px] text-slate-300 bg-slate-900/60 rounded p-1.5 border border-slate-700/30">
-            <span>Nivel medido ahora ({gaugeLevel.gaugeName}): </span>
-            <span className="font-mono font-bold text-cyan-300">{gaugeLevel.observedM.toFixed(2)} m</span>
-            <span className="text-slate-500"> · {ageMin < 60 ? `hace ${ageMin} min` : `hace ${Math.round(ageMin / 60)} h`}</span>
-            <span className="block text-[10px] text-slate-500 mt-0.5">Sin la tabla no se puede calcular la resaca.</span>
-          </div>
-        )}
-      </div>
+        <div className="gc-condfold-body">
+          <p className="gc-tide-note" style={{ marginTop: 0 }}>
+            Ni el Instituto Hidrográfico ni MeteoGalicia responden ahora mismo. Se vuelve a consultar al recargar la página.
+          </p>
+          {gaugeLevel && (
+            <>
+              <span className="gc-tide-sub">Nivel medido ahora ({gaugeLevel.gaugeName})</span>
+              <div className="gc-tide-row">
+                <b>{gaugeLevel.observedM.toFixed(2).replace('.', ',')} m</b>
+                <span>{ageMin < 60 ? `hace ${ageMin} min` : `hace ${Math.round(ageMin / 60)} h`}</span>
+              </div>
+              <p className="gc-tide-note">Sin la tabla no se puede calcular la resaca.</p>
+            </>
+          )}
+        </div>
+      </>
     );
   }
 
+  const hasTags = data.fromCache || data.meteoSixPort !== undefined
+    || (tideStrength && (tideStrength.category === 'vivas' || tideStrength.category === 'extremas'))
+    || (meteoTide && meteoTide.level !== 'none');
+
   return (
-    <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 transition-all">
+    <>
       {/* Header: station + next tide */}
-      <button
-        onClick={() => setExpanded((p) => !p)}
-        className="w-full flex items-center gap-2 px-3 py-2 text-left"
-      >
-        <Anchor className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold text-cyan-300">Mareas</span>
-            <span className="text-[11px] text-slate-500 truncate">{data.station.name}</span>
-            {data.fromCache && (
-              <span
-                className="text-[10px] text-amber-300/80 flex-shrink-0"
-                title="El IHM no responde ahora: es la última tabla descargada para hoy, y una tabla de mareas no cambia."
-              >
-                tabla guardada
-              </span>
-            )}
-            {data.meteoSixPort !== undefined && (
-              <span
-                className="text-[10px] text-amber-300/80 flex-shrink-0"
-                title={`El IHM no responde ahora: horas y alturas de la tabla de MeteoGalicia${data.meteoSixPort ? ` (puerto de ${data.meteoSixPort})` : ''}.`}
-              >
-                tabla MeteoGalicia{data.meteoSixPort ? ` · ${data.meteoSixPort}` : ''}
-              </span>
-            )}
-            {tideStrength && (tideStrength.category === 'vivas' || tideStrength.category === 'extremas') && (
-              <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0 ${strengthTone.chip}`}>
-                {tideStrength.label}
-              </span>
-            )}
-            {meteoTide && meteoTide.level !== 'none' && (
-              <span
-                className={`text-[10px] px-1.5 py-0.5 rounded font-semibold flex-shrink-0 flex items-center gap-1 ${
-                  meteoTide.level === 'high'
-                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                    : 'bg-cyan-500/20 text-cyan-300'
-                }`}
-                title={`Marea meteorológica medida en mareógrafo: ${meteoTide.residualM > 0 ? '+' : ''}${Math.round(meteoTide.residualM * 100)} cm sobre la tabla astronómica`}
-              >
-                <WeatherIcon id="waves" size={10} className="shrink-0" />
-                {meteoTide.residualM > 0 ? 'Resaca' : 'Vaciado'} {meteoTide.residualM > 0 ? '+' : ''}{Math.round(meteoTide.residualM * 100)}cm
-              </span>
-            )}
-          </div>
+      <button type="button" className="gc-condfold" aria-expanded={expanded} onClick={() => setExpanded((p) => !p)}>
+        <WeatherIcon id="anchor" size={18} />
+        <span className="gc-condfold-text">
+          <b>Mareas</b>
+          <span>{data.station.name}</span>
           {nextTide && (
-            <p className="text-[11px] text-slate-400 truncate mt-0.5">
-              Próx: {nextTide.type === 'high' ? '▲ Pleamar' : '▼ Bajamar'} {nextTide.time} — {nextTide.height.toFixed(1)}m
-              {tideState && (
-                <span className="ml-1.5 text-cyan-500">
-                  {tideState.rising ? '↗ Subiendo' : '↘ Bajando'}
+            <span>
+              Próxima: {nextTide.type === 'high' ? 'Pleamar' : 'Bajamar'} {nextTide.time}, {nextTide.height.toFixed(1).replace('.', ',')} m
+              {tideState && (tideState.rising ? ', subiendo' : ', bajando')}
+            </span>
+          )}
+          {hasTags && (
+            <span className="gc-tide-tags">
+              {data.fromCache && (
+                <span
+                  className="gc-tide-tag"
+                  title="El IHM no responde ahora: es la última tabla descargada para hoy, y una tabla de mareas no cambia."
+                >
+                  tabla guardada
                 </span>
               )}
-            </p>
+              {data.meteoSixPort !== undefined && (
+                <span
+                  className="gc-tide-tag"
+                  title={`El IHM no responde ahora: horas y alturas de la tabla de MeteoGalicia${data.meteoSixPort ? ` (puerto de ${data.meteoSixPort})` : ''}.`}
+                >
+                  tabla MeteoGalicia{data.meteoSixPort ? ` · ${data.meteoSixPort}` : ''}
+                </span>
+              )}
+              {tideStrength && (tideStrength.category === 'vivas' || tideStrength.category === 'extremas') && (
+                <span className="gc-tide-tag">{tideStrength.label}</span>
+              )}
+              {meteoTide && meteoTide.level !== 'none' && (
+                <span
+                  className="gc-tide-tag"
+                  title={`Marea meteorológica medida en mareógrafo: ${meteoTide.residualM > 0 ? '+' : ''}${Math.round(meteoTide.residualM * 100)} cm sobre la tabla astronómica`}
+                >
+                  {formatMeteoTide(meteoTide)}
+                </span>
+              )}
+            </span>
           )}
-        </div>
-        {expanded
-          ? <ChevronUp className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
-          : <ChevronDown className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
-        }
+        </span>
+        <svg className="gc-condline-more" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
       </button>
 
       {/* Expanded: full tide table + tomorrow + station picker */}
       {expanded && (
-        <div className="px-3 pb-2.5 space-y-2 border-t border-slate-700/50">
-          {/* Casual tide-strength summary — coeficiente translated to plain words */}
+        <div className="gc-condfold-body">
+          {/* Casual tide-strength summary: the coefficient in plain words. It is our own calculation. */}
           {tideStrength && (
-            <div className="pt-2">
-              <div className="flex items-baseline gap-2">
-                <span className={`text-[12px] font-bold ${strengthTone.text}`}>{tideStrength.label}</span>
-                {tideStrength.isSeasonalPeak && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-semibold">
-                    de las más fuertes del año
-                  </span>
-                )}
-                <span className="text-[10px] text-slate-500 ml-auto font-mono">coef {tideStrength.coef}</span>
-              </div>
-              <p className="text-[11px] text-slate-400 mt-0.5">{tideStrength.casual}</p>
-              <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden mt-1.5">
-                <div
-                  className="h-full rounded-full transition-all"
-                  style={{ width: `${Math.round(tideStrength.strength * 100)}%`, background: strengthTone.bar }}
-                />
-              </div>
+            <div>
+              <span className="gc-tide-sub" style={{ marginTop: 0 }}>{tideStrength.label}</span>
+              {tideStrength.isSeasonalPeak && <p className="gc-tide-note">De las más fuertes del año.</p>}
+              <p className="gc-tide-note">{tideStrength.casual}. Coeficiente {tideStrength.coef}, calculado por nosotros.</p>
+              <div className="gc-tide-bar"><i style={{ width: `${Math.round(tideStrength.strength * 100)}%` }} /></div>
             </div>
           )}
 
           {/* Tide progress bar */}
           {tideState && (
-            <div className="pt-2">
-              <div className="flex items-center gap-1 mb-1">
-                <span className="text-[11px] text-slate-500">
-                  {tideState.rising ? 'Subiendo (→ pleamar)' : 'Bajando (→ bajamar)'}
-                </span>
-                <span className="text-[11px] text-cyan-400 ml-auto font-mono">
-                  {Math.round(tideState.progress * 100)}%
-                </span>
-              </div>
-              <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all"
-                  style={{
-                    width: `${Math.min(100, Math.max(0, tideState.progress * 100))}%`,
-                    background: tideState.rising
-                      ? 'linear-gradient(90deg, #06b6d4, #22d3ee)'
-                      : 'linear-gradient(90deg, #22d3ee, #0891b2)',
-                  }}
-                />
-              </div>
+            <div>
+              <span className="gc-tide-sub">{tideState.rising ? 'Subiendo, hacia la pleamar' : 'Bajando, hacia la bajamar'}: {Math.round(tideState.progress * 100)} %</span>
+              <div className="gc-tide-bar"><i style={{ width: `${Math.min(100, Math.max(0, tideState.progress * 100))}%` }} /></div>
             </div>
           )}
 
           {/* Live tide gauge (REDMAR) vs Astronomical Table */}
           {meteoTide && (
-            <div className="pt-2 border-t border-slate-700/40">
-              <div className="flex items-center justify-between text-[11px] mb-1">
-                <div className="flex items-center gap-1.5">
-                  <WeatherIcon id="waves" size={12} className="text-cyan-400" />
-                  <span className="font-semibold text-slate-300">
-                    Nivel real mareógrafo {meteoTide.gaugeName ? `(${meteoTide.gaugeName})` : ''}
-                  </span>
-                </div>
-                <span
-                  className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-semibold ${
-                    meteoTide.level === 'high'
-                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                      : meteoTide.level === 'notable'
-                        ? 'bg-cyan-500/20 text-cyan-300'
-                        : 'bg-slate-800 text-slate-400 border border-slate-700/50'
-                  }`}
-                >
-                  {meteoTide.residualM >= 0.05 ? '+' : ''}{Math.round(meteoTide.residualM * 100)} cm
-                  {meteoTide.level === 'high' ? ' · Resaca alta' : meteoTide.level === 'notable' ? ' · Resaca' : ' · Normal'}
-                </span>
-              </div>
-              <div className="grid grid-cols-3 gap-1.5 text-center text-[10px] bg-slate-900/60 rounded p-1.5 border border-slate-700/30">
-                <div>
-                  <span className="text-slate-500 block">Medido</span>
-                  <span className="font-mono font-bold text-cyan-300">{meteoTide.observedM.toFixed(2)} m</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block">Astronómico</span>
-                  <span className="font-mono text-slate-300">{meteoTide.astronomicalM.toFixed(2)} m</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block">Diferencia</span>
-                  <span
-                    className={`font-mono font-bold ${
-                      Math.abs(meteoTide.residualM) >= 0.25
-                        ? 'text-amber-400'
-                        : Math.abs(meteoTide.residualM) >= 0.15
-                          ? 'text-cyan-300'
-                          : 'text-slate-400'
-                    }`}
-                  >
-                    {meteoTide.residualM > 0 ? '+' : ''}{Math.round(meteoTide.residualM * 100)} cm
-                  </span>
-                </div>
+            <div>
+              <span className="gc-tide-sub">Nivel real mareógrafo{meteoTide.gaugeName ? ` (${meteoTide.gaugeName})` : ''}</span>
+              <div className="gc-tide-gauge">
+                <div>Medido <b>{meteoTide.observedM.toFixed(2).replace('.', ',')} m</b></div>
+                <div>Tabla <b>{meteoTide.astronomicalM.toFixed(2).replace('.', ',')} m</b></div>
+                <div>Diferencia <b>{meteoTide.residualM > 0 ? '+' : ''}{Math.round(meteoTide.residualM * 100)} cm</b></div>
               </div>
               {meteoTide.level !== 'none' && (
-                <p className="text-[10px] text-slate-400 mt-1 leading-snug">
+                <p className="gc-tide-note">
                   {meteoTide.residualM > 0
                     ? `El nivel del agua se sitúa ${Math.round(meteoTide.residualM * 100)} cm por encima de la tabla astronómica por efecto de viento y presión.`
                     : `El nivel del agua se sitúa ${Math.round(Math.abs(meteoTide.residualM) * 100)} cm por debajo de la tabla astronómica.`}
@@ -441,7 +380,8 @@ export const TidePanel = memo(function TidePanel() {
             </div>
           )}
 
-          {/* Mini tide curve SVG — full semi-diurnal cycle */}
+          {/* Mini tide curve SVG: full semi-diurnal cycle */}
+          <span className="gc-tide-sub">Curva</span>
           <TideCurve points={curveCyclePoints} label="Hoy" />
 
           {/* Today's tide table */}
@@ -453,27 +393,23 @@ export const TidePanel = memo(function TidePanel() {
           )}
 
           {/* Station selector */}
-          <div className="pt-1.5 border-t border-slate-700/30">
-            <span className="text-[11px] text-slate-500 block mb-1">Puerto de referencia:</span>
-            <div className="flex flex-wrap gap-1">
-              {RIAS_TIDE_STATIONS.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => setStation(s)}
-                  className={`text-[11px] px-2 py-0.5 rounded transition-colors ${
-                    station.id === s.id
-                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
-                      : 'bg-slate-800 text-slate-500 hover:text-slate-300 border border-slate-700/50'
-                  }`}
-                >
-                  {s.name}
-                </button>
-              ))}
-            </div>
+          <span className="gc-tide-sub">Puerto de referencia</span>
+          <div className="gc-tide-ports">
+            {RIAS_TIDE_STATIONS.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                className="gc-tide-chip"
+                aria-pressed={station.id === s.id}
+                onClick={() => { setStation(s); savePort(s); }}
+              >
+                {s.name}
+              </button>
+            ))}
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 });
 
@@ -482,20 +418,13 @@ export const TidePanel = memo(function TidePanel() {
 function TideTable({ points, label }: { points: TidePoint[]; label: string }) {
   return (
     <div>
-      <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">{label}</span>
-      <div className="space-y-0.5 mt-0.5">
+      <span className="gc-tide-sub">{label}</span>
+      <div className="gc-tide-rows">
         {points.map((p, i) => (
-          <div key={i} className="flex items-center gap-2 text-[11px]">
-            <span className={`w-4 text-center ${p.type === 'high' ? 'text-cyan-400' : 'text-blue-400'}`}>
-              {p.type === 'high' ? '▲' : '▼'}
-            </span>
-            <span className="text-slate-400 font-mono w-12">{p.time}</span>
-            <span className={`font-bold ${p.type === 'high' ? 'text-cyan-300' : 'text-blue-300'}`}>
-              {p.height.toFixed(2)}m
-            </span>
-            <span className="text-slate-600 text-[11px]">
-              {p.type === 'high' ? 'Pleamar' : 'Bajamar'}
-            </span>
+          <div key={i} className="gc-tide-row">
+            <b>{p.time}</b>
+            <span>{p.height.toFixed(2).replace('.', ',')} m</span>
+            <span>{p.type === 'high' ? 'Pleamar' : 'Bajamar'}</span>
           </div>
         ))}
       </div>
@@ -504,13 +433,12 @@ function TideTable({ points, label }: { points: TidePoint[]; label: string }) {
 }
 
 function TideCurve({ points, label }: { points: TidePoint[]; label: string }) {
-  if (points.length < 2) return null;
-
   const W = 200;
-  const H = 32;
+  const H = 44;
   const PAD = 4;
 
-  // Reconstruct monotonic timestamps (using epochMs when present, with rollover fallback)
+  // Reconstruct monotonic timestamps (using epochMs when present, with rollover fallback).
+  // Before any return: a hook after one broke when the points went from under 2 to 2 or more.
   const parsed = useMemo(() => {
     let prevMs = 0;
     const now = new Date();
@@ -600,26 +528,12 @@ function TideCurve({ points, label }: { points: TidePoint[]; label: string }) {
   }
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-8" aria-label={`Curva de mareas ${label}`}>
-      {/* Gradient fill under curve */}
-      <defs>
-        <linearGradient id="tideFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.3" />
-          <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.02" />
-        </linearGradient>
-      </defs>
-
-      {/* Fill area */}
-      <polygon
-        points={`${curvePoints[0].split(',')[0]},${H} ${curvePoints.join(' ')} ${curvePoints[curvePoints.length - 1].split(',')[0]},${H}`}
-        fill="url(#tideFill)"
-      />
-
-      {/* Curve line */}
+    <svg viewBox={`0 0 ${W} ${H}`} className="gc-tide-curve" role="img" aria-label={`Curva de mareas ${label}`}>
+      {/* Curve line, in ink: the state colour is only for now */}
       <polyline
         points={curvePoints.join(' ')}
         fill="none"
-        stroke="#22d3ee"
+        stroke="currentColor"
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -630,24 +544,14 @@ function TideCurve({ points, label }: { points: TidePoint[]; label: string }) {
         const t = (p.ms - minMs) / timeSpan;
         const x = PAD + t * (W - 2 * PAD);
         const y = H - PAD - ((p.height - minH) / range) * (H - 2 * PAD);
-        return (
-          <circle
-            key={i}
-            cx={x}
-            cy={y}
-            r="2.5"
-            fill={p.type === 'high' ? '#22d3ee' : '#3b82f6'}
-            stroke="#0f172a"
-            strokeWidth="1"
-          />
-        );
+        return <circle key={i} cx={x} cy={y} r="2.5" fill="currentColor" />;
       })}
 
       {/* Current time marker */}
       {nowX !== null && nowY !== null && (
         <>
-          <line x1={nowX} y1={0} x2={nowX} y2={H} stroke="#f59e0b" strokeWidth="0.5" strokeDasharray="2,2" opacity="0.5" />
-          <circle cx={nowX} cy={nowY} r="3" fill="#f59e0b" stroke="#0f172a" strokeWidth="1" />
+          <line x1={nowX} y1={0} x2={nowX} y2={H} stroke="var(--g-l-alto)" strokeWidth="0.75" strokeDasharray="2,2" />
+          <circle cx={nowX} cy={nowY} r="3" fill="var(--g-l-alto)" />
         </>
       )}
     </svg>

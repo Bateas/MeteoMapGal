@@ -4,7 +4,7 @@ import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import { fetchRainViewerFrames, buildTileUrl, type RainViewerFrame } from '../../api/rainviewerClient';
 import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 /**
- * Radar overlay — RainViewer tiles (past 2h + nowcast 30min).
+ * Radar overlay — RainViewer tiles, the past 2 h. The free tier has no forecast frames.
  *
  * Uses native MapLibre raster tiles for smooth pan/zoom performance.
  * Shows most recent frame by default. Animation: play/pause + frame slider.
@@ -32,13 +32,11 @@ export const RadarOverlay = memo(function RadarOverlay() {
   const [rvHost, setRvHost] = useState('');
   const [frames, setFrames] = useState<RainViewerFrame[]>([]);
   const [frameIndex, setFrameIndex] = useState(0);
-  /** Index of the first forecast frame (= past.length). The free tier sends none today. */
-  const [nowcastFrom, setNowcastFrom] = useState(Infinity);
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(false);
   const [radarError, setRadarError] = useState<string | null>(null);
   const failCountRef = useRef(0);
-  const animTimerRef = useRef<ReturnType<typeof setInterval>>();
+  const animTimerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
   // ── RainViewer fetch ──
   // `manual = true` → user-initiated retry. Surface error after 1 fail (not 3)
@@ -57,9 +55,7 @@ export const RadarOverlay = memo(function RadarOverlay() {
 
       if (data && data.past.length > 0 && isFresh) {
         setRvHost(data.host);
-        const allFrames = [...data.past, ...data.nowcast];
-        setFrames(allFrames);
-        setNowcastFrom(data.past.length);
+        setFrames(data.past);
         setFrameIndex(data.past.length - 1);
         setRadarError(null);
         failCountRef.current = 0;
@@ -72,7 +68,7 @@ export const RadarOverlay = memo(function RadarOverlay() {
         if (failCountRef.current >= threshold) {
           setRadarError(
             data && data.past.length > 0
-              ? 'Radar desactualizado — RainViewer no responde'
+              ? 'Radar desactualizado: RainViewer no responde'
               : 'Radar no disponible',
           );
         }
@@ -123,12 +119,12 @@ export const RadarOverlay = memo(function RadarOverlay() {
   const currentFrame = frames[frameIndex];
   const currentTileUrl = currentFrame ? buildTileUrl(rvHost, currentFrame.path) : null;
 
-  // Show a yellow "OLD" tag if the latest frame is suspiciously old. Visible
-  // even when no error has fired yet — gives the user a heads-up that what
-  // they're seeing may not reflect current weather.
-  const newestFrame = frames.length > 0 ? frames[Math.min(frameIndex + 1, frames.length) - 1] : null;
+  // Says how old the NEWEST frame is when it is suspiciously old, before any error fires. Not the frame on
+  // screen: dragging the slider back to a frame from two hours ago is not RainViewer being down.
+  const newestFrame = frames.length > 0 ? frames[frames.length - 1] : null;
   const newestAgeMin = newestFrame ? Math.round((Date.now() - newestFrame.time * 1000) / 60_000) : 0;
   const showStaleHint = newestFrame != null && newestAgeMin > 20;
+  const frameTime = currentFrame ? formatFrameTime(currentFrame.time) : '--:--';
 
   return (
     <>
@@ -137,86 +133,56 @@ export const RadarOverlay = memo(function RadarOverlay() {
         <RainViewerLayer tileUrl={currentTileUrl} opacity={opacity} />
       )}
 
-      {/* ── Controls (bottom-center over map) ── */}
+      {/* ── Player ── */}
       {frames.length > 0 && (
-        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-30 pointer-events-auto">
-          <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700/50 rounded-xl px-3 py-2 flex items-center gap-2 shadow-lg">
-            {/* Play/Pause */}
-            <button
-              onClick={() => setPlaying(!playing)}
-              className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
-              aria-label={playing ? 'Pausar animación' : 'Reproducir animación'}
-            >
-              {playing ? (
-                <svg width="12" height="12" viewBox="0 0 12 12"><rect x="2" y="1" width="3" height="10" fill="currentColor" /><rect x="7" y="1" width="3" height="10" fill="currentColor" /></svg>
-              ) : (
-                <svg width="12" height="12" viewBox="0 0 12 12"><polygon points="2,1 11,6 2,11" fill="currentColor" /></svg>
-              )}
-            </button>
-
-            {/* Frame slider */}
-            <input
-              type="range"
-              min={0}
-              max={frames.length - 1}
-              value={frameIndex}
-              onChange={(e) => { setFrameIndex(Number(e.target.value)); setPlaying(false); }}
-              className="w-32 h-1 accent-sky-500 cursor-pointer"
-              aria-label="Fotograma radar"
-            />
-
-            {/* Timestamp */}
-            <span className="text-[11px] text-slate-400 font-mono w-12 text-center">
-              {currentFrame ? formatFrameTime(currentFrame.time) : '--:--'}
+        <div className="g-theme gc-popover gc-mapbar gc-mapbar--player" role="group" aria-label="Radar: últimas 2 horas">
+          <button
+            type="button"
+            onClick={() => setPlaying(!playing)}
+            className="gc-btn gc-btn--plain gc-btn--icon"
+            aria-label={playing ? 'Pausar animación' : 'Reproducir animación'}
+          >
+            {playing ? (
+              <svg width="14" height="14" viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1" width="3" height="10" fill="currentColor" /><rect x="7" y="1" width="3" height="10" fill="currentColor" /></svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 12 12" aria-hidden="true"><polygon points="2,1 11,6 2,11" fill="currentColor" /></svg>
+            )}
+          </button>
+          <input
+            type="range"
+            min={0}
+            max={frames.length - 1}
+            value={frameIndex}
+            onChange={(e) => { setFrameIndex(Number(e.target.value)); setPlaying(false); }}
+            aria-label="Fotograma del radar"
+            aria-valuetext={frameTime}
+          />
+          <span className="gc-num">{frameTime}</span>
+          {showStaleHint && (
+            <span className="gc-note-strong" title={`El último fotograma es de hace ${newestAgeMin} min: RainViewer puede estar caído.`}>
+              hace {newestAgeMin} min
             </span>
-
-            {/* Forecast frames only. It used to tag the last 3 frames, which since the free tier has no
-                nowcast are observations: «PREV» sat on the 20:30 radar (6-oct). */}
-            {currentFrame && frameIndex >= nowcastFrom && (
-              <span className="text-[11px] text-amber-400 font-semibold">PREV</span>
-            )}
-
-            {/* Staleness hint — visible when the latest cached frame is >20 min old */}
-            {showStaleHint && (
-              <span
-                className="text-[11px] text-amber-400 font-semibold"
-                title={`Última frame disponible hace ${newestAgeMin} min — RainViewer puede estar caído.`}
-              >
-                {newestAgeMin}min
-              </span>
-            )}
-          </div>
+          )}
         </div>
       )}
 
-      {/* Loading (first load only) */}
+      {/* First load or a retry in flight */}
       {loading && frames.length === 0 && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
-          <div className="bg-slate-800/80 text-slate-300 text-xs px-3 py-1.5 rounded-full border border-slate-600/50">
-            Cargando radar…
-          </div>
+        <div className="g-theme gc-hint gc-mapbar" role="status">
+          {failCountRef.current > 0 ? 'Reintentando radar…' : 'Cargando radar…'}
         </div>
       )}
       {radarError && frames.length === 0 && !loading && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-10 pointer-events-auto">
-          <div className="bg-amber-900/60 text-amber-300 text-xs px-3 py-1.5 rounded-full border border-amber-600/50 flex items-center gap-2">
-            <span>{radarError}</span>
-            <button
-              onClick={() => { setRadarError(null); failCountRef.current = 0; loadRainViewer(true); }}
-              className="px-2 py-0.5 bg-amber-700/40 hover:bg-amber-600/40 rounded text-[10px] font-bold"
-              disabled={loading}
-            >
-              Reintentar
-            </button>
-          </div>
-        </div>
-      )}
-      {/* Loading hint while a manual retry is in flight (frames empty + error cleared) */}
-      {loading && frames.length === 0 && radarError === null && failCountRef.current > 0 && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
-          <div className="bg-slate-800/80 text-slate-300 text-xs px-3 py-1.5 rounded-full border border-slate-600/50">
-            Reintentando radar…
-          </div>
+        <div className="g-theme gc-hint gc-mapbar" role="status">
+          <span>{radarError}</span>
+          <button
+            type="button"
+            onClick={() => { setRadarError(null); failCountRef.current = 0; loadRainViewer(true); }}
+            className="gc-linkbtn"
+            disabled={loading}
+          >
+            Reintentar
+          </button>
         </div>
       )}
     </>

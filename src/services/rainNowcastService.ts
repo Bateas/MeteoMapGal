@@ -1,7 +1,7 @@
 /**
  * Rain nowcast — "¿llueve ahora? / ¿lluvia próxima?" per spot.
  *
- * Built ONLY on data the user trusts (S136+3+6 reliability audit):
+ * Built ONLY on data that proved reliable:
  *  - "Raining NOW" → nearby station precipitation (real observation, high
  *    confidence). NOT the webcam-AI precipitation flag (unreliable for this).
  *  - "Rain SOON" → the spot's own forecast (medium confidence, short horizon).
@@ -112,11 +112,11 @@ export function assessRainNowcast(opts: {
     anyStationData = true;
     if (r.precipitation >= RAIN_THRESHOLD_MM) {
       wetStationCount++;
-      if (distKm < nearestWetKm) { nearestWetKm = distKm; nearestWetMm = r.precipitation; nearestWetName = s.name; }
+      if (distKm < nearestWetKm) { nearestWetKm = distKm; nearestWetMm = r.precipitation; nearestWetName = spokenStationName(s.id, s.name, distKm); }
     }
     if (r.precipitation > wettestMm) {
       wettestMm = r.precipitation;
-      wettestName = s.name;
+      wettestName = spokenStationName(s.id, s.name, distKm);
     }
   }
 
@@ -151,7 +151,7 @@ export function assessRainNowcast(opts: {
     const s = byId.get(g.id);
     if (!s) continue;
     const km = fastDistanceKm(lat, lon, s.lat, s.lon);
-    if (km <= radiusKm && (!layerWet || km < layerWet.km)) layerWet = { name: g.name, mm: g.mm, km };
+    if (km <= radiusKm && (!layerWet || km < layerWet.km)) layerWet = { name: spokenStationName(s.id, g.name, km), mm: g.mm, km };
   }
   const layerRainingHere = layerWet != null || measured?.arrivalMin === 0;
   const rainingNow = layerRainingHere
@@ -214,6 +214,27 @@ export function assessRainNowcast(opts: {
 }
 
 // ── Helpers ──────────────────────────────────────────────
+
+/**
+ * The name a rain sentence gives a station. A private station often has no name of its own, only
+ * its network code («Netatmo 713c00», «IVIGO123», «ESGAL3600000036940A»): that code tells a
+ * reader nothing and read as a fault («Lloviendo (Netatmo 713c00)», Patos, 11-nov). It is then
+ * said by what it is and how far it stands. A station with a real name keeps it.
+ */
+export function spokenStationName(id: string, name: string | null | undefined, km?: number | null): string {
+  const raw = (name ?? '').trim();
+  const tail = id.replace(/^[a-z]+_/, '');
+  // Only the private networks: an official station whose name is missing keeps what it has.
+  if (!/^(nt|wu|mc)_/.test(id)) return raw;
+  const isCode = raw === ''
+    || raw.toLowerCase() === id.toLowerCase()
+    || raw.toLowerCase() === tail.toLowerCase()
+    || /^netatmo\s+[0-9a-f:]{4,}$/i.test(raw)
+    || /^I[A-Z]{2,}[0-9]+$/.test(raw)
+    || /^ES[A-Z]{3}[0-9A-Z]{10,}$/.test(raw);
+  if (!isCode) return raw;
+  return km != null && Number.isFinite(km) && km >= 1 ? `estación particular a ${Math.round(km)} km` : 'estación particular cercana';
+}
 
 /** Coarse intensity label from precipitation (mm in the reading interval). */
 function intensityLabelFor(mm: number): string {

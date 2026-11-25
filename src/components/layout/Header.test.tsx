@@ -5,9 +5,10 @@
  * Header touches 4 stores (weather, sector, thermal, ui)
  * plus forecast store. A wrong selector crashes the entire app.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, screen, act } from '@testing-library/react';
 import { Header } from './Header';
+import { useUIStore } from '../../store/uiStore';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { useThermalStore } from '../../store/thermalStore';
@@ -18,7 +19,6 @@ describe('Header', () => {
     fieldDrawerOpen: false,
     onToggleFieldDrawer: () => {},
     fieldAlertLevel: 'none' as const,
-    windFront: null,
   };
 
   beforeEach(() => {
@@ -71,14 +71,24 @@ describe('Header', () => {
     render(<Header {...defaultProps} />);
     expect(screen.getByRole('heading', { level: 1 })).toBeDefined();
   });
+});
 
-  it('renders with wind front info', () => {
-    render(
-      <Header
-        {...defaultProps}
-        windFront={{ active: true, etaMin: 15, directionLabel: 'NW', frontSpeedKt: 12 }}
-      />
-    );
-    expect(screen.getByRole('heading', { level: 1 })).toBeDefined();
+describe('Header sun times (review, 18-nov)', () => {
+  it('follow the day: the installed app stays open for days and they stayed on the first one', () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date(2026, 10, 18, 12, 0));
+      useUIStore.setState({ isMobile: false });
+      render(<Header onRefresh={() => {}} fieldDrawerOpen={false} onToggleFieldDrawer={() => {}} fieldAlertLevel="none" />);
+      const read = () => document.querySelector('.gc-meta span')?.textContent;
+      const first = read();
+      expect(first).toMatch(/\d{2}:\d{2} \/ \d{2}:\d{2}/);
+      // A month later, with the page still open: the next tick of the clock brings the new day
+      vi.setSystemTime(new Date(2026, 11, 18, 12, 0));
+      act(() => { vi.advanceTimersByTime(60_000); });
+      expect(read()).not.toBe(first);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

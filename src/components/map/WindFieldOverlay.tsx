@@ -1,9 +1,14 @@
+import { windTone, msToKnots, WIND_TONES_ON_DARK, WIND_TONES_ON_LIGHT, WIND_TONE_NAMES } from '../../services/windUtils';
+import { mapIsDark } from '../../hooks/useMapInk';
 import { useMemo, memo, useState, useEffect } from 'react';
+import { windFieldZoom } from './windFieldZoom';
+import { arrowSize, arrowOpacity } from './windArrowStyle';
 import { Source, Layer, useMap } from 'react-map-gl/maplibre';
 import type maplibregl from 'maplibre-gl';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import type { BuoyReading } from '../../api/buoyClient';
-import { BUOY_COORDS_MAP } from '../../api/buoyClient';
+import { BUOY_COORDS_MAP, buoyLandStationId } from '../../api/buoyClient';
+import { isLandStationCopy } from '../../services/buoyUtils';
 import { isWindBlacklisted } from '../../services/spotScoringEngine';
 import {
   clusterStations,
@@ -19,6 +24,8 @@ interface WindFieldOverlayProps {
   compact?: boolean;
   /** Current map zoom level — used to scale arrow offsets dynamically */
   zoomLevel?: number;
+  /** Simple mode: smaller and fainter, with their colour, so the spots lead. */
+  muted?: boolean;
 }
 
 /** Base offset distance in degrees at reference zoom 11 (~31px screen radius at lat 42°) */
@@ -108,27 +115,12 @@ function pushHexArrows(
   }
 }
 
-/**
- * Speed-based color palette for wind arrows — matches windSpeedColor() in windUtils.ts.
- * Each level gets a unique icon registered on the map.
- */
-export const SPEED_LEVELS = [
-  { id: 'wind-arrow-0', color: '#64748b', maxSpeed: 0.5 },  // slate — calm (<1 kt)
-  { id: 'wind-arrow-1', color: '#38bdf8', maxSpeed: 3.0 },  // sky-400 — flojo (1-6 kt, one blue)
-  { id: 'wind-arrow-2', color: '#22c55e', maxSpeed: 4.5 },  // green-500 — gentle (6-9 kt)
-  { id: 'wind-arrow-3', color: '#84cc16', maxSpeed: 6.5 },  // lime-500 — moderate (9-13 kt)
-  { id: 'wind-arrow-4', color: '#eab308', maxSpeed: 9.0 },  // yellow-500 — fresh (13-18 kt)
-  { id: 'wind-arrow-5', color: '#f97316', maxSpeed: 12 },   // orange-500 — strong (18-23 kt)
-  { id: 'wind-arrow-6', color: '#ef4444', maxSpeed: 15 },   // red-500 — gale (23-30 kt)
-  { id: 'wind-arrow-7', color: '#a855f7', maxSpeed: Infinity }, // violet — extreme (30+ kt)
-] as const;
+/** One icon per step of the map's scale (windTone), painted for the map drawn when the style loads. */
+export const SPEED_LEVELS = WIND_TONE_NAMES.map((_, step) => ({ id: `wind-arrow-${step}`, step }));
 
-/** Map wind speed (m/s) to a speed-level index 0-7 */
+/** Wind in m/s → its step of the scale. */
 export function speedToLevel(speed: number): number {
-  for (let i = 0; i < SPEED_LEVELS.length; i++) {
-    if (speed < SPEED_LEVELS[i].maxSpeed) return i;
-  }
-  return SPEED_LEVELS.length - 1;
+  return windTone(msToKnots(speed));
 }
 
 /**
@@ -168,6 +160,11 @@ function createArrowIcon(
     ctx.lineTo(cx - size * 0.26, size * 0.45); // left wing
     ctx.closePath();
     ctx.fill();
+    // The same shape stroked: at map size the dark edge was under a pixel and a light-wind arrow
+    // (pale blue) vanished over the blue of the rain layer and over the pale relief.
+    ctx.strokeStyle = 'rgba(8, 15, 30, 0.85)';
+    ctx.lineWidth = size * 0.07;
+    ctx.stroke();
 
     // Colored arrow on top (slightly smaller)
     ctx.fillStyle = arrowColor;
@@ -196,6 +193,8 @@ function createArrowIcon(
   });
 }
 
+const paintedTones = new WeakMap<maplibregl.Map, readonly string[]>();
+
 /**
  * Register all speed-level wind-arrow icons on the map.
  * Must be called once during map's onLoad callback.
@@ -204,13 +203,16 @@ export async function registerWindArrowIcons(
   map: maplibregl.Map,
   size = 48,
 ): Promise<void> {
+  // A change of base map or theme goes by style diff: the images survive and style.load still fires, so the ones
+  // already there have to be repainted when the tones change, or they keep the palette of the map before.
+  const tones = mapIsDark() ? WIND_TONES_ON_DARK : WIND_TONES_ON_LIGHT;
+  const repaint = paintedTones.get(map) !== tones;
+  paintedTones.set(map, tones);
   for (const level of SPEED_LEVELS) {
-    if (!map.hasImage(level.id)) {
-      const img = await createArrowIcon(size, level.color);
-      if (!map.hasImage(level.id)) {
-        map.addImage(level.id, img, { sdf: false });
-      }
-    }
+    if (map.hasImage(level.id) && !repaint) continue;
+    const img = await createArrowIcon(size, tones[level.step]);
+    if (map.hasImage(level.id)) map.updateImage(level.id, img);
+    else map.addImage(level.id, img, { sdf: false });
   }
 }
 
@@ -253,6 +255,7 @@ export function buildWindFieldGeoJSON(
   // so hourly stations like MeteoGalicia/AEMET/IPMA don't lose arrows after 30 min)
   const maxAgeMs = 90 * 60_000;
   const now = Date.now();
+  const alphaForAge = (ageMs: number) => (ageMs < 45 * 60_000 ? 1.0 : 0.65);
 
   for (const station of standaloneStations) {
     const reading = readings.get(station.id);
@@ -267,7 +270,6 @@ export function buildWindFieldGeoJSON(
     if (readingTime <= 0) continue;
     const ageMs = now - readingTime;
     if (ageMs > maxAgeMs) continue;
-    const freshnessAlpha = ageMs < 45 * 60_000 ? 1.0 : 0.65;
 
     pushHexArrows(
       features,
@@ -277,7 +279,7 @@ export function buildWindFieldGeoJSON(
       reading.windDirection ?? null,
       offsetScale,
       compact,
-      freshnessAlpha,
+      alphaForAge(ageMs),
     );
   }
 
@@ -285,8 +287,16 @@ export function buildWindFieldGeoJSON(
   if (buoys) {
     for (const buoy of buoys) {
       if (buoy.windSpeed == null || !Number.isFinite(buoy.windSpeed)) continue;
+      // The same anemometer as a land station already on the map (Ons, Cabo Udra): twelve arrows for one reading.
+      if (isLandStationCopy(buoy.stationId)) continue;
+      // A land station set aside for bad wind must not come back through the buoy list.
+      const landId = buoyLandStationId(buoy.stationId);
+      if (landId && isWindBlacklisted(landId)) continue;
       const coords = BUOY_COORDS_MAP.get(buoy.stationId);
       if (!coords) continue;
+      // Same ceiling as the stations: a buoy that stopped publishing kept painting its last wind for ever.
+      const ageMs = now - new Date(buoy.timestamp).getTime();
+      if (!Number.isFinite(ageMs) || ageMs > maxAgeMs) continue;
       pushHexArrows(
         features,
         coords.lon,
@@ -295,6 +305,7 @@ export function buildWindFieldGeoJSON(
         buoy.windDir ?? null,
         offsetScale,
         compact,
+        alphaForAge(ageMs),
       );
     }
   }
@@ -327,19 +338,20 @@ export const WindFieldOverlay = memo(function WindFieldOverlay({
   buoys,
   compact = false,
   zoomLevel: propZoomLevel,
+  muted = false,
 }: WindFieldOverlayProps) {
   const { current: mapRef } = useMap();
   const [iconsReady, setIconsReady] = useState(false);
 
-  // Dynamic zoom tracking (stepped to 0.5 to avoid thrashing GeoJSON on tiny wheel ticks)
-  const [zoom, setZoom] = useState(() => mapRef?.getMap()?.getZoom() ?? propZoomLevel ?? REF_ZOOM);
+  // Dynamic zoom tracking, in steps (windFieldZoom) to avoid thrashing GeoJSON on tiny wheel ticks
+  const [zoom, setZoom] = useState(() => windFieldZoom(mapRef?.getMap()?.getZoom() ?? propZoomLevel ?? REF_ZOOM));
 
   useEffect(() => {
     const map = mapRef?.getMap();
     if (!map) return;
 
     const onZoom = () => {
-      const stepped = Math.round(map.getZoom() * 2) / 2;
+      const stepped = windFieldZoom(map.getZoom());
       setZoom((prev) => (prev === stepped ? prev : stepped));
     };
     map.on('zoom', onZoom);
@@ -375,20 +387,12 @@ export const WindFieldOverlay = memo(function WindFieldOverlay({
         layout={{
           'icon-image': ['concat', 'wind-arrow-', ['to-string', ['get', 'speedLevel']]],
           'icon-rotate': ['get', 'rotation'],
-          'icon-size': compact ? WIND_ARROW_ICON_SIZE_COMPACT : WIND_ARROW_ICON_SIZE_REGULAR,
+          'icon-size': arrowSize(compact ? WIND_ARROW_ICON_SIZE_COMPACT : WIND_ARROW_ICON_SIZE_REGULAR, muted),
           'icon-allow-overlap': true,
           'icon-ignore-placement': true,
           'icon-rotation-alignment': 'map',
         }}
-        paint={{
-          'icon-opacity': [
-            'interpolate', ['linear'], ['get', 'speed'],
-            0, 0.45,  // calm: subtle slate ring, clearly visible
-            2, 0.6,   // light: visible
-            5, 0.75,  // moderate: clear
-            10, 0.9,  // strong: prominent
-          ],
-        }}
+        paint={{ 'icon-opacity': arrowOpacity(muted) }}
       />
     </Source>
   );

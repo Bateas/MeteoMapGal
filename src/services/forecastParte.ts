@@ -1,32 +1,28 @@
 /**
  * The forecast as a «parte»: one sentence per day and the daylight hours, in the words the map
  * uses for a spot (spotScoringEngine windVerdict, interior spots): calma < 6 kt, flojo 6-8,
- * navegable 8-12, bueno 12-18, fuerte 18 or more. Pure: no stores, no fetches.
+ * navegable 8-12, bueno 12-18, fuerte 18 or more. The colour of each hour is the app's one wind scale
+ * (windUtils.windTone), which goes on past «fuerte»: duro 22, temporal 34, tduro 48. Pure: no
+ * stores, no fetches.
  *
  * Everything here is MODEL wind at one point, not corrected with what the stations measure; the
  * panel says so under the strips.
  */
+import { degreesToCardinal } from './windUtils';
 import type { HourlyForecast } from '../types/forecast';
-import { msToKnots } from './windUtils';
+import { msToKnots, windTone as windToneIndex, WIND_TONE_NAMES, type WindToneName } from './windUtils';
 import { isDaylight } from './solarUtils';
 
-export type Tone = 'calma' | 'flojo' | 'navegable' | 'bueno' | 'fuerte';
-export const TONES: Tone[] = ['calma', 'flojo', 'navegable', 'bueno', 'fuerte'];
+export type Tone = WindToneName;
+export const TONES: readonly Tone[] = WIND_TONE_NAMES;
 
+/** The app's wind scale by name: the class `t-<tone>` and the tokens `--g-*-<tone>`. */
 export function windTone(kt: number): Tone {
-  const k = Math.round(kt);
-  if (k < 6) return 'calma';
-  if (k < 8) return 'flojo';
-  if (k < 12) return 'navegable';
-  if (k < 18) return 'bueno';
-  return 'fuerte';
+  return WIND_TONE_NAMES[windToneIndex(kt)];
 }
 
-const CARDINAL = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSO', 'SO', 'OSO', 'O', 'ONO', 'NO', 'NNO'];
-/** Where the wind comes from, in Spanish (16 points). */
-export function cardinalEs(deg: number): string {
-  return CARDINAL[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16];
-}
+/** «Fuerte» or more: 18 kt and up, whatever colour the wind has past it. */
+const isStrongTone = (t: Tone) => TONES.indexOf(t) >= TONES.indexOf('fuerte');
 
 export interface PartHour {
   time: Date;
@@ -72,33 +68,36 @@ const span = (run: PartHour[]) => `de ${hh(run[0].time)} a ${hh(run[run.length -
 const peak = (run: PartHour[]) => run.reduce((a, b) => (b.kt > a.kt ? b : a));
 
 /**
- * One sentence for the daylight hours of a day. It names EVERY stretch of strong and of sailable
- * wind, not only the longest: on 17-nov the panel said «navegable de 8 a 12 h; el resto, flojo o
- * en calma» for a Friday with 15, 12 and 10 kt from 13 to 16 h.
+ * One sentence for the daylight hours of a day: the answer, not a list. Strong wind first, every
+ * stretch of it (safety); then the best sailing stretch (the one with the strongest sailable hour)
+ * and how many other sailable hours there are. The strip under it shows each hour, so the sentence
+ * never enumerates them (18-nov: «navegable de 8 a 9, de 10 a 13 y de 14 a 18 h, bueno de 11 a 12,
+ * de 14 a 15 y de 17 a 18 h» answered nothing). It never calls the rest calm: on 17-nov «el resto,
+ * flojo» hid 15 kt in the afternoon.
  */
 export function daySentence(hours: PartHour[]): string {
   if (hours.length === 0) return 'Sin horas de luz por delante.';
   const parts: string[] = [];
-  const strongRuns = runsOf(hours, (h) => h.tone === 'fuerte');
+  const strongRuns = runsOf(hours, (h) => isStrongTone(h.tone));
   const strong = strongRuns.flat();
   if (strong.length) {
     const gust = Math.max(...strong.map((h) => h.gustKt ?? h.kt));
     parts.push(`Fuerte ${listEs(strongRuns.map(span))} (rachas de ${Math.round(gust)} kt)`);
   }
   const runs = runsOf(hours, (h) => sailable(h.tone));
-  const sail = runs.flat();
-  if (sail.length) {
-    const p = peak(sail);
-    const from = p.dirDeg != null ? ` del ${cardinalEs(p.dirDeg)}` : '';
-    // Every stretch of «bueno» too (18-nov: «bueno de 14 a 15 h» while 17 h was bueno as well).
-    const goodRuns = runsOf(sail, (h) => h.tone === 'bueno');
-    const good = goodRuns.flat();
-    const head = good.length && good.length < sail.length
-      ? `Navegable ${listEs(runs.map(span))}, bueno ${listEs(goodRuns.map(span))}`
-      : `${good.length ? 'Bueno' : 'Navegable'} ${listEs(runs.map(span))}`;
-    parts.push(`${parts.length ? head.charAt(0).toLowerCase() + head.slice(1) : head} (hasta ${Math.round(p.kt)} kt${from})`);
-    const rest = hours.filter((h) => !sail.includes(h) && !strong.includes(h));
-    if (rest.length) parts.push(rest.some((h) => h.tone === 'flojo') ? 'el resto, flojo o en calma' : 'el resto, en calma');
+  if (runs.length) {
+    // The stretch holding the strongest sailable hour; on a tie the longer one, then the earlier.
+    const best = runs.reduce((a, b) => {
+      const ka = Math.round(peak(a).kt), kb = Math.round(peak(b).kt);
+      return kb > ka || (kb === ka && b.length > a.length) ? b : a;
+    });
+    const p = peak(best);
+    const from = p.dirDeg != null ? ` del ${degreesToCardinal(p.dirDeg)}` : '';
+    const word = runs.length > 1 ? 'Mejor' : best.every((h) => h.tone === 'bueno') ? 'Bueno' : 'Navegable';
+    const head = `${word} ${span(best)}, hasta ${Math.round(p.kt)} kt${from}`;
+    parts.push(parts.length ? head.charAt(0).toLowerCase() + head.slice(1) : head);
+    const others = runs.filter((r) => r !== best).flat().length;
+    if (others) parts.push(`navegable ${others === 1 ? 'otra hora' : `otras ${others} h`}`);
   } else if (!strong.length) {
     const p = peak(hours);
     return `Sin viento para navegar: como mucho ${Math.round(p.kt)} kt hacia las ${hh(p.time)} h.${rainNote(hours)}`;

@@ -15,7 +15,9 @@
  */
 
 import { memo, useMemo, useState, useEffect, useCallback } from 'react';
-import { Source, Layer, Popup, useMap } from 'react-map-gl/maplibre';
+import { Source, Layer, useMap } from 'react-map-gl/maplibre';
+import { Ficha, Note } from './Ficha';
+import { Cell } from '../spot/Cell';
 import type { MapLayerMouseEvent } from 'react-map-gl/maplibre';
 import type { FeatureCollection } from 'geojson';
 import { useFireStore } from '../../store/fireStore';
@@ -25,15 +27,26 @@ import { selectFireClusters, isFireActive, clusterFires, fireDisplayRadiusKm, ty
 import { fireProximity, formatFireAge } from '../../services/fireService';
 import { describeFireLocation, fireDisclaimer } from '../../services/fireRegion';
 import { formatBurntArea, fireEventName, type FireEvent } from '../../api/fireEventsClient';
-import { WeatherIcon } from '../icons/WeatherIcons';
+import { useMapInk } from '../../hooks/useMapInk';
 
 const SOURCE_ID = 'firms-fires';
 const EVENTS_SOURCE_ID = 'effis-events';
 const EVENTS_LAYER_ID = 'effis-events-ring';
 const CORE_LAYER_ID = 'firms-core';
+/** Invisible and wider than the dot: a click had to land exactly on a dot of 8 px, and a finger does not */
+const HIT_LAYER_ID = 'firms-hit';
 
 /** Age gates are hours wide, but nothing re-renders this between 30min polls. */
 const AGE_TICK_MS = 60_000;
+
+/** Named events on the map only up to this old: a week of them drowned the live hotspots in orange names. */
+export const EVENT_MAX_DAYS = 3;
+
+/** Days since the fire started, or since its last revision when EFFIS gives no date. Null: nothing says how old. */
+export function fireEventAgeDays(e: Pick<FireEvent, 'fireDate' | 'lastUpdate'>, now: number): number | null {
+  const t = e.fireDate ?? e.lastUpdate;
+  return t ? Math.max(0, (now - t.getTime()) / 86_400_000) : null;
+}
 
 /** Attribution is keyed per hotspot — a fire counts as lit by lightning if any
  *  of its detections is. */
@@ -47,12 +60,15 @@ function lightningFor(cluster: FireCluster, attribution: Map<string, { hoursAfte
 
 function FireOverlayInner() {
   const fires = useFireStore((s) => s.fires);
-  const events = useFireStore((s) => s.events);
+  const allEvents = useFireStore((s) => s.events);
   const attribution = useFireStore((s) => s.attribution);
   const activeSector = useSectorStore((s) => s.activeSector);
   const { current: mapRef } = useMap();
+  const ink = useMapInk();
   const [selected, setSelected] = useState<FireCluster | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<FireEvent | null>(null);
+  const closeHotspot = useCallback(() => setSelected(null), []);
+  const closeEvent = useCallback(() => setSelectedEvent(null), []);
   // Zoom drives how wide markers group for drawing — see fireDisplayRadiusKm.
   const [zoom, setZoom] = useState(() => mapRef?.getMap()?.getZoom() ?? 10);
 
@@ -74,7 +90,12 @@ function FireOverlayInner() {
     return () => clearInterval(iv);
   }, []);
 
-  // THE shared 2km list — the ticker and the smoke layer read this one, so the
+  const events = useMemo(() => allEvents.filter((e) => {
+    const age = fireEventAgeDays(e, now);
+    return age !== null && age <= EVENT_MAX_DAYS;
+  }), [allEvents, now]);
+
+  // THE shared 2km list — the ticker reads this one too, so the
   // fire COUNT never moves with the zoom.
   const physical = selectFireClusters(fires);
   // What gets drawn: same fires, grouped wider when zoomed out so 27 markers
@@ -105,7 +126,7 @@ function FireOverlayInner() {
           // 0 = no known cause; never means "not checked".
           litByLightning: lit ? 1 : 0,
           lightningLabel: lit?.hoursAfterStrike != null
-            ? `rayo ${Math.round(lit.hoursAfterStrike)}h`
+            ? `rayo ${Math.round(lit.hoursAfterStrike)} h`
             : '',
         },
         geometry: { type: 'Point', coordinates: [c.lon, c.lat] },
@@ -123,7 +144,7 @@ function FireOverlayInner() {
       // fade instead of shouting at the same volume as one from this morning —
       // in a bad week a dozen of them pile up and drown the live hotspots,
       // which are the ones that change what you do today.
-      const ageDays = e.fireDate ? Math.max(0, (now - e.fireDate.getTime()) / 86_400_000) : 7;
+      const ageDays = fireEventAgeDays(e, now) ?? EVENT_MAX_DAYS;
       return {
         type: 'Feature',
         id: e.id,
@@ -158,16 +179,16 @@ function FireOverlayInner() {
     // Named handlers so cleanup removes the SAME functions.
     const onEnter = () => { map.getCanvas().style.cursor = 'pointer'; };
     const onLeave = () => { map.getCanvas().style.cursor = ''; };
-    map.on('click', CORE_LAYER_ID, handleClick);
-    map.on('mouseenter', CORE_LAYER_ID, onEnter);
-    map.on('mouseleave', CORE_LAYER_ID, onLeave);
+    map.on('click', HIT_LAYER_ID, handleClick);
+    map.on('mouseenter', HIT_LAYER_ID, onEnter);
+    map.on('mouseleave', HIT_LAYER_ID, onLeave);
     map.on('click', EVENTS_LAYER_ID, handleEventClick);
     map.on('mouseenter', EVENTS_LAYER_ID, onEnter);
     map.on('mouseleave', EVENTS_LAYER_ID, onLeave);
     return () => {
-      map.off('click', CORE_LAYER_ID, handleClick);
-      map.off('mouseenter', CORE_LAYER_ID, onEnter);
-      map.off('mouseleave', CORE_LAYER_ID, onLeave);
+      map.off('click', HIT_LAYER_ID, handleClick);
+      map.off('mouseenter', HIT_LAYER_ID, onEnter);
+      map.off('mouseleave', HIT_LAYER_ID, onLeave);
       map.off('click', EVENTS_LAYER_ID, handleEventClick);
       map.off('mouseenter', EVENTS_LAYER_ID, onEnter);
       map.off('mouseleave', EVENTS_LAYER_ID, onLeave);
@@ -179,10 +200,13 @@ function FireOverlayInner() {
     if (selectedEvent && !events.some((e) => e.id === selectedEvent.id)) setSelectedEvent(null);
   }, [events, selectedEvent]);
 
-  // A selected fire that ages out of the list must not keep a popup open.
+  // A selected fire that ages out of the list must not keep a popup open. Asked by its detections, not by
+  // the group id: zooming out regroups the same fires under new ids and the card closed (P3 review, 19-nov).
   useEffect(() => {
-    if (selected && !clusters.some((c) => c.id === selected.id)) setSelected(null);
-  }, [clusters, selected]);
+    if (!selected) return;
+    const live = new Set(fires.map((f) => f.id));
+    if (!selected.hotspots.some((h) => live.has(h.id))) setSelected(null);
+  }, [fires, selected]);
 
   // Named events outlive their own hotspots by days, so the overlay must not
   // bail out just because no pixel is hot right now — that is exactly when a
@@ -215,6 +239,7 @@ function FireOverlayInner() {
             'circle-blur': 0.6,
           }}
         />
+        <Layer id={HIT_LAYER_ID} type="circle" source={SOURCE_ID} paint={{ 'circle-radius': 20, 'circle-opacity': 0 }} />
         {/* Solid core */}
         <Layer
           id={CORE_LAYER_ID}
@@ -259,15 +284,15 @@ function FireOverlayInner() {
             'text-field': ['get', 'lightningLabel'],
             // Explicit font: the default stack 404s on the protomaps CDN
             'text-font': ['Noto Sans Regular'],
-            'text-size': 10,
+            'text-size': 12,
             'text-offset': [0, 1.6],
             'text-anchor': 'top',
             'text-allow-overlap': false,
             'text-optional': true,
           }}
           paint={{
-            'text-color': '#c084fc',
-            'text-halo-color': '#0f172a',
+            'text-color': ink.text,
+            'text-halo-color': ink.halo,
             'text-halo-width': 1.2,
           }}
         />
@@ -307,8 +332,7 @@ function FireOverlayInner() {
               'circle-stroke-opacity': [
                 'interpolate', ['linear'], ['get', 'ageDays'],
                 0, 0.5,
-                2, 0.3,
-                7, 0.16,
+                EVENT_MAX_DAYS, 0.2,
               ],
             }}
           />
@@ -320,150 +344,90 @@ function FireOverlayInner() {
             layout={{
               'text-field': ['get', 'label'],
               'text-font': ['Noto Sans Bold'],
-              'text-size': 11,
+              'text-size': 12,
               'text-offset': [0, 1.4],
               'text-anchor': 'top',
               'text-allow-overlap': false,
               'text-optional': true,
             }}
             paint={{
-              'text-color': '#fdba74',
-              'text-halo-color': '#0f172a',
+              'text-color': ink.text,
+              'text-halo-color': ink.halo,
               'text-halo-width': 1.4,
               // The name is what makes an EFFIS event worth drawing, so it
-              // fades far less than its ring — but it does fade, or a week of
-              // events leaves a wall of orange text over the map.
-              'text-opacity': ['interpolate', ['linear'], ['get', 'ageDays'], 0, 0.95, 7, 0.55],
+              // fades far less than its ring — but it does fade, so an old one gives way to a new one.
+              'text-opacity': ['interpolate', ['linear'], ['get', 'ageDays'], 0, 0.95, EVENT_MAX_DAYS, 0.7],
             }}
           />
         </Source>
       )}
 
       {selected && near && (
-        <Popup
-          longitude={selected.lon}
-          latitude={selected.lat}
-          closeOnClick={false}
-          onClose={() => setSelected(null)}
-          maxWidth="380px"
-          anchor="bottom"
-          className="fire-popup"
-        >
-          <div className="p-2 text-sm text-slate-200 min-w-[210px]">
-            <div className="flex items-center gap-1.5 font-semibold text-white mb-1">
-              <span className="text-orange-400 flex"><WeatherIcon id="flame" size={15} /></span>
-              Detección de incendio
-            </div>
-
-            <div className="space-y-0.5 text-xs text-slate-400">
-              {/* Place first, distance second. Measuring a Portuguese fire
-                  from a Galician reservoir was true and unhelpful. */}
-              <div className="text-slate-200">
+        <Ficha longitude={selected.lon} latitude={selected.lat} onClose={closeHotspot} titleId="gf-fire-title" mapClickKey={String(selected.id)}>
+          <div className="gf-head">
+            <div className="gf-titles">
+              <h2 id="gf-fire-title" className="gf-name">Detección de incendio</h2>
+              {/* Place first, distance second. Measuring a Portuguese fire from a Galician reservoir was
+                  true and unhelpful. */}
+              <div className="gf-sub" style={{ whiteSpace: 'normal' }}>
                 {describeFireLocation(selected.lat, selected.lon, near.distanceKm, near.bearing)}
               </div>
-              <div>
-                Última detección:{' '}
-                <span className={isFireActive(selected, now) ? 'text-slate-200' : 'text-amber-400'}>
-                  {formatFireAge(selected.latestAt, now)}
-                </span>
-              </div>
-              {selected.frpMw > 0 && (
-                <div>
-                  Intensidad:{' '}
-                  <span className="text-slate-200">{Math.round(selected.frpMw)} MW</span>
-                  <span className="text-slate-500"> (última pasada)</span>
-                </div>
-              )}
-              <div>
-                {selected.hotspotCount === 1
-                  ? '1 detección'
-                  : `${selected.hotspotCount} detecciones`}
-                {' · '}
-                {selected.satellites.length === 1
-                  ? '1 satélite'
-                  : `${selected.satellites.length} satélites`}
-              </div>
-              {!isFireActive(selected, now) && (
-                <div className="text-amber-400/90">
-                  Sin pasada reciente del satélite: no podemos decir que siga activo.
-                </div>
-              )}
-              {/* Decodes the purple ring drawn around this marker — until now
-                  the colour was on the map with nothing explaining it. */}
-              {lightningFor(selected, attribution) && (
-                <div className="text-purple-300">
-                  Origen: rayo caído
-                  {(() => {
-                    const h = lightningFor(selected, attribution)?.hoursAfterStrike;
-                    return h != null ? ` hace ${Math.round(h)} h` : ' en las horas previas';
-                  })()}
-                </div>
-              )}
-            </div>
-
-            {/* Honest about what a satellite hotspot is. In Galicia many of
-                them are authorised agricultural burns — but only while the
-                radiative power makes that physically possible, so the wording
-                follows the number instead of contradicting it. */}
-            <div className="mt-2 pt-1.5 border-t border-slate-700/60 text-[11px] leading-snug text-slate-500">
-              {fireDisclaimer(selected.frpMw)}
             </div>
           </div>
-        </Popup>
+          <dl className="gf-data">
+            <Cell label="Última detección" value={formatFireAge(selected.latestAt, now)} warn={!isFireActive(selected, now)} />
+            {selected.frpMw > 0 && (
+              <Cell label="Intensidad, última pasada" value={`${Math.round(selected.frpMw)} MW`} />
+            )}
+          </dl>
+          <div className="gf-notes">
+            {!isFireActive(selected, now) && (
+              <Note icon="alert-triangle" tone="alto">Sin pasada reciente del satélite: no podemos decir que siga activo.</Note>
+            )}
+            {/* Decodes the purple ring drawn around this marker */}
+            {lightningFor(selected, attribution) && (
+              <Note icon="zap" tone="riesgo">
+                Origen: rayo caído
+                {(() => {
+                  const h = lightningFor(selected, attribution)?.hoursAfterStrike;
+                  return h != null ? ` hace ${Math.round(h)} h` : ' en las horas previas';
+                })()}
+              </Note>
+            )}
+            {/* Honest about what a satellite hotspot is. In Galicia many are authorised agricultural
+                burns, but only while the radiative power makes that physically possible, so the wording
+                follows the number instead of contradicting it. */}
+            <Note icon="info">{fireDisclaimer(selected.frpMw)}</Note>
+          </div>
+          <p className="gf-credit" title={selected.hotspotCount === 1 ? '1 detección' : `${selected.hotspotCount} detecciones`}>
+            {selected.satellites.length === 1 ? 'Lo vio 1 satélite' : `Lo vieron ${selected.satellites.length} satélites`} de la NASA (FIRMS).
+          </p>
+        </Ficha>
       )}
 
-      {/* The named event. A different popup from the hotspot one because it
-          answers a different question: not "is something hot right now" but
-          "what burned here, where, and how much". No caveat about authorised
-          burns — this one has been delineated and measured, not inferred from
-          a warm pixel. */}
+      {/* The named event. A different card from the hotspot one because it answers a different question:
+          not "is something hot right now" but "what burned here, where, and how much". No caveat about
+          authorised burns: this one has been delineated and measured, not inferred from a warm pixel. */}
       {selectedEvent && (
-        <Popup
-          longitude={selectedEvent.lon}
-          latitude={selectedEvent.lat}
-          closeOnClick={false}
-          onClose={() => setSelectedEvent(null)}
-          maxWidth="380px"
-          anchor="bottom"
-          className="fire-popup"
-        >
-          <div className="p-2 text-sm text-slate-200 min-w-[210px]">
-            <div className="flex items-center gap-1.5 font-semibold text-white mb-1">
-              <span className="text-orange-300 flex"><WeatherIcon id="flame" size={15} /></span>
-              Incendio en {fireEventName(selectedEvent)}
-            </div>
-
-            <div className="space-y-0.5 text-xs text-slate-400">
-              {formatBurntArea(selectedEvent.areaHa) && (
-                <div>
-                  Superficie quemada:{' '}
-                  <span className="text-slate-200">{formatBurntArea(selectedEvent.areaHa)}</span>
-                </div>
-              )}
-              {selectedEvent.fireDate && (
-                <div>
-                  Inicio:{' '}
-                  <span className="text-slate-200">
-                    {selectedEvent.fireDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
-                  </span>
-                </div>
-              )}
-              {selectedEvent.lastUpdate && (
-                <div>
-                  Última revisión:{' '}
-                  <span className="text-slate-200">
-                    {formatFireAge(selectedEvent.lastUpdate, now)}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <div className="mt-2 pt-1.5 border-t border-slate-700/60 text-[11px] leading-snug text-slate-500">
-              Superficie delimitada por EFFIS (Copernicus, Unión Europea). Se
-              revisa mientras el incendio avanza.
+        <Ficha longitude={selectedEvent.lon} latitude={selectedEvent.lat} onClose={closeEvent} titleId="gf-fire-event-title" mapClickKey={String(selectedEvent.id)}>
+          <div className="gf-head">
+            <div className="gf-titles">
+              <h2 id="gf-fire-event-title" className="gf-name">Incendio en {fireEventName(selectedEvent)}</h2>
             </div>
           </div>
-        </Popup>
+          <dl className="gf-data">
+            {formatBurntArea(selectedEvent.areaHa) && (
+              <Cell label="Superficie quemada" value={formatBurntArea(selectedEvent.areaHa) ?? ''} />
+            )}
+            {selectedEvent.fireDate && (
+              <Cell label="Inicio" value={selectedEvent.fireDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} />
+            )}
+            {selectedEvent.lastUpdate && (
+              <Cell label="Última revisión" value={formatFireAge(selectedEvent.lastUpdate, now)} />
+            )}
+          </dl>
+          <p className="gf-credit">Superficie delimitada por EFFIS (Copernicus, Unión Europea). Se revisa mientras el incendio avanza.</p>
+        </Ficha>
       )}
     </>
   );

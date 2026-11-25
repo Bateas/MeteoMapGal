@@ -29,7 +29,9 @@ set -u
 MODE="${1:-staged}"
 
 # A line containing any of these is never a finding.
-ALLOW='e1f10a1e78|a21bd737-|eyJ4NXQiOiJObUU1|your_|_here|tu_[a-z_]*_aqui|REPLACE_WITH|<internal-address>|\[internal-ip\]|REDACTED_|USUARIO@SERVIDOR|example\.(com|org)|placeholder|noreply\.github\.com'
+# San Simón / San Simon is a place (the inner Ría de Vigo, spot descriptions): a private word list may
+# hold a person's name that is part of it, so the place name is allowed here (18-nov).
+ALLOW='San Sim(ó|o)n|e1f10a1e78|a21bd737-|eyJ4NXQiOiJObUU1|your_|_here|tu_[a-z_]*_aqui|REPLACE_WITH|<internal-address>|\[internal-ip\]|REDACTED_|USUARIO@SERVIDOR|example\.(com|org)|placeholder|noreply\.github\.com'
 
 # Paths the content scans skip: generated, binary, or lockfiles full of hashes.
 SKIP_PATH='(^|/)(package-lock\.json|.*\.map|.*\.min\.js|.*\.png|.*\.jpg|.*\.jpeg|.*\.webp|.*\.woff2?|.*\.ico|.*\.svg|.*\.pdf|.*\.geojson)$|^dist/'

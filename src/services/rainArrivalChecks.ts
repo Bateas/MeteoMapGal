@@ -10,6 +10,7 @@
  */
 
 import type { GaugeRain } from './rainNowService';
+import { spokenStationName } from './rainNowcastService';
 
 /** A gauge this close to the spot speaks for it. */
 export const CHECK_GAUGE_KM = 8;
@@ -73,7 +74,7 @@ export function updateArrivalChecks(
       if (c.status !== 'pending') return c;
       const near = nearGauges(c.spotId);
       const wet = near.find((g) => g.verdict === 'rain');
-      if (wet) return { ...c, status: 'arrived' as const, seenAt: nowMs, gaugeName: wet.name, gaugeMm: wet.mm };
+      if (wet) return { ...c, status: 'arrived' as const, seenAt: nowMs, gaugeName: spokenStationName(wet.id, wet.name), gaugeMm: wet.mm };
       const radarSeenAt = c.radarSeenAt ?? (radarNow.has(c.spotId) ? nowMs : undefined);
       if (nowMs > c.dueAt + CHECK_LATE_MIN * 60_000) {
         // No gauge near: the radar is the only witness, and it is named as such.

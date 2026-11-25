@@ -9,7 +9,6 @@
  *   - Illumination percentage (0-100)
  *   - Moon age in days (0-29.53)
  *   - Next significant phase (new/full/quarter) with date
- *   - Agricultural recommendations for Galician crops
  *
  * Reference lunar cycle: 29.53058770576 days (synodic month).
  */
@@ -17,22 +16,20 @@
 // ── Types ────────────────────────────────────────────────────
 
 export type LunarPhaseName =
-  | 'nueva'          // 🌑 New Moon
-  | 'creciente'      // 🌒 Waxing Crescent
-  | 'cuarto-creciente' // 🌓 First Quarter
-  | 'gibosa-creciente' // 🌔 Waxing Gibbous
-  | 'llena'          // 🌕 Full Moon
-  | 'gibosa-menguante' // 🌖 Waning Gibbous
-  | 'cuarto-menguante' // 🌗 Last Quarter
-  | 'menguante';     // 🌘 Waning Crescent
+  | 'nueva'          // New Moon
+  | 'creciente'      // Waxing Crescent
+  | 'cuarto-creciente' // First Quarter
+  | 'gibosa-creciente' // Waxing Gibbous
+  | 'llena'          // Full Moon
+  | 'gibosa-menguante' // Waning Gibbous
+  | 'cuarto-menguante' // Last Quarter
+  | 'menguante';     // Waning Crescent
 
 export interface LunarPhase {
   /** Phase name in Spanish */
   name: LunarPhaseName;
   /** Display label in Spanish */
   label: string;
-  /** Moon emoji for the phase */
-  emoji: string;
   /** Illumination percentage (0-100) */
   illumination: number;
   /** Moon age in days since last new moon (0-29.53) */
@@ -44,17 +41,6 @@ export interface LunarPhase {
     name: string;
     date: Date;
     daysUntil: number;
-  };
-  /** Agricultural recommendations for Galicia */
-  agriculture: {
-    /** General recommendation */
-    summary: string;
-    /** Sowing advice */
-    sowing: string;
-    /** Pruning/harvest advice */
-    pruning: string;
-    /** Pest treatment advice */
-    treatments: string;
   };
 }
 
@@ -70,19 +56,18 @@ const KNOWN_NEW_MOON = new Date('2000-01-06T18:14:00Z').getTime();
 const PHASE_DEFS: {
   name: LunarPhaseName;
   label: string;
-  emoji: string;
   minAngle: number;
   maxAngle: number;
 }[] = [
-  { name: 'nueva',             label: 'Luna Nueva',         emoji: '🌑', minAngle: 0,     maxAngle: 22.5  },
-  { name: 'nueva',             label: 'Luna Nueva',         emoji: '🌑', minAngle: 337.5, maxAngle: 360   },
-  { name: 'creciente',         label: 'Creciente',          emoji: '🌒', minAngle: 22.5,  maxAngle: 67.5  },
-  { name: 'cuarto-creciente',  label: 'Cuarto Creciente',   emoji: '🌓', minAngle: 67.5,  maxAngle: 112.5 },
-  { name: 'gibosa-creciente',  label: 'Gibosa Creciente',   emoji: '🌔', minAngle: 112.5, maxAngle: 157.5 },
-  { name: 'llena',             label: 'Luna Llena',         emoji: '🌕', minAngle: 157.5, maxAngle: 202.5 },
-  { name: 'gibosa-menguante',  label: 'Gibosa Menguante',   emoji: '🌖', minAngle: 202.5, maxAngle: 247.5 },
-  { name: 'cuarto-menguante',  label: 'Cuarto Menguante',   emoji: '🌗', minAngle: 247.5, maxAngle: 292.5 },
-  { name: 'menguante',         label: 'Menguante',          emoji: '🌘', minAngle: 292.5, maxAngle: 337.5 },
+  { name: 'nueva',             label: 'Luna Nueva',         minAngle: 0,     maxAngle: 22.5  },
+  { name: 'nueva',             label: 'Luna Nueva',         minAngle: 337.5, maxAngle: 360   },
+  { name: 'creciente',         label: 'Creciente',          minAngle: 22.5,  maxAngle: 67.5  },
+  { name: 'cuarto-creciente',  label: 'Cuarto Creciente',   minAngle: 67.5,  maxAngle: 112.5 },
+  { name: 'gibosa-creciente',  label: 'Gibosa Creciente',   minAngle: 112.5, maxAngle: 157.5 },
+  { name: 'llena',             label: 'Luna Llena',         minAngle: 157.5, maxAngle: 202.5 },
+  { name: 'gibosa-menguante',  label: 'Gibosa Menguante',   minAngle: 202.5, maxAngle: 247.5 },
+  { name: 'cuarto-menguante',  label: 'Cuarto Menguante',   minAngle: 247.5, maxAngle: 292.5 },
+  { name: 'menguante',         label: 'Menguante',          minAngle: 292.5, maxAngle: 337.5 },
 ];
 
 // ── Core calculation ─────────────────────────────────────────
@@ -131,79 +116,6 @@ function getNextPhaseDate(currentAge: number, targetAngle: number, now: Date): D
   return new Date(now.getTime() + daysUntil * 24 * 60 * 60 * 1000);
 }
 
-// ── Agricultural recommendations ─────────────────────────────
-
-/**
- * Get agricultural advice based on lunar phase.
- * Traditional Galician agricultural calendar (calendario agrícola).
- *
- * Key principles:
- * - Luna creciente (waxing): savia sube → siembra de cultivos aéreos, injertos
- * - Luna menguante (waning): savia baja → poda, cosecha, tratamientos
- * - Luna nueva: descanso, preparar terreno
- * - Luna llena: máxima luminosidad → trasplantes, cosecha de fruto
- */
-function getAgricultureAdvice(phaseName: LunarPhaseName): LunarPhase['agriculture'] {
-  switch (phaseName) {
-    case 'nueva':
-      return {
-        summary: 'Período de descanso. Preparar terreno y planificar.',
-        sowing: 'Evitar siembras. Buen momento para preparar semilleros.',
-        pruning: 'Poda sanitaria de ramas secas o enfermas.',
-        treatments: 'Aplicar tratamientos al suelo (encalado, abonado de fondo).',
-      };
-    case 'creciente':
-      return {
-        summary: 'Savia ascendente. Ideal para cultivos de hoja y fruto aéreo.',
-        sowing: 'Sembrar lechugas, espinacas, acelgas, cereales, hierbas aromáticas.',
-        pruning: 'Evitar poda. Hacer injertos de púa y escudete.',
-        treatments: 'Tratamientos foliares preventivos (caldo bordelés para viña).',
-      };
-    case 'cuarto-creciente':
-      return {
-        summary: 'Máxima actividad de savia. Vigor y crecimiento rápido.',
-        sowing: 'Sembrar tomates, pimientos, judías, guisantes, maíz.',
-        pruning: 'NO podar — savia en máximo movimiento, sangrado excesivo.',
-        treatments: 'Tratamientos preventivos contra mildiu (viñedo Ribeiro).',
-      };
-    case 'gibosa-creciente':
-      return {
-        summary: 'Transición hacia luna llena. Buena actividad vegetal.',
-        sowing: 'Plantar frutales, fresas, frambuesas. Trasplantar plantones.',
-        pruning: 'Evitar poda. Atar y entutorar plantas trepadoras.',
-        treatments: 'Control de pulgón y araña roja (jabón potásico).',
-      };
-    case 'llena':
-      return {
-        summary: 'Máxima luminosidad. Cosecha de fruto, trasplantes exitosos.',
-        sowing: 'Trasplantar hortalizas de fruto. Plantar patatas de siembra tardía.',
-        pruning: 'Cosecha de frutos maduros (uva, manzana, pera).',
-        treatments: 'Recoger plantas medicinales (máxima concentración de principios activos).',
-      };
-    case 'gibosa-menguante':
-      return {
-        summary: 'Savia empieza a descender. Transición a labores de raíz.',
-        sowing: 'Sembrar cultivos de raíz: zanahorias, remolachas, nabos, rábanos.',
-        pruning: 'Iniciar poda de formación en frutales jóvenes.',
-        treatments: 'Aplicar azufre contra oídio en viña (tarde/noche).',
-      };
-    case 'cuarto-menguante':
-      return {
-        summary: 'Savia en raíces. Mejor momento para poda y cosecha de raíz.',
-        sowing: 'Sembrar ajos, cebollas, puerros. Plantar bulbos de flor.',
-        pruning: 'Poda de producción en viña y frutales. Mejor cicatrización.',
-        treatments: 'Tratamientos sistémicos contra hongos. Desbroce de malas hierbas.',
-      };
-    case 'menguante':
-      return {
-        summary: 'Mínima actividad aérea. Labores de conservación y almacenaje.',
-        sowing: 'Última ventana para tubérculos. Preparar terreno para siguiente ciclo.',
-        pruning: 'Poda invernal de vid (si temperatura >5°C). Cortar leña.',
-        treatments: 'Encalar troncos de frutales (protección invernal).',
-      };
-  }
-}
-
 // ── Public API ────────────────────────────────────────────────
 
 /**
@@ -243,7 +155,6 @@ export function getLunarPhase(date: Date = new Date()): LunarPhase {
   return {
     name: phaseDef.name,
     label: phaseDef.label,
-    emoji: phaseDef.emoji,
     illumination,
     ageDays: Math.round(ageDays * 10) / 10,
     isWaxing,
@@ -252,7 +163,6 @@ export function getLunarPhase(date: Date = new Date()): LunarPhase {
       date: nextPhaseDate,
       daysUntil: Math.round(nearestDays * 10) / 10,
     },
-    agriculture: getAgricultureAdvice(phaseDef.name),
   };
 }
 
@@ -262,7 +172,6 @@ export function getLunarPhase(date: Date = new Date()): LunarPhase {
  */
 export function getLunarCalendar(startDate: Date = new Date(), days: number = 30): {
   date: Date;
-  emoji: string;
   name: LunarPhaseName;
   illumination: number;
 }[] {
@@ -274,7 +183,6 @@ export function getLunarCalendar(startDate: Date = new Date(), days: number = 30
     const phase = getLunarPhase(d);
     calendar.push({
       date: d,
-      emoji: phase.emoji,
       name: phase.name,
       illumination: phase.illumination,
     });

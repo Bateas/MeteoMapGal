@@ -13,11 +13,19 @@
  */
 :root {
   --g-bg: #141618; --g-ink: #e4e8e5; --g-muted: #a2a8a4; --g-hair: #30353a; --g-rule: #687070;
-  --g-s-calma: #a3aca7; --g-s-flojo: #4a97f0; --g-s-navegable: #37bd78; --g-s-bueno: #f5b82e; --g-s-fuerte: #cdaafb;
+  --g-s-calma: #a3aca7; --g-s-flojo: #62a8f5; --g-s-navegable: #37bd78; --g-s-bueno: #f5b82e; --g-s-fuerte: #ff8a3d;
   /* Filled cells of the strip: calm recedes, the good hours light up (semaforo) */
-  --g-c-calma: #303a42; --g-ct-calma: #b4c2cd; --g-c-flojo: #3e6fa4; --g-ct-flojo: #ffffff;
+  --g-c-calma: #303a42; --g-ct-calma: #b4c2cd; --g-c-flojo: #4478b3; --g-ct-flojo: #ffffff;
   --g-c-navegable: #4faf77; --g-ct-navegable: #07170e; --g-c-bueno: #ecbb59; --g-ct-bueno: #1a1204;
-  --g-c-fuerte: #c6a6ee; --g-ct-fuerte: #141618;
+  --g-c-fuerte: #f08c4a; --g-ct-fuerte: #1a0d04;
+  /* Wind past the verdict, Beaufort cuts (18-nov): 22 kt force 6, 34 kt gale, 48 kt storm */
+  --g-s-duro: #ff4d4d; --g-c-duro: #f25555; --g-ct-duro: #141618;
+  --g-s-temporal: #e45cff; --g-c-temporal: #d95ef2; --g-ct-temporal: #141618;
+  --g-s-tduro: #9d7bff; --g-c-tduro: #9a7bf5; --g-ct-tduro: #141618;
+  /* 56 kt, force 11: violet-black. Its line is the darkest violet that still reads on the dark map (3:1) */
+  --g-s-tmduro: #6a3df0; --g-c-tmduro: #2e0f6e; --g-ct-tmduro: #ffffff;
+  /* Storm risk: not wind, so not on the wind scale */
+  --g-s-tormenta: #cdaafb;
   --g-m-ring: #8a928e; --g-m-ringin: #141618; --g-m-notch: #b7beba; --g-surf: #45b6d6;
   --g-night: #0e1012; --g-danger: #d42a3f; --g-danger-text: #ee5a6a; --g-rain-text: #6fa3d6;
   --g-l-riesgo: #5b9cf5; --g-l-moderado: #eab308; --g-l-alto: #f59e0b; --g-l-critico: #ef4444; --g-rain: #2563eb;
@@ -30,10 +38,15 @@
 }
 :root[data-theme="light"] {
   --g-bg: #f4f5f3; --g-ink: #121416; --g-muted: #4e545a; --g-hair: #cbd0ca; --g-rule: #121416;
-  --g-s-calma: #868f8a; --g-s-flojo: #2a74c8; --g-s-navegable: #128f5a; --g-s-bueno: #b67c00; --g-s-fuerte: #6a2fa8;
-  --g-c-calma: #e5e9eb; --g-ct-calma: #4f5b64; --g-c-flojo: #8eb9e4; --g-ct-flojo: #121416;
+  --g-s-calma: #868f8a; --g-s-flojo: #3480d2; --g-s-navegable: #128f5a; --g-s-bueno: #b67c00; --g-s-fuerte: #c2560c;
+  --g-c-calma: #e5e9eb; --g-ct-calma: #4f5b64; --g-c-flojo: #9cc3ea; --g-ct-flojo: #121416;
   --g-c-navegable: #52a975; --g-ct-navegable: #07170e; --g-c-bueno: #e6ae4c; --g-ct-bueno: #1a1204;
-  --g-c-fuerte: #663b9a; --g-ct-fuerte: #ffffff;
+  --g-c-fuerte: #c2560c; --g-ct-fuerte: #ffffff;
+  --g-s-duro: #b8322c; --g-c-duro: #b8322c; --g-ct-duro: #ffffff;
+  --g-s-temporal: #9a1fb0; --g-c-temporal: #9a1fb0; --g-ct-temporal: #ffffff;
+  --g-s-tduro: #5b2bb5; --g-c-tduro: #5b2bb5; --g-ct-tduro: #ffffff;
+  --g-s-tmduro: #2e0f5c; --g-c-tmduro: #2e0f5c; --g-ct-tmduro: #ffffff;
+  --g-s-tormenta: #6a2fa8;
   --g-m-ring: #121416; --g-m-ringin: #f4f5f3; --g-m-notch: #121416; --g-surf: #0f7fa8;
   --g-night: #e6e8e3; --g-danger: #c8102e; --g-danger-text: #c8102e; --g-rain-text: #3a6390;
   --g-l-riesgo: #2f6fd0; --g-l-moderado: #9a7b00; --g-l-alto: #b86e00; --g-l-critico: #c8102e;

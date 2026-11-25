@@ -11,7 +11,6 @@ import { renderHook, waitFor, act } from '@testing-library/react';
 
 vi.mock('../api/openMeteoClient', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/openMeteoClient')>()),
-  fetchForecastForZones: vi.fn(() => new Promise(() => {})),
   fetchDailyContextForEmbalse: vi.fn(),
   fetchAtmosphericContextForEmbalse: vi.fn(),
   fetchOpenMeteoHistory: vi.fn(async () => []),

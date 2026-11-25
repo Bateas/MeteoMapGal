@@ -36,15 +36,6 @@ describe('MAP_STYLES — tiles', () => {
     }
   });
 
-  it('asks IGN for a layer name that exists', () => {
-    // IGNBaseGris was renamed to IGNBase-gris and now serves jpeg. The old name
-    // answers 400 and the map simply drew nothing: a raster source has no error
-    // callback, so a dead base map looks like an empty one.
-    const grey = MAP_STYLES.find((s) => s.id === 'ign-grey')!;
-    expect(grey.tiles[0]).toContain('layer=IGNBase-gris');
-    expect(grey.tiles[0]).toContain('format=image/jpeg');
-  });
-
   it('credits whoever is actually serving the tiles', () => {
     for (const s of MAP_STYLES) {
       expect(s.attribution.length).toBeGreaterThan(0);
@@ -61,7 +52,7 @@ describe('MAP_STYLES — ids are a contract with localStorage', () => {
     // Renaming one would silently reset the map for anyone who had chosen it.
     // The tiles behind an id may change; the id may not.
     const ids = MAP_STYLES.map((s) => s.id).sort();
-    expect(ids).toEqual(['dark', 'ign-grey', 'ign-topo', 'osm', 'positron', 'voyager']);
+    expect(ids).toEqual(['dark', 'ign-ortho', 'ign-topo', 'positron', 'voyager']);
   });
 
   it('gives each one a label and a swatch for the picker', () => {
@@ -108,20 +99,31 @@ describe('base map default — clean, following the theme', () => {
   });
 });
 
-describe('migrateMapStyle — v0 to v1', () => {
+describe('migrateMapStyle', () => {
   it('moves anyone still on the old default (street map) to "auto"', () => {
-    const out = migrateMapStyle({ activeStyleId: 'voyager', showSeamarks: true }, 0);
-    expect(out.activeStyleId).toBe('auto');
-    // Everything else they had is kept.
-    expect(out.showSeamarks).toBe(true);
+    expect(migrateMapStyle({ activeStyleId: 'voyager' }, 0).activeStyleId).toBe('auto');
   });
 
-  it('keeps any other pick: that one was a choice, not the default', () => {
+  it('keeps a pick that is still offered', () => {
     expect(migrateMapStyle({ activeStyleId: 'ign-topo' }, 0).activeStyleId).toBe('ign-topo');
-    expect(migrateMapStyle({ activeStyleId: 'dark' }, 0).activeStyleId).toBe('dark');
+    expect(migrateMapStyle({ activeStyleId: 'voyager' }, 1).activeStyleId).toBe('voyager');
   });
 
-  it('does not touch a state already on v1', () => {
-    expect(migrateMapStyle({ activeStyleId: 'voyager' }, 1).activeStyleId).toBe('voyager');
+  it('a map no longer offered goes back to Auto', () => {
+    for (const id of ['osm', 'ign-grey', 'positron', 'dark']) {
+      expect(migrateMapStyle({ activeStyleId: id }, 1).activeStyleId).toBe('auto');
+    }
+  });
+
+  it('the orthophoto was a layer and is now a base map', () => {
+    expect(migrateMapStyle({ activeStyleId: 'auto', showIGNOrtho: true }, 1).activeStyleId).toBe('ign-ortho');
+  });
+
+  it('the wave model keeps its switch under its own name, and the rest of the old switches go', () => {
+    const out = migrateMapStyle({ showUpwelling: true, showSeamarks: true, showNauticalChart: true }, 1) as unknown as Record<string, unknown>;
+    expect(out.showSwan).toBe(true);
+    expect(out.showNauticalChart).toBe(true);
+    expect('showUpwelling' in out).toBe(false);
+    expect('showSeamarks' in out).toBe(false);
   });
 });

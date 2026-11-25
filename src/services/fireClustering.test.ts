@@ -11,9 +11,7 @@ import {
   selectFireClusters,
   clusterAgeMin,
   isFireActive,
-  canDrawSmoke,
   FIRE_ACTIVE_MAX_MIN,
-  FIRE_SMOKE_MAX_MIN,
   fireDisplayRadiusKm,
   FIRE_DISPLAY_DISABLE_ZOOM,
   FIRE_CLUSTER_RADIUS_KM,
@@ -207,15 +205,6 @@ describe('age gates — "active" is a claim that expires', () => {
   it('calls a fresh detection active and an old one not', () => {
     expect(isFireActive(at(FIRE_ACTIVE_MAX_MIN - 1), now)).toBe(true);
     expect(isFireActive(at(FIRE_ACTIVE_MAX_MIN + 1), now)).toBe(false);
-  });
-
-  it('holds smoke to a stricter window than the active claim', () => {
-    expect(FIRE_SMOKE_MAX_MIN).toBeLessThan(FIRE_ACTIVE_MAX_MIN);
-    expect(canDrawSmoke(at(FIRE_SMOKE_MAX_MIN - 1), now)).toBe(true);
-    // Still an "active" fire, but too old to cross with the wind blowing now.
-    const stale = at(FIRE_SMOKE_MAX_MIN + 60);
-    expect(canDrawSmoke(stale, now)).toBe(false);
-    expect(isFireActive(stale, now)).toBe(true);
   });
 });
 

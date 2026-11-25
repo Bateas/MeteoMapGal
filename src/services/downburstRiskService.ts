@@ -1,7 +1,7 @@
 /**
  * Downburst Risk detector — dry microburst / wind shear warning.
  *
- * T3-2 (S136+3+3 fase 1). Detects the atmospheric setup that produces
+ * Detects the atmospheric setup that produces
  * sudden severe surface gusts under cumulonimbus, even WITHOUT visible
  * precipitation reaching the ground. Critical for aviación (Castrelo
  * area, ENAIRE), náutica deportiva (small craft can capsize in <30s) and

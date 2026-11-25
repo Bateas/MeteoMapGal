@@ -1,6 +1,6 @@
 import type { NormalizedStation, NormalizedReading } from '../types/station';
 import type { BuoyReading } from '../api/buoyClient';
-import { BUOY_COORDS_MAP } from '../api/buoyClient';
+import { BUOY_COORDS_MAP, buoyLandStationId } from '../api/buoyClient';
 import { STALE_THRESHOLD_MIN } from '../config/constants';
 import { isWindBlacklisted } from './spotScoringEngine';
 import { isLandStationCopy } from './buoyUtils';
@@ -293,6 +293,8 @@ export function extractBuoyWindData(buoys: BuoyReading[], weight = 1): StationWi
   for (const b of buoys) {
     if (b.windSpeed == null || b.windDir == null) continue;
     if (isLandStationCopy(b.stationId)) continue;
+    const landId = buoyLandStationId(b.stationId); // a land station set aside for bad wind, back through the buoy list
+    if (landId && isWindBlacklisted(landId)) continue;
     if (b.windSpeed < 0.1) continue;
     const coords = BUOY_COORDS_MAP.get(b.stationId);
     if (!coords) continue;

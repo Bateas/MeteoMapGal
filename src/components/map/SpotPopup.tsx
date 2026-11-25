@@ -1,34 +1,26 @@
 /**
- * Popup for sailing spots — shows scoring summary on marker click.
- * Desktop: MapLibre native popup. Mobile: bottom sheet.
- *
- * Displays: verdict, wind consensus, wave conditions, water temp,
- * matched pattern, score, and summary text.
- * Themed per verdict color to match SpotMarker.
+ * Card of a sailing or surf spot, opened from its marker. In four groups, so it reads at a glance however much
+ * it holds: now (the state, the sentence that decides, what can hurt), what comes next, this place, and the
+ * rest folded; what asks something of the reader goes last. The shell is Ficha. The state colour is the marker's.
  */
-import { memo, useState, useMemo, useEffect, useId } from 'react';
-import { Popup } from 'react-map-gl/maplibre';
-import { PopupFit } from './PopupFit';
+import { memo, useCallback, useState, useMemo, useEffect, useId } from 'react';
+import { Ficha, FichaGroup, Note, Chevron, FoldRow, SupportLink, dec } from './Ficha';
 import { useSpotStore } from '../../store/spotStore';
 import { useUIStore } from '../../store/uiStore';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { fetchSwanHsAt } from '../../api/swanGetFeatureInfo';
 import { ShareSpotModal } from '../spot/ShareSpotModal';
 
-import { useSwipeToDismiss } from '../../hooks/useSwipeToDismiss';
-import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { SpotScore, SpotVerdict } from '../../services/spotScoringEngine';
 import { MAX_PLAUSIBLE_GUST_KT as MAX_DISPLAY_GUST_KT } from '../../services/spotScoringEngine';
 import type { SailingSpot } from '../../config/spots';
 import { isBeachSpot } from '../../config/spots';
-import { displayWindKt, displayWindDir, displayVerdict as renderedVerdict, gateWaveText, gateWaveWhere, verdictDoubtText } from '../../config/verdictStyles';
+import { displayWindKt, displayWindDir, displayVerdict as renderedVerdict, gateWaveText, gateWaveWhere, surfTone, verdictDoubtText, isGusty, GUSTY_LABEL, VERDICT_LINE, windToneOver, fillOf, lineOf } from '../../config/verdictStyles';
 import { SpotReportBox } from '../spot/SpotReportBox';
 import { fetchRecentReports } from '../../api/fieldReportClient';
 import type { RecentReportSummary } from '../../services/fieldReport';
 import { canalizationBand } from '../../services/cesantesCanalizationDetector';
-import '../../styles/archivoFonts.css';
-import '../spot/spotG.css';
 import type { SailingWindow, SpotWindowResult } from '../../services/sailingWindowService';
 import { formatThermalCountdown } from '../../services/thermalPrecursorService';
 import type { ThermalPrecursorResult } from '../../services/thermalPrecursorService';
@@ -37,11 +29,14 @@ import { detectThermalForecast } from '../../services/thermalForecastDetector';
 import { useAloft } from '../../hooks/useAloft';
 import { getSunTimes, formatTime } from '../../services/solarUtils';
 import { useBuoyStore } from '../../store/buoyStore';
+import { silentLabel } from '../../services/buoyUtils';
+import { mgWarningsAt } from '../../services/warningReach';
+import { useWarningsStore } from '../../hooks/useWarnings';
 import { useWeatherStore } from '../../store/weatherStore';
-import { temperatureColor, degreesToCardinal, scaleGustToSpot } from '../../services/windUtils';
+import { degreesToCardinal, scaleGustToSpot } from '../../services/windUtils';
 import { fetchMarineData } from '../../api/marineClient';
 import { fetchMeteoSixSeaTemp } from '../../api/meteoSixClient';
-import { fetchSpotForecast, isSpotForecastStale } from '../../services/spotForecastFetch';
+import { fetchSpotForecast, isSpotForecastStale, windChartPlace } from '../../services/spotForecastFetch';
 import { useSectorStore } from '../../store/sectorStore';
 import { isCoastalSector } from '../../config/sectors';
 import { useAirQualityStore } from '../../store/airQualityStore';
@@ -51,33 +46,37 @@ import { detectViracionPhase } from '../../services/viracionDetector';
 import { assessRainNowcast } from '../../services/rainNowcastService';
 import { useRainNowStore } from '../../store/rainNowStore';
 import { assessBeachDay } from '../../services/beachDayService';
-import { waterTempLabel, waveHeightColor } from '../../services/buoyUtils';
-import { waveBarColor, windKtColor, humidityColor, waterTColor, timeAgoEs } from '../spot/spotColors';
+import { waterTempLabel } from '../../services/buoyUtils';
+import { timeAgoEs } from '../spot/spotColors';
 import { SpotTideSummary } from '../spot/SpotTideSummary';
 import { SpotWarningNotice } from '../spot/SpotWarningNotice';
 import { SpotPushOptIn } from '../spot/SpotPushOptIn';
 import { SpotHistoryChart } from '../spot/SpotHistoryChart';
 import { Cell } from '../spot/Cell';
+import { WindNowNext } from '../spot/WindNowNext';
+import { TrendMark } from '../spot/TrendMark';
+import { spotWindDrift, TREND_MAX_AGE_MIN, type WindTrend } from '../../services/windTrendService';
+import { ageMinutes, dataAge } from '../../services/dataAge';
+import { useMinuteClock } from '../../hooks/useMinuteClock';
 import { WebcamSection } from '../spot/WebcamSection';
 import { useHistoricalBaseline } from '../../hooks/useHistoricalBaseline';
-import { describeVsBaseline, severityToBadgeClass } from '../../services/historicalBaselineService';
+import { describeVsBaseline } from '../../services/historicalBaselineService';
 import { buildShareUrl } from '../../services/shareImageGenerator';
-import { isSimulationActive } from '../../config/simulation';
+import { isSimulationActive, withSimulation } from '../../config/simulation';
 
-// Marker shapes for the popup head chip (30x30 box): hexagon for wind spots, pentagon for surf.
+// Marker shapes for the state chip (30x30 box): hexagon for wind spots, pentagon for surf.
 const HEX_PTS = '15,2 26.26,8.5 26.26,21.5 15,28 3.74,21.5 3.74,8.5';
 const PENTA_PTS = '15,2 27.36,10.98 22.64,25.52 7.36,25.52 2.64,10.98';
 /** «NAVEGABLE» → «Navegable»: the V3 head writes the state as a word, not a shout. */
 const sentenceCase = (s: string) => (s ? s.charAt(0) + s.slice(1).toLowerCase() : s);
 
-// ── Verdict palette — matches windSpeedColor() for coherence ──
-const VERDICT_STYLE: Record<SpotVerdict, { color: string; bg: string; label: string }> = {
-  calm:    { color: '#94a3b8', bg: 'rgba(100,116,139,0.15)', label: 'CALMA' },
-  light:   { color: '#38bdf8', bg: 'rgba(56,189,248,0.12)',  label: 'FLOJO' },
-  sailing: { color: '#22c55e', bg: 'rgba(34,197,94,0.12)',   label: 'NAVEGABLE' },
-  good:    { color: '#eab308', bg: 'rgba(234,179,8,0.12)',   label: 'BUENO' },
-  strong:  { color: '#f97316', bg: 'rgba(249,115,22,0.12)',  label: 'FUERTE' },
-  unknown: { color: '#94a3b8', bg: 'rgba(100,116,139,0.15)', label: 'SIN DATOS' },
+const VERDICT_STYLE: Record<SpotVerdict, { label: string }> = {
+  calm:    { label: 'CALMA' },
+  light:   { label: 'FLOJO' },
+  sailing: { label: 'NAVEGABLE' },
+  good:    { label: 'BUENO' },
+  strong:  { label: 'FUERTE' },
+  unknown: { label: 'SIN DATOS' },
 };
 
 interface SpotPopupProps {
@@ -93,33 +92,23 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
   const toggleFavorite = useSpotStore((s) => s.toggleFavorite);
   const sailingWindows = useSpotStore((s) => s.sailingWindows);
   const thermalPrecursors = useSpotStore((s) => s.thermalPrecursors);
-  const isMobile = useUIStore((s) => s.isMobile);
-  // With simpleMode on (opt-in today, uiStore defaults it to false) the popup
-  // keeps the decision essentials and hides the technical/power-user sections.
+  // Simple mode keeps the decision essentials and hides the technical sections.
   const simpleMode = useUIStore((s) => s.simpleMode);
-  const dismiss = () => selectSpot('');
-  const { sheetRef, onTouchStart, onTouchMove, onTouchEnd } = useSwipeToDismiss(dismiss);
-  // Mobile sheet a11y (same pattern as FieldDrawer): on open, focus moves to the
-  // first focusable element (the close button), Tab stays inside, and focus is
-  // handed back when the sheet unmounts. Inactive on desktop (MapLibre Popup).
-  const sheetDialogRef = useFocusTrap<HTMLDivElement>(isMobile);
+  const silentBuoys = useBuoyStore((s) => s.silentBuoys);
+  const silentPreferred = useMemo(
+    () => silentBuoys.filter((b) => spot.preferredBuoys?.includes(b.stationId) && silentLabel(b.timestamp) != null),
+    [silentBuoys, spot.preferredBuoys],
+  );
+  const alphaMode = useUIStore((s) => s.alphaMode);
+  // The card speaks only of the warnings whose zone holds the spot (warningReach.ts).
+  const sectorWarnings = useWarningsStore((s) => s.sectorWarnings);
+  const spotWarnings = useMemo(
+    () => mgWarningsAt(sectorWarnings, { lat: spot.center[1], lon: spot.center[0] }),
+    [sectorWarnings, spot.center],
+  );
+  const clock = useMinuteClock();
+  const dismiss = useCallback(() => selectSpot(''), [selectSpot]);
   const titleId = useId();
-
-  // Escape closes the spot, on the mobile sheet and on the desktop popup alike
-  // (MapLibre popups ignore Escape). Capture phase, so this runs before the
-  // Escape handlers of modals opened on top (share, forecast, shortcut help):
-  // while an aria-modal dialog is open the key belongs to it. A text field
-  // keeps its own Escape too.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      if (document.querySelector('[aria-modal="true"]')) return;
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      selectSpot('');
-    };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [selectSpot]);
   const spotForecasts = useSpotStore((s) => s.spotForecasts);
   const setSpotForecast = useSpotStore((s) => s.setSpotForecast);
   const windowResult = sailingWindows.get(spot.id);
@@ -131,6 +120,14 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
   // render instead of flashing blank then loading → blank again.
   const [spotFcLoading, setSpotFcLoading] = useState(() => isSpotForecastStale(cached));
   const [spotFcError, setSpotFcError] = useState(false);
+  const chartPlace = windChartPlace({
+    isSurf: spot.category === 'surf',
+    windKt: displayWindKt(score),
+    scorePending: !score || score.provisional === true,
+    forecastHours: spotForecast.length,
+    loading: spotFcLoading,
+    failed: spotFcError,
+  });
 
   useEffect(() => {
     // `spotFcLoading` used to be part of this guard, and since it STARTS true
@@ -352,7 +349,7 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
   const surfState = spot.category === 'surf' ? surfDisplayState(surfEntry, score) : null;
   const surfInfo = surfState === 'ready' ? (surfEntry?.verdict ?? null) : null;
 
-  // ── SWAN per-spot Hs (T5-3 S136+3+3): cross-check Open-Meteo with the
+  // ── SWAN per-spot Hs: cross-check Open-Meteo with the
   // CESGA academic high-resolution model at the actual spot location.
   // Returns null if CESGA is down (frequent) or the point is out of domain —
   // silent fail, never blocks the popup. ──
@@ -366,20 +363,19 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
     return () => { cancelled = true; };
   }, [spot.id, spot.category, spot.center]);
 
-  // Share modal (T3-5)
+  // Share modal
   const [shareOpen, setShareOpen] = useState(false);
 
   // Surf spots show the surf verdict, never the wind one: while it is not
   // ready the badge says so instead of falling back to «CALMA». The one
   // exception is the engine's hard gate, where the card says what the engine
   // says («FUERTE» — «Viento excesivo (30kt). Peligroso.»): the wave verdict
-  // ignores wind speed. `color` rings and borders; `textColor` is the lighter
-  // tone for text on the dark card (the ring blue read 4:1 as badge text).
+  // ignores wind speed.
   const displayVerdict = surfInfo
-    ? { label: surfInfo.label, color: surfInfo.color, textColor: surfInfo.text, bg: surfInfo.bg, summary: surfInfo.summary }
+    ? { label: surfInfo.label, summary: surfInfo.summary }
     : spot.category === 'surf' && surfState !== 'danger'
-      ? { label: 'SIN DATO DE OLAS', color: VERDICT_STYLE.unknown.color, textColor: VERDICT_STYLE.unknown.color, bg: VERDICT_STYLE.unknown.bg, summary: '' }
-      : { label: vs.label, color: vs.color, textColor: vs.color, bg: vs.bg, summary: surfState === 'danger' ? (score?.summary ?? '') : '' };
+      ? { label: 'SIN DATO DE OLAS', summary: '' }
+      : { label: vs.label, summary: surfState === 'danger' ? (score?.summary ?? '') : '' };
 
   // Spot-local wave for the sport-warning threshold: the cache entry carries
   // the coastal factor and swell alignment, so it describes THIS beach rather
@@ -388,729 +384,487 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
   // 4 m comparison matters most.
   const surfSpotWave = surfEntry?.waveHeight ?? undefined;
 
-  const popupContent = (
-    <div className={`break-words ${isMobile ? 'min-w-[240px] max-w-[320px]' : 'min-w-[260px] max-w-[350px] max-h-[70vh] overflow-y-auto overflow-x-hidden'}`}>
-      {/* ── Head, V3 «G»: name and actions, then the state in one big line (word · figure) with the
-            wind details beside it. Same data and states as before; the colour is still the map's. ── */}
-      <div className="sg">
-        <div className="sg-head">
-          <svg className="sg-chip" width={isMobile ? 30 : 26} height={isMobile ? 30 : 26} viewBox="0 0 30 30" aria-hidden="true">
-            <polygon points={spot.category === 'surf' ? PENTA_PTS : HEX_PTS} fill={displayVerdict.color} stroke="#0b0d0e" strokeWidth="2" />
-          </svg>
-          <div className="sg-titles">
-            <div className="sg-name-row">
-              <span id={titleId} className="sg-name">{spot.name}</span>
+  const isSurf = spot.category === 'surf';
+  // No score yet (a shared link opened on a cold load) is pending too: the marker says «Calculando…» then,
+  // and the card said «Sin datos» beside it (review, 18-nov).
+  const pending = !score || !!score.provisional || surfState === 'loading';
+  const staleAge = score?.computedAt && dataAge(ageMinutes(score.computedAt, clock)) !== 'fresh' ? timeAgoEs(score.computedAt) : null;
+  // One line about the thermal, the strongest: three of them could stack up saying the same.
+  const thermalNow = precursor && precursor.level !== 'watch' ? formatThermalCountdown(precursor) : null;
+  // The sentence that says what to do with it, right under the state. Not while the figure is withheld:
+  // it would state the number the head is keeping back.
+  // Nor while the colour is held between two levels: «Insuficiente para navegar» beside «entre Flojo y
+  // Navegable» says one of the two answers as if it were sure (P3 review, 19-nov).
+  // A light mean with strong gusts: the sentence says both, instead of «Insuficiente para navegar».
+  const gusty = !isSurf && isGusty(score, effectiveGustKt);
+  const decision = displayVerdict.summary
+    || (gusty ? `Media floja, con rachas de ${effectiveGustKt!.toFixed(0)} kt.` : '')
+    || (!isSurf && !score?.provisional && !verdictDoubtText(score) ? (score?.reason ?? score?.summary ?? '') : '');
+  // The surf figure is a model: hollow, as on the map. Without one there is nothing to draw; the rest, the state.
+  const surfHollow = isSurf && surfState === 'ready';
+  const chipEmpty = pending || (isSurf && surfState === 'nodata');
+  // Past 22 kt a «Fuerte» spot takes the colour of its wind, as on the map
+  const spotTone = isSurf ? null : windToneOver(verdict, displayWindKt(score));
+  const chip = (
+    <svg className="gf-chip" width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
+      <polygon
+        points={isSurf ? PENTA_PTS : HEX_PTS}
+        fill={chipEmpty ? 'var(--g-hair)' : surfHollow ? 'none' : fillOf(verdict, spotTone)}
+        stroke={surfHollow && surfInfo ? VERDICT_LINE[surfTone(surfInfo.level)] : 'var(--g-rule)'}
+        strokeWidth={surfHollow ? 3 : 1.5}
+      />
+    </svg>
+  );
+
+  return (
+    <>
+      <Ficha longitude={spot.center[0]} latitude={spot.center[1]} onClose={dismiss} titleId={titleId} backUrl={withSimulation(`${window.location.pathname}?sector=${sectorId}&spot=${spot.id}`)}>
+        {/* ── Name and actions ── */}
+        <div className="gf-head">
+          <div className="gf-titles">
+            <h2 className="gf-name" title={spot.description}>
+              <span id={titleId}>{spot.name}</span>
+            </h2>
+            {/* How recent it is says nothing while it is recent: up here only when the figure is not from now. */}
+            {staleAge && <div className="gf-sub">{staleAge}</div>}
+          </div>
+          <div className="gf-acts">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); toggleFavorite(spot.id); }}
+              className="gc-btn gc-btn--plain gc-btn--icon"
+              title={favoriteSpotId === spot.id ? 'Quitar favorito' : 'Marcar favorito'}
+              aria-label={favoriteSpotId === spot.id ? 'Quitar favorito' : 'Marcar favorito'}
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill={favoriteSpotId === spot.id ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" aria-hidden="true">
+                <path d="m12 3 2.7 5.8 6.3.8-4.6 4.3 1.2 6.2L12 17l-5.6 3.1 1.2-6.2L3 9.6l6.3-.8L12 3Z" />
+              </svg>
+            </button>
+            {/* Hidden while provisional: a shared image outlives the correction. The card settles in a
+                cycle or two; a screenshot in someone else's chat does not. Hidden on surf too: the
+                image is a WIND card, and it said «CALMA 2 kt» for a beach whose card said «CLÁSICO». */}
+            {!simpleMode && score && !score.provisional && !isSurf && !isSimulationActive() && (
               <button
                 type="button"
-                onClick={(e) => { e.stopPropagation(); toggleFavorite(spot.id); }}
-                className={`sg-act${favoriteSpotId === spot.id ? ' on' : ''}`}
-                title={favoriteSpotId === spot.id ? 'Quitar favorito' : 'Marcar favorito'}
-                aria-label={favoriteSpotId === spot.id ? 'Quitar favorito' : 'Marcar favorito'}
+                onClick={(e) => { e.stopPropagation(); setShareOpen(true); }}
+                className="gc-btn gc-btn--plain gc-btn--icon"
+                title="Compartir como imagen"
+                aria-label="Compartir como imagen"
               >
-                {favoriteSpotId === spot.id ? '★' : '☆'}
+                <WeatherIcon id="share" size={16} />
               </button>
-              {/* Hidden while provisional: a shared image outlives the correction.
-                  The popup will settle in a cycle or two; a screenshot in someone
-                  else's chat will not. Hidden on surf spots too: the image is a
-                  WIND card, and it said «CALMA 2 kt» for a beach whose card said
-                  «CLÁSICO ~1,1 m». */}
-              {score && !score.provisional && spot.category !== 'surf' && !isSimulationActive() && (
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); setShareOpen(true); }}
-                  className="sg-act"
-                  title="Compartir como imagen"
-                  aria-label="Compartir como imagen"
-                >
-                  <WeatherIcon id="share" size={15} />
-                </button>
-              )}
-              <span className="sg-beta">{spot.category === 'surf' ? 'surf beta' : 'beta'}</span>
-            </div>
-            {/* Single-line description — full text on hover; prose costs vertical
-                space the popup cannot afford on mobile. */}
-            <div className="sg-desc" title={spot.description}>{spot.description}</div>
+            )}
           </div>
         </div>
 
-        {score?.provisional || surfState === 'loading' ? (
-          // Cold-load provisional score (same flag SpotMarker reads): never show
-          // a firm verdict computed from a still-partial reading set. Surf: same
-          // rule while the wave forecast or the spot's wind has not arrived.
-          // While provisional the figure itself is the unsettled thing, so it is
-          // the figure that is withheld — direction and station count stay, and
-          // the count is the very reason the number is not ready yet.
-          <div className="sg-big">
-            <span className="sg-pending">
-              {/* With the waves in, what is missing is the spot's wind. */}
+        {/* ── The state, in one big line ── */}
+        {pending ? (
+          // Cold-load provisional score (same flag SpotMarker reads): never a firm verdict from a partial
+          // reading set. Surf: same rule while the wave forecast or the spot's wind has not arrived. The
+          // figure is what is withheld: direction and station count stay, the count being the reason.
+          <div className="gf-big">
+            {chip}
+            <span className="gf-pending">
               {surfState === 'loading'
                 ? (surfEntry ? 'Calculando (esperando el viento de las estaciones)…' : 'Calculando olas…')
                 : 'Calculando condiciones (esperando estaciones)…'}
             </span>
-            {spot.category !== 'surf' && score?.wind && (
-              <span className="sg-side">
-                <span className="sg-mut">{windDirView?.deg != null ? `del ${windDirView.label} ${Math.round(windDirView.deg)}°` : 'dirección variable'}</span>
-                <span className="sg-mut">{score.wind.stationCount} estaciones</span>
+            {!isSurf && score?.wind && (
+              <span className="gf-side">
+                <span>{windDirView?.deg != null ? `del ${windDirView.label} ${Math.round(windDirView.deg)}°` : 'dirección variable'}</span>
+                <span>{score.wind.stationCount} estaciones</span>
               </span>
             )}
           </div>
         ) : seaText ? (
-          <div className="sg-big">
-            <span className="sg-verdict" style={{ color: displayVerdict.textColor }}>Oleaje · {seaText}</span>
-            <span className="sg-side">
-              <span className="sg-strong">{seaWhere}</span>
-              {score?.wind && <span className="sg-mut">no es viento: {Math.round(effectiveKt)} kt</span>}
+          <div className="gf-big">
+            {chip}
+            <span key={seaText} className="gf-figure gf-figure--long">Oleaje · {seaText}</span>
+            <span className="gf-side">
+              <b>{seaWhere}</b>
+              {score?.wind && <span>no es viento: {Math.round(effectiveKt)} kt</span>}
             </span>
           </div>
         ) : (
-          <div className="sg-big">
-            <span className="sg-verdict" style={{ color: displayVerdict.textColor }}>
-              {spot.category === 'surf' ? displayVerdict.label : sentenceCase(displayVerdict.label)}
-              {/* Same height the marker, the list and the ticker print — a model
-                  value, and it says so: nobody measures waves on this beach. */}
+          <div className="gf-big">
+            {chip}
+            <span key={`${displayVerdict.label}-${effectiveKt.toFixed(0)}-${surfEntry?.waveHeight ?? ''}`} className={`gf-figure${isSurf && !surfInfo ? ' gf-figure--long' : ''}`}>
+              {isSurf ? displayVerdict.label : sentenceCase(displayVerdict.label)}
+              {/* Same height the marker, the list and the ticker print: a model value, and it says so,
+                  because nobody measures waves on this beach. */}
               {surfInfo && surfEntry?.waveHeight != null && <> · {formatSurfWave(surfEntry.waveHeight)}</>}
-              {(spot.category !== 'surf' || surfState === 'danger') && score?.wind && <> · {effectiveKt.toFixed(0)}</>}
+              {(!isSurf || surfState === 'danger') && score?.wind && <> · {effectiveKt.toFixed(0)}</>}
             </span>
-            {surfInfo && surfEntry?.waveHeight != null && <span className="sg-model"> (modelo)</span>}
-            {(spot.category !== 'surf' || surfState === 'danger') && score?.wind && (
-              <span className="sg-side">
-                <span className="sg-strong">
+            {surfInfo && surfEntry?.waveHeight != null && <span className="gf-model"> (modelo)</span>}
+            {(!isSurf || surfState === 'danger') && score?.wind && (
+              <span className="gf-side">
+                <b>
                   {windDirView?.deg != null ? (
                     <>
                       nudos del {windDirView.label}{' '}
-                      <span style={{ display: 'inline-block', transform: `rotate(${(windDirView.deg + 180) % 360}deg)` }} aria-hidden="true">↑</span>
-                      {' '}{Math.round(windDirView.deg)}°
+                      <span style={{ display: 'inline-block', color: 'inherit', transform: `rotate(${(windDirView.deg + 180) % 360}deg)` }} aria-hidden="true">↑</span>
+                      {!simpleMode && <> {Math.round(windDirView.deg)}°</>}
                     </>
                   ) : (
-                    <span title="Las estaciones cercanas no coinciden en la dirección">nudos, dirección variable</span>
+                    <span style={{ color: 'inherit' }} title="Las estaciones cercanas no coinciden en la dirección">nudos · rumbo variable</span>
                   )}
-                </span>
-                {/* The gust travels with the mean (scaleGustToSpot), with what the
-                    instrument read kept in view when the spot figure differs. */}
-                {effectiveGustKt != null && effectiveGustKt > effectiveKt && (
-                  <span className="sg-mut">
-                    racha {effectiveGustKt.toFixed(0)}
-                    {gustIsBoosted && score.gustKt != null && ` (medida ${score.gustKt.toFixed(0)})`}
-                  </span>
-                )}
+                </b>
+                {/* Without a heading the trend goes on its own line, named: «dirección variable estable» read as one thing. */}
+                {!isSurf && <SpotDrift spotId={spot.id} trend={score.windTrend} computedAt={score.computedAt} ownLine={windDirView?.deg == null} />}
+                {/* On a verdict line the reading does not tell the two levels apart: say so. */}
+                {!isSurf && verdictDoubtText(score) && <span>{verdictDoubtText(score)}</span>}
+                {/* The gust travels with the mean (scaleGustToSpot). What the instrument read is in «Cómo lo sabemos». */}
+                {gusty && <span>{GUSTY_LABEL}</span>}
+                {effectiveGustKt != null && effectiveGustKt > effectiveKt && <span>racha {effectiveGustKt.toFixed(0)}</span>}
               </span>
             )}
           </div>
         )}
 
-        {spot.category !== 'surf' && score?.wind && (
-          <div className="sg-meta">
-            {/* On a verdict line the reading does not tell the two levels apart: say so. */}
-            {verdictDoubtText(score) && <span>{verdictDoubtText(score)} ·</span>}
-            <SpotWindTrend spotId={spot.id} />
-            <SpotWindSparkline spotId={spot.id} />
-            <span>{score.wind.stationCount} estaciones</span>
-            {!score.provisional && windIsBoosted && <span>· medido {score.wind.avgSpeedKt.toFixed(0)} kt</span>}
-            {!score.provisional && !simpleMode && !score.hardGateTriggered && <span>· {score.score}/100</span>}
+        {decision && (
+          <p className="gf-say" style={{ ['--gf-tone' as string]: pending ? undefined : surfHollow && surfInfo ? VERDICT_LINE[surfTone(surfInfo.level)] : lineOf(verdict, spotTone) } as React.CSSProperties}>
+            {decision}
+          </p>
+        )}
+
+        {/* ── What can hurt comes first ── */}
+        {score?.hardGateTriggered && (
+          <div className="gf-alert" role="alert"><WeatherIcon id="alert-triangle" size={15} /> {score.hardGateTriggered}</div>
+        )}
+        {score?.hasStormAlert && (
+          <div className="gf-alert" role="alert"><WeatherIcon id="alert-triangle" size={15} /> Alerta de tormenta activa</div>
+        )}
+        {spot.caution && (
+          <div className="gf-notes gf-notes--now">
+            <Note icon="alert-triangle" tone="alto">{spot.caution}</Note>
           </div>
         )}
-        {spot.category !== 'surf' && score?.wind?.matchedPattern && (
-          <div className="sg-pattern">
-            <WeatherIcon id="thermal-wind" size={11} className="inline -mt-px" /> {score.wind.matchedPattern}
-          </div>
-        )}
-        {/* Surf verdict summary — plain language */}
-        {displayVerdict.summary && (
-          <div className="sg-summary" style={{ ['--sg-tone' as string]: displayVerdict.color } as React.CSSProperties}>
-            {displayVerdict.summary}
-          </div>
-        )}
-      </div>
 
-      {/* ── Surf conditions reference (surf spots only) ── */}
-      {spot.category === 'surf' && (
-        <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px] mb-1.5 p-1 rounded bg-cyan-950/30 border border-cyan-800/30">
-          {spot.beachOrientation != null && (
-            <div><span className="text-slate-500">Playa</span> <span className="text-cyan-300 font-bold">{degreesToCardinal(spot.beachOrientation)}</span></div>
-          )}
-          {spot.tidePreference && (
-            <div><span className="text-slate-500">Marea</span> <span className="text-cyan-300 font-bold">{
-              spot.tidePreference === 'all' ? 'Todas' :
-              spot.tidePreference === 'mid-high' ? 'Media-alta' :
-              spot.tidePreference === 'mid' ? 'Media' :
-              spot.tidePreference === 'low' ? 'Baja' : 'Alta'
-            }</span></div>
-          )}
-          {spot.offshoreWindDir && (
-            <div><span className="text-slate-500">Offshore</span> <span className="text-cyan-300 font-bold">{spot.offshoreWindDir.map(d => degreesToCardinal(d)).join('/')}</span></div>
-          )}
-          {spot.swellDirections && (
-            <div><span className="text-slate-500">Swell</span> <span className="text-cyan-300 font-bold">{spot.swellDirections.map(d => degreesToCardinal(d)).join('/')}</span></div>
-          )}
-        </div>
-      )}
-
-      {/* ── Tide warning for surf spots — before verdict since it affects session quality ── */}
-      {spot.category === 'surf' && spot.tideStationId && (
-        <SpotTideSummary tideStationId={spot.tideStationId} tidePreference={spot.tidePreference} />
-      )}
-
-      {/* Sport-threshold reading of an active orange marine warning. Informs,
-          never authorises — all copy lives in sportWarningService, guarded by
-          the no-authorisation test. Wave is passed ONLY for surf spots, where
-          the cache value is already through the spot's own coastal factor; a
-          sailing spot gets null (its nearest wave buoy measures open water,
-          which never reaches an inner-ria spot — the service then shows the
-          wind and names the missing wave). Renders nothing without an active
-          orange/red marine warning. Demo: ?simorange=1|alta|sindato|rojo */}
-      <SpotWarningNotice
-        sectorId={sectorId}
-        waveHeightM={spot.category === 'surf' ? (surfSpotWave ?? null) : null}
-        waveIsModel={spot.category === 'surf'}
-        windKt={score?.provisional ? null : (score?.effectiveWindKt ?? score?.wind?.avgSpeedKt ?? null)}
-      />
-
-      {/* Per-spot opt-in for the lightning safety pushes (AVISO/PELIGRO from
-          lightningProximityService — the only thing that ever pushes). Hides
-          itself when the browser lacks Web Push (iOS Safari not installed). */}
-      <SpotPushOptIn spot={spot} />
-
-      {/* SWAN per-spot Hs cross-check (T5-3 S136+3+3) — only on surf spots,
-          and only when CESGA actually responded with a value. Silent on
-          failure since it's a complementary signal, not primary. */}
-      {spot.category === 'surf' && swanHs !== null && (
-        <div className="text-[10px] text-cyan-400/80 mb-1 italic">
-          SWAN {swanHs.toFixed(2)} m (modelo alta resolución CESGA en este punto)
-        </div>
-      )}
-
-      {/* ── Wind trend (30min ramp detection) — flecha animada + lo medido ── */}
-      {score?.windTrend && score.windTrend.signal !== 'none' && (() => {
-        const t = score.windTrend;
-        // What the near stations actually did, over the minutes it took. A rate stretched
-        // to 30 min turned +4 kt in 17 min into «+7kt/30min».
-        const deltaKt = Math.round(t.deltaKt);
-        const sign = deltaKt > 0 ? '+' : '';
-        // Arrow rotation by signal — ramp (↗ 45°), rapid (↑ 0°), drop (↘ 135°)
-        const arrowDeg =
-          t.signal === 'rapid' ? -90
-          : t.signal === 'building' ? -45
-          : 45; // dropping
-        const styles =
-          t.signal === 'rapid' ? 'text-red-400 bg-red-500/10 border-red-500/30'
-          : t.signal === 'building' ? 'text-sky-400 bg-sky-500/10 border-sky-500/30'
-          : 'text-amber-400 bg-amber-500/10 border-amber-500/30';
-        return (
-          <div
-            className={`text-[11px] rounded px-2 py-0.5 mb-1.5 flex items-center gap-1.5 border ${styles}`}
-            title={t.label}
-          >
-            <svg
-              width="11" height="11" viewBox="0 0 24 24"
-              fill="none" stroke="currentColor" strokeWidth="2.5"
-              strokeLinecap="round" strokeLinejoin="round"
-              className={`shrink-0 ${t.signal === 'rapid' ? 'animate-pulse' : ''}`}
-              style={{ transform: `rotate(${arrowDeg}deg)` }}
-              aria-hidden="true"
-            >
-              <path d="M5 12h14M13 5l7 7-7 7" />
-            </svg>
-            <span className="tabular-nums">
-              {sign}{deltaKt} kt en {t.minutes} min
-            </span>
-            <span className="text-current/70">
-              {t.signal === 'rapid' ? 'subida rápida' : t.signal === 'building' ? 'subiendo' : 'bajando'}
-            </span>
-          </div>
-        );
-      })()}
-
-      {/* ── Field report: people at the water say if the wind matches (labels for checking
-            the app, never drawn on the map). Right under the figure it asks about: at the foot
-            of the popup almost nobody found it. Wind spots only, and never while provisional:
-            there is no settled figure to compare against yet. ── */}
-      {spot.category !== 'surf' && score && !score.provisional && (
-        <SpotReportBox
-          spotId={spot.id}
-          // The figure the headline actually shows: the wind the engine decided, canalization
-          // included. Comparing against a number the reporter cannot see (25-sep: headline ~14,
-          // box "5") makes the answer useless.
-          shownWindKt={displayWindKt(score)}
-          shownVerdict={renderedVerdict(score)}
+        {/* Sport-threshold reading of an active orange marine warning. Informs, never authorises: all copy
+            lives in sportWarningService, guarded by the no-authorisation test. Wave ONLY for surf spots,
+            where the cache value is already through the spot's coastal factor; a sailing spot gets null
+            (its nearest wave buoy measures open water). Demo: ?simorange=1|alta|sindato|rojo */}
+        <SpotWarningNotice
+          sectorId={sectorId}
+          warnings={spotWarnings}
+          waveHeightM={isSurf ? (surfSpotWave ?? null) : null}
+          waveIsModel={isSurf}
+          windKt={score?.provisional ? null : (score?.effectiveWindKt ?? score?.wind?.avgSpeedKt ?? null)}
         />
-      )}
 
-      {/* ── Wave conditions (coastal spots — NOT surf, which uses marine forecast) ── */}
-      {spot.category !== 'surf' && score?.waves && score.waves.waveHeight != null && spot.waveRelevance !== 'none' && (
-        <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs mb-1.5 pt-1 border-t border-slate-700/40">
-          {score.waves.localHeight != null && score.waves.localSource !== 'buoy' && (
-            <Cell
-              label={score.waves.localSource === 'swan' ? 'Ola en la zona (SWAN)' : 'Ola en la zona (estimada)'}
-              value={`${score.waves.localSource === 'estimate' ? '≈' : ''}${score.waves.localHeight.toFixed(1)} m`}
-              color={waveHeightColor(score.waves.localHeight)}
-            />
+        {/* ── What is going on now, one line each. An empty list draws nothing. ── */}
+        <div className="gf-notes gf-notes--now">
+          {/* The word by the figure already says «sube»: a rapid rise is the one that is news. */}
+          {score?.windTrend?.signal === 'rapid' && (
+            <Note icon="activity" tone="critico" title={score.windTrend.label}>
+              Subida rápida: {Math.round(score.windTrend.deltaKt)} kt más en {score.windTrend.minutes} min
+            </Note>
           )}
-          {/* The open-ocean buoy only when the spot has no sea of its own (21-oct, user: the
-              Silleiro figure next to the spot's own added nothing; it stays in the gate text). */}
-          {(score.waves.localHeight == null || score.waves.localSource === 'buoy') && (
-            <Cell
-              label={score.waves.sourceBuoy ? `Oleaje (${score.waves.sourceBuoy}, mar abierto)` : 'Oleaje'}
-              value={`${score.waves.waveHeight.toFixed(1)} m`}
-              color={waveHeightColor(score.waves.waveHeight)}
-            />
+
+          {/* «¿Llueve?»: station gauge. The rain that is only on its way is under «Lo que viene». */}
+          {rain && rain.status === 'raining' && (
+            <Note icon="cloud-rain" tone="riesgo" title="Lluvia observada en estación cercana">{rain.summary}</Note>
           )}
-          {score.waves.wavePeriod != null && (
-            <Cell label="Período" value={`${score.waves.wavePeriod.toFixed(0)} s`} />
+
+          {/* Cesantes canalization: a «posible brisa» band, never the figure */}
+          {(() => {
+            const band = canalizationBand(bandKt, score?.wind?.avgSpeedKt ?? null, recentReport);
+            if (!band || !channelingPrediction) return null;
+            if (band.cancelledBy) {
+              return <Note icon="wind">Posible brisa por canalización descartada: {band.cancelledBy}.</Note>;
+            }
+            return (
+              <Note icon="wind" tone="riesgo">
+                <span className="gf-strong">
+                  Posible brisa hasta ~{band.possibleKt} kt {channelingPrediction.predictedDir != null ? degreesToCardinal(channelingPrediction.predictedDir) : ''} (sin confirmar)
+                </span>
+                <small>
+                  {channelingPrediction.signals[0]}. Las estaciones miden {Math.round(score?.wind?.avgSpeedKt ?? 0)} kt
+                  {/* Simple mode has no report box to send it with */}
+                  {simpleMode ? '.' : ': si en el agua no lo ves, repórtalo.'}
+                </small>
+              </Note>
+            );
+          })()}
+
+          {viracion?.confidence === 'high' && <Note icon="wind" tone="riesgo">{viracion.description}</Note>}
+
+          {/* Shown in BOTH modes on purpose: the casual user has the fewest tools to doubt the number, so
+              hiding the caveat left the least equipped reader with the most confident-looking screen. */}
+          {score && score.scoringConfidence === 'low' && (
+            <Note icon="alert-triangle" tone="alto">
+              {simpleMode
+                ? 'Poco dato cerca de aquí: tómalo como orientativo'
+                : `Baja confianza: solo ${score.wind?.stationCount ?? 0} fuente(s) de viento cercana(s)`}
+            </Note>
           )}
+
         </div>
-      )}
 
-      {/* ── 24h Wave forecast (surf spots only) ── */}
-      {spot.category === 'surf' && (
-        <WaveForecastMini spot={spot} entry={surfEntry} />
-      )}
-
-      {/* ── Temperatures & conditions — primary always visible, secondary collapsible ── */}
-      {score && (score.airTemp != null || score.waterTemp != null || mohidSeaTemp != null || marineSST != null || score.humidity != null) && (
-        <TemperatureSection score={score} mohidSeaTemp={score.waterTemp == null ? mohidSeaTemp : null} marineSST={marineSST} />
-      )}
-
-      {/* ── Humidity precursor signal (bruma pattern) ── */}
-      {score?.humiditySignal && (
-        <div className="text-[11px] text-sky-400 bg-sky-500/10 rounded px-2 py-0.5 mb-1.5">
-          {score.humiditySignal}
-        </div>
-      )}
-
-      {/* ── Thermal forecast early warning (BETA) — uses spot-specific WRF 1km ── */}
-      {spot.thermalDetection && spotForecast.length > 0 && (
-        <ThermalForecastBadge forecast={spotForecast} />
-      )}
-
-      {/* ── Thermal onset countdown (P2) — glanceable "entra en ~1h" for thermal
-          spots. Deliberately fuzzy (ETA is ±~30min); the full breakdown +
-          window live in the collapsible ThermalPrecursorSection below.
-          Hide the 'watch' level (≤40%) — "posible térmico ahora" at 25% is
-          noise; the detail section still carries the early vigilancia. ── */}
-      {precursor && precursor.level !== 'watch' && (() => {
-        const cd = formatThermalCountdown(precursor);
-        if (!cd) return null;
-        const tone = cd.tone === 'active'
-          ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-200'
-          : cd.tone === 'soon'
-            ? 'bg-amber-500/15 border-amber-500/40 text-amber-200'
-            : 'bg-slate-700/30 border-slate-600/40 text-slate-300';
-        return (
-          <div
-            className={`text-[11px] font-semibold mb-1.5 px-2 py-0.5 rounded border flex items-center gap-1.5 ${tone}`}
-            title={precursor.eta ? `Ventana térmica ${precursor.eta} · ${precursor.confidence} confianza` : 'Estimación aproximada (±30 min)'}
-          >
-            <WeatherIcon id="wind" size={12} className="-mt-px" />
-            <span>{cd.text}</span>
-          </div>
-        );
-      })()}
-
-      {/* ── Viración (daily wind cycle phase) — Rías only, conservative emit ── */}
-      {viracion && (
-        <div
-          className={`text-[11px] mb-1.5 px-2 py-0.5 rounded border ${
-            viracion.confidence === 'high'
-              ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300'
-              : 'bg-slate-700/30 border-slate-600/40 text-slate-300'
-          }`}
-          title={`Fase: ${viracion.phase} · Confianza: ${viracion.confidence}`}
-        >
-          <WeatherIcon id="wind" size={11} className="inline -mt-px mr-1" />
-          {viracion.description}
-        </div>
-      )}
-
-      {/* ── Rain nowcast — "¿llueve? / lluvia próxima?" (obs estación + forecast) ── */}
-      {rain && rain.status !== 'unknown' && rain.status !== 'dry' && (
-        <div
-          className={`text-[11px] mb-1.5 px-2 py-0.5 rounded border flex items-center gap-1.5 ${
-            rain.status === 'raining'
-              ? 'bg-blue-500/15 border-blue-500/40 text-blue-200'
-              : 'bg-slate-700/30 border-slate-600/40 text-slate-300'
-          }`}
-          title={rain.status === 'raining' ? 'Lluvia observada en estación cercana' : 'Lluvia prevista (previsión)'}
-        >
-          <WeatherIcon id={rain.status === 'raining' ? 'cloud-rain' : 'cloud'} size={12} className="-mt-px" />
-          <span>{rain.summary}</span>
-        </div>
-      )}
-
-      {/* ── ¿Buen día de playa? — casual reframe (EJE ALCANCE prototype).
-          Only on actual BEACH spots (BEACH_SPOT_IDS): excludes open-water ría
-          spots (centro-ria, bocana, cíes-ría) where "beach day" is meaningless,
-          and INCLUDES surf spots (Patos/Lanzada/Corrubedo are beaches).
-          Synthesises sun + air/water temp + wind + rain → sí/regular/no. ── */}
-      {isBeachSpot(spot.id) && (() => {
-        // The beach-day verdict is a DAYTIME decision — nobody goes to the beach
-        // at night, so suppress it between sunset and sunrise (avoids the absurd
-        // "¿Playa? Mal día — lloviendo ahora" showing at 23:36).
-        const nowBeach = new Date();
-        const sun = getSunTimes(nowBeach, spot.center);
-        if (nowBeach < sun.sunrise || nowBeach >= sun.sunset) return null;
-        // The forecast hour NEAREST to now, like the ticker: arrays start at different hours, and
-        // the first one gave «Sol» under the overcast front of 29-sep.
-        const nowHour = spotForecast.reduce<(typeof spotForecast)[number] | null>(
-          (best, h) => (!best || Math.abs(h.time.getTime() - nowBeach.getTime()) < Math.abs(best.time.getTime() - nowBeach.getTime()) ? h : best),
-          null,
-        );
-        const beach = assessBeachDay({
-          cloudCoverPct: nowHour && Math.abs(nowHour.time.getTime() - nowBeach.getTime()) <= 90 * 60_000 ? (nowHour.cloudCover ?? null) : null,
-          windKt: score?.wind?.avgSpeedKt ?? null,
-          gustKt: score?.gustKt ?? null,
-          airTempC: score?.airTemp ?? null,
-          waterTempC: score?.waterTemp ?? mohidSeaTemp ?? marineSST ?? null,
-          rainingNow: rain?.status === 'raining',
-          rainSoon: rain?.status === 'rain-soon',
-          // The gated multi-evidence alert, not a single camera — see above.
-          foggy: fogAlertActive,
-        });
-        if (beach.verdict === 'unknown') return null;
-        const tone = beach.verdict === 'great'
-          ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-200'
-          : beach.verdict === 'ok'
-            ? 'bg-amber-500/12 border-amber-500/35 text-amber-200'
-            : 'bg-slate-700/30 border-slate-600/40 text-slate-400';
-        const dotColor = beach.verdict === 'great' ? '#34d399' : beach.verdict === 'ok' ? '#fbbf24' : '#f87171';
-        return (
-          <div className={`text-[11px] mb-1.5 px-2 py-1 rounded border ${tone}`} title="Resumen casual de condiciones de playa">
-            <div className="font-semibold flex items-center gap-1.5">
-              <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ background: dotColor }} />
-              <span>¿Playa? {beach.summary}</span>
-            </div>
-            {beach.reasons.length > 0 && (
-              <div className="mt-0.5 text-[10px] opacity-80">{beach.reasons.join(' · ')}</div>
+        <FichaGroup title="Lo que viene">
+          {/* What was measured and what the model gives, on one axis. Not for a surf spot, whose figure is the
+              wave, nor while the figure is withheld. */}
+          {/* On the phone the sheet peeks down to here (data-peek-end): verdict and the coming hours without
+              sliding (18-nov). */}
+          {chartPlace === 'chart' && (
+            <div data-peek-end=""><WindNowNext spotId={spot.id} forecast={spotForecast} nowKt={displayWindKt(score)!} /></div>
+          )}
+          {/* Its place, kept while the forecast or the figure is on its way: the sheet does not grow when it lands. */}
+          {chartPlace === 'wait' && <div data-peek-end="" className="gf-plotwait" aria-hidden="true" />}
+          {isSurf && <div data-peek-end=""><WaveForecastMini spot={spot} entry={surfEntry} /></div>}
+          <div className="gf-notes">
+            {rain && rain.status !== 'unknown' && rain.status !== 'dry' && rain.status !== 'raining' && (
+              <Note icon="cloud" title="Lluvia prevista (previsión)">{rain.summary}</Note>
+            )}
+            {/* Thermal onset, deliberately fuzzy (the ETA is ±30 min). It says the conclusion and not what it rests on, and
+                'watch' (≤40 %) is noise: only someone testing the app sees those, in the fold under «Más». */}
+            {thermalNow && (
+              <Note icon="wind" tone={thermalNow.tone === 'active' ? 'ok' : thermalNow.tone === 'soon' ? 'alto' : undefined} title="Estimación aproximada (±30 min)">
+                <span className="gf-strong">{thermalNow.text}</span>
+              </Note>
+            )}
+            {!thermalNow && spot.thermalDetection && spotForecast.length > 0 && <ThermalForecastBadge forecast={spotForecast} />}
+            {!thermalNow && score?.thermal && score.thermal.thermalProbability >= 40 && (
+              <Note icon="sun">
+                Térmica: {score.thermal.thermalProbability} % de probabilidad
+                {score.thermal.windWindow && `, de ${score.thermal.windWindow.startHour} a ${score.thermal.windWindow.endHour} h`}
+              </Note>
             )}
           </div>
-        );
-      })()}
-
-      {/* ── Historical baseline badge — sailing spots only, sailing-relevant signal ── */}
-      {spot.category !== 'surf' && score?.wind != null && score.wind.avgSpeedKt > 0.5 && (
-        <HistoricalBaselineBadge spot={spot} currentKt={score.wind.avgSpeedKt} verdict={verdict} />
-      )}
-
-      {/* ── Tide summary (Rías sailing spots — surf spots show tide above verdict) ── */}
-      {spot.tideStationId && spot.category !== 'surf' && <SpotTideSummary tideStationId={spot.tideStationId} />}
-
-      {/* ── Thermal context (if applicable) ── */}
-      {score?.thermal && score.thermal.thermalProbability > 0 && (
-        <div className="text-[11px] text-blue-300/70 mb-1">
-          <WeatherIcon id="sun" size={12} className="inline -mt-px" /> Térmica {score.thermal.thermalProbability}% prob
-          {score.thermal.windWindow && ` · ${score.thermal.windWindow.startHour}h–${score.thermal.windWindow.endHour}h`}
-        </div>
-      )}
-
-      {/* ── Cesantes canalization: a «posible brisa» band, never the figure (v2.196.0) ── */}
-      {(() => {
-        const band = canalizationBand(bandKt, score?.wind?.avgSpeedKt ?? null, recentReport);
-        if (!band || !channelingPrediction) return null;
-        if (band.cancelledBy) {
-          return (
-            <div className="text-[11px] mb-1.5 text-slate-400">
-              <WeatherIcon id="wind" size={12} className="inline -mt-px" /> Posible brisa por canalización descartada: {band.cancelledBy}.
-            </div>
-          );
-        }
-        return (
-          <div className="text-[11px] mb-1.5 px-2 py-1 rounded border bg-sky-500/10 border-sky-500/30 text-sky-300">
-            <div className="font-bold flex items-center gap-1">
-              <WeatherIcon id="wind" size={12} className="inline -mt-px" />
-              Posible brisa hasta ~{band.possibleKt} kt {channelingPrediction.predictedDir != null ? degreesToCardinal(channelingPrediction.predictedDir) : ''} (sin confirmar)
-            </div>
-            <div className="text-[10px] opacity-80 mt-0.5">
-              {channelingPrediction.signals[0]}. Las estaciones miden {Math.round(score?.wind?.avgSpeedKt ?? 0)} kt: si en el agua no lo ves, repórtalo.
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* ── Front aloft: why there is no breeze boost today (synopticRegime.ts) ── */}
-      {spot.thermalDetection && score?.regimeVeto?.vetoed && score.regimeVeto.reason && (
-        <div className="text-[11px] mb-1 text-slate-400">
-          <WeatherIcon id="wind" size={12} className="inline -mt-px" /> {score.regimeVeto.reason}
-        </div>
-      )}
-
-      {/* ── UV warning (subtle — only when UV >= 6) ── */}
-      {aqData && aqData.uvIndex >= 6 && (
-        <div className={`text-[11px] mb-1 ${aqData.uvIndex >= 8 ? 'text-red-400' : 'text-amber-400'}`}>
-          <WeatherIcon id="sun" size={12} className="inline -mt-px" /> UV {Math.round(aqData.uvIndex)}
-          {aqData.uvIndex >= 11 ? ' EXTREMO — protección total' : aqData.uvIndex >= 8 ? ' Muy alto — crema SPF50+' : ' Alto — protección recomendada'}
-        </div>
-      )}
-
-      {/* ── Sunset countdown + Daylight battery (reactive — daylight remaining) ── */}
-      {(() => {
-        const now = new Date();
-        const { sunrise, sunset } = getSunTimes(now, spot.center);
-        const minutesToSunset = Math.floor((sunset.getTime() - now.getTime()) / 60_000);
-
-        // Before sunrise — show if <1h
-        if (now < sunrise) {
-          const minutesToSunrise = Math.floor((sunrise.getTime() - now.getTime()) / 60_000);
-          if (minutesToSunrise <= 60) {
-            return (
-              <div className="text-[11px] text-sky-400/80 mb-1">
-                <WeatherIcon id="sun" size={12} className="inline -mt-px" /> Amanece en {minutesToSunrise}min ({formatTime(sunrise)})
-              </div>
-            );
-          }
-          return null;
-        }
-
-        // During daylight, <1h to sunset — urgent text countdown
-        if (minutesToSunset > 0 && minutesToSunset <= 60) {
-          const color = minutesToSunset <= 20 ? 'text-red-400' : minutesToSunset <= 40 ? 'text-amber-400' : 'text-orange-400/80';
-          return (
-            <div className={`text-[11px] mb-1 ${color}`}>
-              <WeatherIcon id="sun" size={12} className="inline -mt-px" /> Anochece en {minutesToSunset}min ({formatTime(sunset)})
-            </div>
-          );
-        }
-
-        // During daylight, >1h to sunset — show daylight battery bar (visual)
-        // Battery scale: full day at this latitude ~8-15 h. We cap at 8 h so
-        // the bar fills meaningfully for "session window" planning.
-        // Colors: green ≥5h, amber 3-5h, orange 1-3h. <1h is handled above.
-        if (minutesToSunset > 60) {
-          const hoursLeft = minutesToSunset / 60;
-          const pct = Math.min(100, Math.max(8, (minutesToSunset / 480) * 100));
-          const barColor =
-            hoursLeft >= 5 ? 'bg-emerald-500'
-            : hoursLeft >= 3 ? 'bg-amber-400'
-            : 'bg-orange-400';
-          const textColor =
-            hoursLeft >= 5 ? 'text-slate-400'
-            : hoursLeft >= 3 ? 'text-amber-300/90'
-            : 'text-orange-300';
-          const hours = Math.floor(hoursLeft);
-          const mins = minutesToSunset - hours * 60;
-          const label = hours > 0 ? `${hours}h ${mins}min` : `${mins}min`;
-          return (
-            <div className={`text-[11px] mb-1 ${textColor} flex items-center gap-1.5`} title={`Anochece a las ${formatTime(sunset)}`}>
-              <WeatherIcon id="sun" size={12} className="-mt-px shrink-0" />
-              <span className="shrink-0">Luz</span>
-              <span
-                className="inline-block h-1.5 bg-slate-700/60 rounded overflow-hidden flex-1 max-w-[80px]"
-                aria-hidden="true"
-              >
-                <span className={`block h-full ${barColor}`} style={{ width: `${pct}%` }} />
-              </span>
-              <span className="shrink-0 tabular-nums">{label}</span>
-            </div>
-          );
-        }
-        return null;
-      })()}
-
-      {/* ── Air quality warning (only when poor — AQI >= 60) ── */}
-      {aqData && aqData.europeanAqi >= 60 && (
-        <div className={`text-[11px] mb-1 ${aqData.europeanAqi >= 80 ? 'text-red-400' : 'text-orange-400'}`}>
-          Calidad del aire: {aqData.europeanAqi >= 80 ? 'Muy mala' : 'Mala'}
-          {aqData.pm2_5 >= 35 ? ` (PM2.5 ${Math.round(aqData.pm2_5)} µg/m³)` : ''}
-        </div>
-      )}
-
-      {/* Thermal boost indicator removed — redundant with "Térmica X% prob" already shown above */}
-
-      {/* ── Scoring confidence ──
-          Shown in BOTH modes on purpose. This used to be hidden in simpleMode,
-          which had it backwards: the casual user is the one with the fewest
-          tools to doubt the number, so hiding the caveat left the least
-          equipped reader with the most confident-looking screen. In simple mode
-          it just drops the source count and says the thing in plain words. */}
-      {score && score.scoringConfidence === 'low' && (
-        <div className="text-[10px] text-amber-400/90 italic mb-1">
-          <WeatherIcon id="alert-triangle" size={11} className="inline -mt-px" />{' '}
-          {simpleMode
-            ? 'Poco dato cerca de aquí: tómalo como orientativo'
-            : `Baja confianza: solo ${score.wind?.stationCount ?? 0} fuente(s) de viento cercana(s)`}
-        </div>
-      )}
-
-      {/* ── Summary (wind-based — hide for surf spots which have their own wave summary) ── */}
-      {spot.category !== 'surf' && score?.summary && (
-        <div className="text-[10px] text-slate-400 leading-snug mt-1 pt-1 border-t border-slate-700/40">
-          {score.summary}
-        </div>
-      )}
-
-      {/* ── Hard gate warning ── */}
-      {score?.hardGateTriggered && (
-        <div className="text-[11px] text-red-400 font-bold mt-1">
-          <WeatherIcon id="alert-triangle" size={11} className="inline -mt-px" /> {score.hardGateTriggered}
-        </div>
-      )}
-
-      {/* ── Storm alert ── */}
-      {score?.hasStormAlert && (
-        <div className="text-[11px] text-red-400 font-bold mt-1">
-          <WeatherIcon id="alert-triangle" size={12} className="inline -mt-px" /> Alerta de tormenta activa
-        </div>
-      )}
-
-      {/* ── Sailing windows (collapsible) — hide for surf spots ── */}
-      {spot.category !== 'surf' && windowResult && <SailingWindowsSection result={windowResult} />}
-
-      {/* ── Forecast mini-timeline (12h) — per-spot WRF 1km with auto fallback ──
-           T2-5 (S136+3+3): no more 'Cargando...' flicker. While the per-spot
-           WRF 1km fetch is in flight (or has failed), fall back to the sector
-           Auto forecast (Open-Meteo) already in memory — it's coarser but
-           the user always sees DATA instead of a placeholder, and we swap
-           silently to WRF when it lands. */}
-      {spot.category !== 'surf' && (() => {
-        if (spotForecast.length > 0) {
-          // WRF arrived — show it (sharp 1km per-spot)
-          return <ForecastMiniTimeline forecast={spotForecast} />;
-        }
-        // Fallback to sector-level Auto/Open-Meteo cache while WRF loads/fails.
-        // Trim to next 12h to match WRF mini-timeline display window.
-        const autoForecast = useForecastStore.getState().hourly;
-        if (autoForecast.length > 0) {
-          const nowMs = Date.now();
-          const next12h = autoForecast.filter((h) => {
-            const t = h.time instanceof Date ? h.time.getTime() : new Date(h.time).getTime();
-            return t >= nowMs - 30 * 60_000 && t <= nowMs + 12 * 3600_000;
-          });
-          if (next12h.length >= 3) {
-            return (
-              <div>
-                <ForecastMiniTimeline forecast={next12h} />
-                <div className="text-[10px] text-slate-500/80 mt-0.5 italic">
-                  {spotFcError
-                    ? 'WRF 1km no disponible — mostrando Auto (Open-Meteo, sector)'
-                    : 'Auto (Open-Meteo, sector) — WRF 1km cargando…'}
-                </div>
-              </div>
-            );
-          }
-        }
-        // Neither WRF nor Auto available — last-resort placeholder
-        if (spotFcLoading) {
-          return (
-            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-1">
-              <svg className="animate-spin" width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" fill="none" stroke="#475569" strokeWidth="1.5" /><path d="M6 1.5a4.5 4.5 0 0 1 4.5 4.5" fill="none" stroke="#93c5fd" strokeWidth="1.5" strokeLinecap="round" /></svg>
-              Cargando previsión…
-            </div>
-          );
-        }
-        if (spotFcError) {
-          return <div className="text-[11px] text-slate-500/70 mt-1">Previsión no disponible</div>;
-        }
-        return null;
-      })()}
-
-      {/* ── Open full forecast panel — always visible, not inside ForecastMiniTimeline ── */}
-      {spot.category !== 'surf' && (
-        <button
-          onClick={() => useUIStore.getState().setForecastPanelOpen(true, spot.id)}
-          className="mt-1 w-full text-center text-[11px] text-sky-400 hover:text-sky-300 transition-colors py-1 rounded bg-sky-500/10 hover:bg-sky-500/15 font-medium"
-        >
-          Ver prevision detallada 48h
-        </button>
-      )}
-
-      {/* ── Thermal precursor early warning (collapsible) ── */}
-      {precursor && precursor.level !== 'none' && <ThermalPrecursorSection precursor={precursor} />}
-
-      {/* ── Webcams (collapsible) ── */}
-      {spot.webcams && spot.webcams.length > 0 && <WebcamSection webcams={spot.webcams} />}
-
-      {/* ── Spot wind history 24h (wind spots only — surf uses wave forecast) ── */}
-      {spot.category !== 'surf' && <SpotHistoryChart spotId={spot.id} />}
-
-      {/* ── Share + Apoyar + Timestamp ── */}
-      <div className="flex items-center justify-between mt-1.5 pt-1 border-t border-slate-700/30">
-        <div className="flex items-center gap-1.5">
-          <ShareButton
-            spot={spot}
-            score={score}
-            verdict={verdict}
-            vs={vs}
-            surf={spot.category === 'surf'
-              ? { label: surfState === 'danger' ? vs.label : (surfInfo?.label ?? null), waveM: surfEntry?.waveHeight ?? null }
-              : undefined}
-          />
-          {/* Discreet support link — engagement surface (real spot with data),
-              never on the user-spot "Sin datos" moment. */}
-          <a
-            href="https://ko-fi.com/bateas"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-rose-300 transition-colors rounded px-1.5 py-0.5 hover:bg-slate-800/60"
-            title="Apoyar el proyecto (Ko-fi)"
-          >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/></svg>
-            Apoyar
-          </a>
-        </div>
-        {score?.computedAt && (
-          <span className="text-[10px] text-slate-500">
-            {timeAgoEs(score.computedAt)}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-
-  // ── Mobile: bottom sheet ──────────────────────────
-  if (isMobile) {
-    return (
-      <>
-        {/* Non-modal on purpose (no aria-modal): tapping the map still closes
-            the sheet or picks another spot, like FieldDrawer. */}
-        <div
-          ref={sheetDialogRef}
-          role="dialog"
-          aria-labelledby={titleId}
-          className="fixed bottom-0 left-0 right-0 z-50 animate-slide-up"
-        >
-          <div
-            ref={sheetRef}
-            className="bg-slate-900 border-t border-slate-700 rounded-t-2xl shadow-2xl max-h-[60dvh] overflow-y-auto p-3"
-            style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}
-          >
-            {/* Drag handle — swipe down to dismiss */}
-            <div className="flex justify-center mb-2" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
-              <div className="w-10 h-1 rounded-full bg-slate-600" />
-            </div>
-            {/* Close button */}
-            <button
-              onClick={dismiss}
-              className="absolute top-3 right-3 p-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white min-w-[44px] min-h-[44px] flex items-center justify-center"
-              aria-label="Cerrar"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
+          {/* While the spot's own WRF 1 km is in flight, or has failed, the sector's forecast already in memory
+              stands in, open because there is no chart yet, and the WRF replaces it when it lands. */}
+          {!isSurf && spotForecast.length === 0 && (() => {
+            const autoForecast = useForecastStore.getState().hourly;
+            if (autoForecast.length > 0) {
+              const nowMs = Date.now();
+              const next12h = autoForecast.filter((h) => {
+                const t = h.time instanceof Date ? h.time.getTime() : new Date(h.time).getTime();
+                return t >= nowMs - 30 * 60_000 && t <= nowMs + 12 * 3600_000;
+              });
+              if (next12h.length >= 3) {
+                return (
+                  <ForecastMiniTimeline
+                    forecast={next12h}
+                    note={spotFcError ? 'WRF 1 km no disponible: es la previsión de la zona (Open-Meteo)' : 'De la zona (Open-Meteo) mientras carga la del WRF 1 km'}
+                  />
+                );
+              }
+            }
+            if (spotFcLoading) return <div className="gf-row gf-row--static">Cargando previsión…</div>;
+            if (spotFcError) return <div className="gf-row gf-row--static">Previsión no disponible</div>;
+            return null;
+          })()}
+          {!isSurf && (
+            // A button, with its border: as a bold line it read like the section titles around it (18-nov).
+            <button type="button" className="gc-btn gf-action gf-action--go" onClick={() => useUIStore.getState().setForecastPanelOpen(true, spot.id)}>
+              <span>Ver previsión detallada</span>
+              <Chevron dir="right" />
             </button>
-            {popupContent}
-          </div>
-        </div>
-        {shareOpen && score && (
-          <ShareSpotModal spot={spot} score={score} onClose={() => setShareOpen(false)} />
-        )}
-      </>
-    );
-  }
+          )}
+        </FichaGroup>
 
-  // ── Desktop: MapLibre popup ───────────────────────
-  return (
-    <>
-      <Popup
-        longitude={spot.center[0]}
-        latitude={spot.center[1]}
-        anchor="bottom"
-        offset={[0, -40]}
-        closeOnClick={false}
-        onClose={() => selectSpot('')}
-        className="spot-popup"
-        maxWidth="380px"
-      >
-        <PopupFit />
-        {popupContent}
-      </Popup>
+        <FichaGroup title="Aquí">
+          <div className="gf-notes">
+          {/* A buoy this spot leans on that went silent: said here, not only greyed on the map (18-nov,
+              Ons silent since 17-nov 18:10). */}
+          {silentPreferred.map((b) => (
+            <Note key={b.stationId} icon="alert-triangle" title="Boya que usa este spot">
+              {b.stationName}: {silentLabel(b.timestamp) ?? 'sin dato'}
+            </Note>
+          ))}
+          {/* ¿Buen día de playa? Only on actual beaches (BEACH_SPOT_IDS), and only in daylight: nobody
+              goes to the beach at night. */}
+          {isBeachSpot(spot.id) && (() => {
+            const nowBeach = new Date();
+            const sun = getSunTimes(nowBeach, spot.center);
+            if (nowBeach < sun.sunrise || nowBeach >= sun.sunset) return null;
+            // The forecast hour NEAREST to now, like the ticker: arrays start at different hours, and
+            // the first one gave «Sol» under the overcast front of 29-sep.
+            const nowHour = spotForecast.reduce<(typeof spotForecast)[number] | null>(
+              (best, h) => (!best || Math.abs(h.time.getTime() - nowBeach.getTime()) < Math.abs(best.time.getTime() - nowBeach.getTime()) ? h : best),
+              null,
+            );
+            const beach = assessBeachDay({
+              cloudCoverPct: nowHour && Math.abs(nowHour.time.getTime() - nowBeach.getTime()) <= 90 * 60_000 ? (nowHour.cloudCover ?? null) : null,
+              // The figure the head shows: the raw mean read «Sin apenas viento» beside «Bueno, 13»
+              windKt: displayWindKt(score),
+              gustKt: score?.gustKt ?? null,
+              airTempC: score?.airTemp ?? null,
+              waterTempC: score?.waterTemp ?? mohidSeaTemp ?? marineSST ?? null,
+              rainingNow: rain?.status === 'raining',
+              rainSoon: rain?.status === 'rain-soon',
+              // The gated multi-evidence alert, not a single camera: see fogAlertActive above.
+              foggy: fogAlertActive,
+            });
+            if (beach.verdict === 'unknown' || beach.outOfSeason) return null;
+            return (
+              <Note icon="beach" tone={beach.verdict === 'great' ? 'ok' : beach.verdict === 'ok' ? 'moderado' : 'alto'} title="Resumen casual de condiciones de playa">
+                <span className="gf-strong">¿Playa? {beach.summary}</span>
+                {beach.reasons.length > 0 && <small>{beach.reasons.join(' · ')}</small>}
+              </Note>
+            );
+          })()}
+
+          </div>
+        {!isSurf && score?.waves && score.waves.waveHeight != null && spot.waveRelevance !== 'none' && (
+          <dl className="gf-data">
+            {score.waves.localHeight != null && score.waves.localSource !== 'buoy' && (
+              <Cell
+                label={score.waves.localSource === 'swan' ? 'Ola en la zona (modelo)' : 'Ola en la zona (estimada)'}
+                value={`${score.waves.localSource === 'estimate' ? '≈' : ''}${dec(score.waves.localHeight)} m`}
+              />
+            )}
+            {/* The open-ocean buoy only when the spot has no sea of its own: the Silleiro figure next to
+                the spot's own added nothing, and it stays in the gate text. */}
+            {(score.waves.localHeight == null || score.waves.localSource === 'buoy') && (
+              <Cell
+                label={score.waves.sourceBuoy ? `Oleaje (${score.waves.sourceBuoy}, mar abierto)` : 'Oleaje'}
+                value={`${dec(score.waves.waveHeight)} m`}
+              />
+            )}
+            {score.waves.wavePeriod != null && <Cell label="Período" value={`${score.waves.wavePeriod.toFixed(0)} s`} />}
+          </dl>
+        )}
+        {score && (score.airTemp != null || score.waterTemp != null || mohidSeaTemp != null || marineSST != null) && (
+          <TemperatureSection score={score} mohidSeaTemp={score.waterTemp == null ? mohidSeaTemp : null} marineSST={marineSST} />
+        )}
+        {spot.tideStationId && !isSurf && <SpotTideSummary tideStationId={spot.tideStationId} nextOnly={simpleMode} />}
+
+        {isSurf && spot.tideStationId && (
+          <SpotTideSummary tideStationId={spot.tideStationId} tidePreference={spot.tidePreference} nextOnly={simpleMode} />
+        )}
+          <div className="gf-notes">
+          {aqData && aqData.uvIndex >= 6 && (
+            <Note icon="sun" tone={aqData.uvIndex >= 8 ? 'critico' : 'alto'}>
+              UV {Math.round(aqData.uvIndex)}
+              {aqData.uvIndex >= 11 ? ': extremo, protección total' : aqData.uvIndex >= 8 ? ': muy alto, crema SPF50+' : ': alto, protección recomendada'}
+            </Note>
+          )}
+          {aqData && aqData.europeanAqi >= 60 && (
+            <Note icon="alert-triangle" tone={aqData.europeanAqi >= 80 ? 'critico' : 'alto'}>
+              Calidad del aire: {aqData.europeanAqi >= 80 ? 'muy mala' : 'mala'}
+              {aqData.pm2_5 >= 35 ? ` (PM2,5 ${Math.round(aqData.pm2_5)} µg/m³)` : ''}
+            </Note>
+          )}
+
+          {/* Daylight, only when it matters for the session: the last hour. The sunset time is always in the header. */}
+          {(() => {
+            const now = new Date();
+            const { sunrise, sunset } = getSunTimes(now, spot.center);
+            if (now < sunrise) {
+              const toSunrise = Math.floor((sunrise.getTime() - now.getTime()) / 60_000);
+              return toSunrise <= 60 ? <Note icon="sun">Amanece en {toSunrise} min ({formatTime(sunrise)})</Note> : null;
+            }
+            const toSunset = Math.floor((sunset.getTime() - now.getTime()) / 60_000);
+            if (toSunset <= 0 || toSunset > 60) return null;
+            const hours = Math.floor(toSunset / 60);
+            const restMin = toSunset - hours * 60;
+            const left = hours === 0 ? `${toSunset} min` : restMin > 0 ? `${hours} h ${restMin} min` : `${hours} h`;
+            return (
+              <Note icon="sun" tone={toSunset <= 20 ? 'critico' : toSunset <= 60 ? 'alto' : undefined}>
+                Quedan {left} de luz: anochece a las {formatTime(sunset)}
+              </Note>
+            );
+          })()}
+          </div>
+        </FichaGroup>
+
+        {/* Simple mode (11-nov): the card is the verdict, what comes, the place and the cameras. The
+            hour table repeats the chart above and the detailed forecast one tap away; windows, how it is
+            worked out and the spot's history are for whoever asks for «Avanzado». */}
+        {(!simpleMode || (spot.webcams != null && spot.webcams.length > 0)) && (
+        <FichaGroup title={simpleMode ? 'En directo' : 'Más'} list>
+          {!simpleMode && !isSurf && spotForecast.length > 0 && <ForecastMiniTimeline forecast={spotForecast} folded />}
+        {!simpleMode && isSurf && (
+          <FoldRow icon="beach" title="Qué le va a esta playa">
+          <dl className="gf-data" style={{ borderTop: 0, paddingTop: 0 }}>
+            {spot.beachOrientation != null && <Cell label="Playa" value={degreesToCardinal(spot.beachOrientation)} />}
+            {spot.tidePreference && (
+              <Cell
+                label="Marea"
+                value={
+                  spot.tidePreference === 'all' ? 'Todas' :
+                  spot.tidePreference === 'mid-high' ? 'Media-alta' :
+                  spot.tidePreference === 'mid' ? 'Media' :
+                  spot.tidePreference === 'low' ? 'Baja' : 'Alta'
+                }
+              />
+            )}
+            {spot.offshoreWindDir && <Cell label="Offshore" value={spot.offshoreWindDir.map((d) => degreesToCardinal(d)).join('/')} />}
+            {spot.swellDirections && <Cell label="Swell" value={spot.swellDirections.map((d) => degreesToCardinal(d)).join('/')} />}
+          </dl>
+          </FoldRow>
+        )}
+
+          {!simpleMode && !isSurf && windowResult && <SailingWindowsSection result={windowResult} />}
+          {spot.webcams && spot.webcams.length > 0 && <WebcamSection webcams={spot.webcams} title={simpleMode ? (spot.webcams.length === 1 ? 'Ver la cámara' : 'Ver las cámaras') : undefined} />}
+          {!simpleMode && !isSurf && <SpotHistoryChart spotId={spot.id} />}
+          {!simpleMode && score && !score.provisional && (
+            <FoldRow icon="info" title="Cómo lo sabemos">
+              {isSurf ? (
+                <Note icon="waves">Las olas salen de un modelo: nadie las mide en la playa.</Note>
+              ) : score.wind && (
+                <Note icon="wind">
+                  {windIsBoosted
+                    ? `Las estaciones miden ${score.wind.avgSpeedKt.toFixed(0)} kt; aquí se estiman ${effectiveKt.toFixed(0)}.`
+                    : 'Sale de las estaciones cercanas, sin ajuste.'}
+                  {gustIsBoosted && score.gustKt != null && ` Racha medida: ${score.gustKt.toFixed(0)} kt.`}
+                </Note>
+              )}
+              {!isSurf && score.wind?.matchedPattern && <Note icon="thermal-wind">Patrón del sitio: {score.wind.matchedPattern}</Note>}
+              {spot.thermalDetection && score.regimeVeto?.vetoed && score.regimeVeto.reason && <Note icon="wind">{score.regimeVeto.reason}</Note>}
+              {viracion && viracion.confidence !== 'high' && <Note icon="wind">{viracion.description}</Note>}
+              {score.humiditySignal && <Note icon="droplets">{score.humiditySignal}</Note>}
+              {/* Against the spot's own last 30 days. Sailing spots only. */}
+              {!isSurf && score.wind != null && score.wind.avgSpeedKt > 0.5 && (
+                <HistoricalBaselineBadge spot={spot} currentKt={score.wind.avgSpeedKt} verdict={verdict} />
+              )}
+              {isSurf && swanHs !== null && <Note icon="waves">SWAN {dec(swanHs, 2)} m (modelo de alta resolución del CESGA en este punto)</Note>}
+              {/* The card says «Agua (modelo)»: which model goes here, for whoever wants it. */}
+              {score.waterTemp == null && mohidSeaTemp != null && <Note icon="droplets">Temperatura del agua: modelo MOHID de MeteoGalicia, no una boya.</Note>}
+            </FoldRow>
+          )}
+          {/* What the thermal alert rests on, with its signals: not for a first read, only for someone testing the app. */}
+          {alphaMode && precursor && precursor.level !== 'none' && <ThermalPrecursorSection precursor={precursor} />}
+        </FichaGroup>
+        )}
+
+        {/* What asks something of the reader goes last, and in view. The field report only on wind spots and never
+            while provisional: there is no figure to compare yet. shownWindKt is the figure the head really shows. */}
+        {!simpleMode && !isSurf && score && !score.provisional && (
+          <FichaGroup title="¿Estás aquí ahora?">
+            <SpotReportBox spotId={spot.id} shownWindKt={displayWindKt(score)} shownVerdict={renderedVerdict(score)} />
+          </FichaGroup>
+        )}
+        {/* Per-spot opt-in for the lightning pushes, the only thing that ever pushes. Hides itself when the
+            browser lacks Web Push (iOS Safari not installed). */}
+        <SpotPushOptIn spot={spot} />
+
+        <div className="gf-foot">
+          {score && !score.provisional && (
+            <ShareButton
+              spot={spot}
+              score={score}
+              verdict={verdict}
+              vs={vs}
+              surf={isSurf
+                ? { label: surfState === 'danger' ? vs.label : (surfInfo?.label ?? null), waveM: surfEntry?.waveHeight ?? null }
+                : undefined}
+            />
+          )}
+          {!simpleMode && <SupportLink />}
+        </div>
+        {/* What has to be there and says nothing on a first read: at the foot, subtle. */}
+        {!simpleMode && (
+        <p className="gf-credit">
+          <span className="gf-tag">{isSurf ? 'surf beta' : 'beta'}</span>
+          {[
+            !isSurf && score?.wind && !score.provisional ? (score.wind.stationCount === 1 ? '1 estación' : `${score.wind.stationCount} estaciones`) : null,
+            score?.computedAt && !staleAge ? timeAgoEs(score.computedAt) : null,
+          ].filter(Boolean).join(' · ')}
+        </p>
+        )}
+      </Ficha>
       {shareOpen && score && (
         <ShareSpotModal spot={spot} score={score} onClose={() => setShareOpen(false)} />
       )}
@@ -1118,118 +872,46 @@ export const SpotPopup = memo(function SpotPopup({ spot, score: propScore }: Spo
   );
 });
 
-// ── Helper: data cell ────────────────────────────────────────
-// ── Sailing windows (collapsible) ─────────────────────────────
+// ── Sailing windows ─────────────────────────────
 
 function SailingWindowsSection({ result }: { result: SpotWindowResult }) {
-  const [open, setOpen] = useState(false);
   const { windows, bestWindow } = result;
-
-  if (windows.length === 0) {
-    return (
-      <div className="mt-1.5 pt-1 border-t border-slate-700/40">
-        <div className="flex items-center gap-1 text-[10px] text-slate-500">
-          <WeatherIcon id="clock" size={11} className="text-slate-500" />
-          <span>Sin ventanas de viento en 48h</span>
-        </div>
-      </div>
-    );
-  }
-
+  if (windows.length === 0) return null;
   return (
-    <div className="mt-1.5 pt-1 border-t border-slate-700/40">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-300 transition-colors w-full text-left"
-      >
-        <WeatherIcon id="clock" size={11} className="text-slate-400 shrink-0" />
-        <span className="font-semibold">Mejores ventanas</span>
-        <span className="text-slate-500 text-[11px] ml-1">({windows.length})</span>
-        <span className="text-slate-500 text-[11px] ml-auto">{open ? '▲' : '▼'}</span>
-      </button>
-      {open && (
-        <div className="mt-1.5 space-y-1">
-          {windows.map((w, i) => (
-            <WindowRow key={i} window={w} isBest={bestWindow === w} />
-          ))}
-        </div>
-      )}
-    </div>
+    <FoldRow icon="clock" title="Mejores ventanas" note={`(${windows.length})`}>
+      {windows.map((w, i) => (
+        <WindowRow key={i} window={w} isBest={bestWindow === w} />
+      ))}
+    </FoldRow>
   );
 }
 
 function WindowRow({ window: w, isBest }: { window: SailingWindow; isBest: boolean }) {
-  const dotColor = w.verdict === 'good' ? '#22c55e' : '#eab308';
   return (
-    <div className={`bg-slate-800/40 rounded px-2 py-1 ${isBest ? 'ring-1 ring-emerald-500/30' : ''}`}>
-      <div className="flex items-center gap-1.5 text-[11px]">
-        <span className="w-2 h-2 rounded-full shrink-0" style={{ background: dotColor }} />
-        <span className="font-bold text-slate-200 flex-1">{w.summary}</span>
-        <span className="text-slate-500 font-mono text-[11px]">{w.avgScore}</span>
-      </div>
-      {isBest && (
-        <div className="text-[11px] text-emerald-400 mt-0.5">★ Mejor ventana</div>
-      )}
-    </div>
+    <Note icon={isBest ? 'check-circle' : 'clock'} tone={w.verdict === 'good' ? 'ok' : 'moderado'} title={`Puntuación ${w.avgScore}`}>
+      <span className={isBest ? 'gf-strong' : undefined}>{w.summary}</span>
+      {isBest && <small>La mejor ventana</small>}
+    </Note>
   );
 }
 
-// WebcamSection extracted to ../spot/WebcamSection.tsx
-
 // ── Thermal precursor early warning ────────────────────────
-const PRECURSOR_LEVEL_STYLE: Record<string, { color: string; bg: string }> = {
-  watch:    { color: '#94a3b8', bg: 'rgba(100,116,139,0.12)' },
-  probable: { color: '#fbbf24', bg: 'rgba(251,191,36,0.10)' },
-  imminent: { color: '#fb923c', bg: 'rgba(249,115,22,0.12)' },
-  active:   { color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
-};
 
 function ThermalPrecursorSection({ precursor }: { precursor: ThermalPrecursorResult }) {
-  const [open, setOpen] = useState(false);
-  const style = PRECURSOR_LEVEL_STYLE[precursor.level] ?? PRECURSOR_LEVEL_STYLE.watch;
-
   const activeSignals = Object.entries(precursor.signals).filter(([, s]) => s.active);
-
   return (
-    <div className="mt-1.5 pt-1 border-t border-slate-700/40">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between text-left group"
-      >
-        <span className="text-[11px] font-semibold" style={{ color: style.color }}>
-          <WeatherIcon id="thermal-wind" size={12} className="inline -mt-px" />{' '}
-          Alerta térmica temprana
-        </span>
-        <span className="text-[11px] text-slate-500 group-hover:text-slate-400">{open ? '▴' : '▾'}</span>
-      </button>
-
-      {/* Summary always visible */}
-      <div
-        className="text-[11px] mt-1 px-1.5 py-1 rounded"
-        style={{ background: style.bg, color: style.color, border: `1px solid ${style.color}33` }}
-      >
+    <FoldRow icon="thermal-wind" title="Alerta térmica temprana" note={`${precursor.probability} %`}>
+      <p className="gf-say" style={{ fontSize: 14, fontWeight: 500 }}>
         {precursor.summary}
-        {precursor.eta && (
-          <span className="ml-1 opacity-80">· ventana {precursor.eta}</span>
-        )}
+        {precursor.eta && ` Ventana: ${precursor.eta}.`}
+      </p>
+      <div className="gf-hint" style={{ marginBottom: 6 }}>
+        Confianza {CONFIDENCE_WORD[precursor.confidence] ?? precursor.confidence}, {activeSignals.length} de {Object.keys(precursor.signals).length} señales
       </div>
-
-      {/* Confidence badge */}
-      <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-500">
-        <span>Probabilidad: <strong style={{ color: style.color }}>{precursor.probability}%</strong></span>
-        <span>· Confianza: {precursor.confidence}</span>
-        <span>· {activeSignals.length}/6 señales</span>
-      </div>
-
-      {/* Expanded signal details */}
-      {open && (
-        <div className="mt-1.5 space-y-0.5">
-          {Object.entries(precursor.signals).map(([key, signal]) => (
-            <PrecursorSignalRow key={key} name={SIGNAL_NAMES[key] ?? key} signal={signal} />
-          ))}
-        </div>
-      )}
-    </div>
+      {Object.entries(precursor.signals).map(([key, signal]) => (
+        <PrecursorSignalRow key={key} name={SIGNAL_NAMES[key] ?? key} signal={signal} />
+      ))}
+    </FoldRow>
   );
 }
 
@@ -1240,91 +922,35 @@ const SIGNAL_NAMES: Record<string, string> = {
   humidityGradient: 'Gradiente humedad',
   windDivergence: 'Divergencia viento',
   forecastFavorable: 'Previsión favorable',
+  skyStateClear: 'Cielo despejado',
 };
 
-function PrecursorSignalRow({ name, signal }: { name: string; signal: { active: boolean; score: number; value: string; weight: number } }) {
-  const barWidth = Math.min(100, signal.score);
-  const color = signal.active ? '#22c55e' : '#475569';
+const CONFIDENCE_WORD: Record<string, string> = { high: 'alta', medium: 'media', low: 'baja' };
 
+function PrecursorSignalRow({ name, signal }: { name: string; signal: { active: boolean; score: number; value: string; weight: number } }) {
   return (
-    <div className="flex items-center gap-1.5 text-[11px]">
-      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
-      <span className="text-slate-400 w-[90px] truncate">{name}</span>
-      <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-        <div className="h-full rounded-full transition-all" style={{ width: `${barWidth}%`, background: color }} />
-      </div>
-      <span className="text-slate-500 w-[80px] truncate text-right" title={signal.value}>{signal.value}</span>
+    <div className={`gf-signal${signal.active ? ' on' : ''}`}>
+      <i />
+      <span>{name}</span>
+      <div className="gf-track"><span style={{ width: `${Math.min(100, signal.score)}%` }} /></div>
+      <b title={signal.value}>{signal.value}</b>
     </div>
   );
 }
 
-// WebcamSection moved to ../spot/WebcamSection.tsx
-
 // ── Wind trend + sparkline for spots ─────────────────────────
 
-// Sized for where it actually lives: half of a two-column grid inside a 380px
-// popup, sharing that space with the label, the value and sometimes "(red: 5)".
-// It was 80 wide with a "2h" caption beside it, which overflowed and made the
-// flex row break "Viento" apart mid-word. The bug had been there all along and
-// was only ever invisible because the chart never had enough points to draw.
-// The window it covers is in the aria-label, where it does not cost width.
-const SPARK_W = 44;
-const SPARK_H = 14;
 
-function SpotWindSparkline({ spotId }: { spotId: string }) {
+function SpotDrift({ spotId, trend, computedAt, ownLine = false }: { spotId: string; trend: WindTrend | null | undefined; computedAt?: Date | null; ownLine?: boolean }) {
   const history = useSpotStore((s) => s.windHistory.get(spotId));
-
-  const path = useMemo(() => {
-    if (!history || history.length < 3) return null;
-    const speeds = history.map((h) => h.kt);
-    const max = Math.max(...speeds, 1);
-    const step = SPARK_W / (speeds.length - 1);
-    return speeds
-      .map((s, i) => {
-        const x = (i * step).toFixed(1);
-        const y = (SPARK_H - (s / max) * (SPARK_H - 2) - 1).toFixed(1);
-        return `${i === 0 ? 'M' : 'L'}${x},${y}`;
-      })
-      .join(' ');
-  }, [history]);
-
-  if (!path) return null;
-
-  return (
-    <svg
-      width={SPARK_W}
-      height={SPARK_H}
-      className="ml-1 shrink-0 opacity-70"
-      aria-label="Tendencia del viento, últimas 2 horas"
-    >
-      <path fill="none" stroke="#38bdf8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" d={path} />
-    </svg>
-  );
-}
-
-function SpotWindTrend({ spotId }: { spotId: string }) {
-  const history = useSpotStore((s) => s.windHistory.get(spotId));
-
-  const trend = useMemo(() => {
-    if (!history || history.length < 3) return null;
-    const recent = history.slice(-3);
-    const older = history.slice(-6, -3);
-    if (older.length === 0) return null;
-    const avgRecent = recent.reduce((a, b) => a + b.kt, 0) / recent.length;
-    const avgOlder = older.reduce((a, b) => a + b.kt, 0) / older.length;
-    const diff = avgRecent - avgOlder;
-    if (diff > 1) return { symbol: '\u2191', color: '#22c55e' };
-    if (diff < -1) return { symbol: '\u2193', color: '#ef4444' };
-    return { symbol: '\u2192', color: '#64748b' };
-  }, [history]);
-
-  if (!trend) return null;
-
-  return (
-    <span className="text-xs font-bold leading-none" style={{ color: trend.color }} title="Tendencia viento">
-      {trend.symbol}
-    </span>
-  );
+  const now = useMinuteClock();
+  const drift = useMemo(() => {
+    const age = ageMinutes(computedAt, now);
+    if (age == null || age > TREND_MAX_AGE_MIN) return null;
+    return spotWindDrift(trend, (history ?? []).map((p) => ({ t: p.ts, kt: p.kt })), now);
+  }, [trend, history, computedAt, now]);
+  if (ownLine && drift) return <span className="gf-trendline">viento <TrendMark drift={drift} /></span>;
+  return <TrendMark drift={drift} />;
 }
 
 // ── Thermal forecast early warning (BETA) ─────────────────────
@@ -1335,112 +961,107 @@ function ThermalForecastBadge({ forecast }: { forecast: HourlyForecast[] }) {
   if (signals.length === 0) return null;
 
   return (
-    <div className="mb-1.5 space-y-0.5">
-      {signals.map((s, i) => {
-        const color = s.confidence === 'alta'
-          ? 'text-green-400 bg-green-500/10'
-          : s.confidence === 'media'
-            ? 'text-blue-400 bg-blue-500/10'
-            : 'text-slate-400 bg-slate-500/10';
-        return (
-          <div key={i} className={`text-[11px] ${color} rounded px-2 py-0.5 break-words`}>
-            <WeatherIcon id="sun" size={11} className="inline -mt-px mr-1" />
-            {s.label}<span className="text-[10px] opacity-60 ml-0.5">BETA</span>
-          </div>
-        );
-      })}
-    </div>
+    <>
+      {signals.map((s, i) => (
+        <Note key={i} icon="sun" tone={s.confidence === 'alta' ? 'ok' : s.confidence === 'media' ? 'riesgo' : undefined}>
+          {s.label}<span className="gf-tag">beta</span>
+        </Note>
+      ))}
+    </>
   );
 }
 
-// ── Spot tide summary ─────────────────────────────────────────
+// ── Forecast: next 12 hours, one row every 3 ────────────────────
 
-// ── Forecast mini-timeline (next 12h) ────────────────────────
+const peakOf = (values: (number | null | undefined)[]): number | null => {
+  const known = values.filter((v): v is number => v != null);
+  return known.length > 0 ? Math.max(...known) : null;
+};
 
-function ForecastMiniTimeline({ forecast }: { forecast: HourlyForecast[] }) {
-  const [open, setOpen] = useState(false);
+/** Rows of 3 hours, each with the most its stretch reaches: a peak between two rows has to show. */
+export function forecastRows(forecast: HourlyForecast[], now: Date): HourlyForecast[] {
+  const upcoming = forecast.filter((f) => f.time > now);
+  const rows: HourlyForecast[] = [];
+  for (let i = 0; i < Math.min(12, upcoming.length); i += 3) { // max 4: the whole forecast is one tap below
+    const stretch = upcoming.slice(i, i + 3);
+    const strongest = stretch.reduce((a, b) => ((b.windSpeed ?? -1) > (a.windSpeed ?? -1) ? b : a));
+    rows.push({
+      ...stretch[0],
+      windSpeed: strongest.windSpeed,
+      windDirection: strongest.windDirection,
+      windGusts: peakOf(stretch.map((h) => h.windGusts)),
+      precipProbability: peakOf(stretch.map((h) => h.precipProbability)),
+    });
+  }
+  return rows;
+}
 
-  // Filter to next 12 hours from now, pick every 2h for compactness
-  const hours = useMemo(() => {
-    const now = new Date();
-    const upcoming = forecast.filter((f) => f.time > now);
-    const result: HourlyForecast[] = [];
-    for (let i = 0; i < Math.min(12, upcoming.length); i += 2) {
-      result.push(upcoming[i]);
-    }
-    return result; // max 6 slots
-  }, [forecast]);
+function ForecastMiniTimeline({ forecast, note, folded = false }: { forecast: HourlyForecast[]; note?: string; folded?: boolean }) {
+  const hours = useMemo(() => forecastRows(forecast, new Date()), [forecast]);
 
   if (hours.length === 0) return null;
 
-  const fmt = (d: Date) => `${d.getHours()}h`;
-  const msToKt = (ms: number) => Math.round(ms * 1.94384);
+  const toKt = (ms: number | null) => (ms == null ? null : Math.round(ms * 1.94384));
+  const scale = Math.max(16, ...hours.map((h) => toKt(h.windSpeed) ?? 0));
+  const anyRain = hours.some((h) => (h.precipProbability ?? 0) > 30);
+  const anyGust = hours.some((h) => h.windGusts != null);
 
   return (
-    <div className="mt-1.5 pt-1 border-t border-slate-700/40">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-300 transition-colors w-full text-left"
-      >
-        <WeatherIcon id="clock" size={11} className="text-cyan-500/70 shrink-0" />
-        <span className="font-semibold">Prevision 12h</span>
-        <span className="text-slate-500 text-[11px] ml-auto">{open ? '▲' : '▼'}</span>
-      </button>
-      {open && (
-        <>
-        <div className="mt-1.5 flex gap-0.5 overflow-x-auto">
+    <FoldRow icon="clock" title="Próximas horas" note="de 3 en 3 h" defaultOpen={!folded}>
+      <table className="gf-table">
+        <caption>Lo máximo de cada tramo, en nudos. Previsión.</caption>
+        <thead>
+          <tr>
+            <th scope="col" style={{ width: 38 }}>Hora</th>
+            <th scope="col">Viento</th>
+            <th scope="col" className="gf-n" style={{ width: 28 }}>kt</th>
+            {anyGust && <th scope="col" className="gf-n" style={{ width: 46 }}>Racha</th>}
+            <th scope="col" style={{ width: 58, paddingLeft: 8 }}>Del</th>
+            <th scope="col" className="gf-n" style={{ width: 30 }}>T</th>
+            {anyRain && <th scope="col" className="gf-n" style={{ width: 42 }}>Lluvia</th>}
+          </tr>
+        </thead>
+        <tbody>
           {hours.map((h, i) => {
-            const kt = msToKt(h.windSpeed);
-            const precip = h.precipProbability > 30;
+            const kt = toKt(h.windSpeed);
+            const gust = toKt(h.windGusts);
+            const dir = h.windDirection;
+            const rainPct = h.precipProbability ?? 0;
             return (
-              <div
-                key={i}
-                className="flex flex-col items-center min-w-[38px] bg-slate-800/40 rounded px-1 py-1 text-[11px]"
-              >
-                <span className="text-slate-500 font-mono">{fmt(h.time)}</span>
-                <span
-                  className="font-bold text-[11px] mt-0.5"
-                  style={{ color: windKtColor(kt) }}
-                  title={`${kt} kt ${h.windDirection}°`}
-                >
-                  {kt}
-                </span>
-                <span
-                  className="inline-block text-[11px] leading-none"
-                  style={{ transform: `rotate(${(h.windDirection + 180) % 360}deg)` }}
-                  title={`Dir: ${Math.round(h.windDirection)}°`}
-                >↑</span>
-                <span className="text-slate-400 text-[11px]">{h.temperature.toFixed(0)}°</span>
-                {precip && (
-                  <span className="text-sky-400 text-[11px]" title={`${h.precipProbability}% lluvia`}>
-                    {h.precipProbability}%
-                  </span>
-                )}
-              </div>
+              <tr key={i}>
+                <td>{h.time.getHours()} h</td>
+                <td>{kt != null && kt >= 2 && <span className="gf-bar" style={{ width: `${(kt / scale) * 100}%` }} />}</td>
+                <td className="gf-n"><b>{kt ?? '–'}</b></td>
+                {anyGust && <td className="gf-n">{gust ?? '–'}</td>}
+                <td style={{ paddingLeft: 8 }}>
+                  {dir != null ? (
+                    <span className="gf-dirs">
+                      <span style={{ display: 'inline-block', transform: `rotate(${(dir + 180) % 360}deg)` }} aria-hidden="true">↑</span>
+                      {degreesToCardinal(dir)}
+                    </span>
+                  ) : '–'}
+                </td>
+                <td className="gf-n">{h.temperature != null ? `${h.temperature.toFixed(0)}°` : '–'}</td>
+                {anyRain && <td className="gf-n">{rainPct > 30 ? `${rainPct} %` : ''}</td>}
+              </tr>
             );
           })}
-        </div>
-        </>
-      )}
-    </div>
+        </tbody>
+      </table>
+      {note && <div className="gf-hint" style={{ marginTop: 4 }}>{note}</div>}
+    </FoldRow>
   );
 }
 
-// ── 24h Wave Forecast Mini ───────────────────────────────────
+// ── 24h wave forecast ───────────────────────────────────
 
-/** Compact 24h wave forecast bar chart for surf spots.
- * Reads the hours useSurfMarineData already downloaded — the same entry the
- * verdict comes from — so "ahora" here is the very figure printed beside the
- * verdict, not a third download at another hour. Every height is the wave AT
- * THE BEACH (coastal factor × swell alignment, as the verdict) and a model
- * value. */
+/** Bars of the wave at the beach for the next 24 h, for surf spots.
+ * Reads the hours useSurfMarineData already downloaded, the same entry the verdict comes from, so
+ * «ahora» here is the figure printed beside the verdict, not a third download at another hour. Every
+ * height is the wave AT THE BEACH (coastal factor × swell alignment, as the verdict) and a model value. */
 function WaveForecastMini({ spot, entry }: { spot: SurfSpotShape; entry: SurfWaveEntry | undefined }) {
   if (!entry) {
-    return (
-      <div className="text-[10px] text-slate-500 py-1 mb-1.5 border-t border-slate-700/40 pt-1">
-        Cargando previsión de olas…
-      </div>
-    );
+    return <div className="gf-row gf-row--static">Cargando previsión de olas…</div>;
   }
 
   // The own API serves 48h: the strip shows from an hour ago to +24h.
@@ -1455,7 +1076,7 @@ function WaveForecastMini({ spot, entry }: { spot: SurfSpotShape; entry: SurfWav
   const beach = hours.map((h) => beachWaveAt(spot, h));
   const maxWave = Math.max(...beach.map((b) => b.height), 0.5);
 
-  // Peak of the coming hours at the beach — the hour "máx … a las" names.
+  // Peak of the coming hours at the beach: the hour «máx … a las» names.
   let peakIdx = -1;
   for (let i = 0; i < hours.length; i++) {
     if (hours[i].time.getTime() < nowMs) continue;
@@ -1470,9 +1091,8 @@ function WaveForecastMini({ spot, entry }: { spot: SurfSpotShape; entry: SurfWav
   const peakTime = peakIdx >= 0
     ? hours[peakIdx].time.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
     : null;
-  // The strip reaches +24 h, so the peak can be tomorrow's: «a las 08:00» read
-  // at 13:00 was tomorrow morning and did not say so. And a peak that prints
-  // the same as now adds nothing («~0,6 m ahora → máx ~0,6 m»).
+  // The strip reaches +24 h, so the peak can be tomorrow's: «a las 08:00» read at 13:00 was tomorrow
+  // morning and did not say so. And a peak that prints the same as now adds nothing.
   const peakPart = currentWave != null && maxForecast != null && peakTime
     && formatSurfWave(maxForecast) !== formatSurfWave(currentWave)
     ? ` → máx ${formatSurfWave(maxForecast)}${hours[peakIdx].time.toDateString() !== now.toDateString() ? ' mañana' : ''} a las ${peakTime}`
@@ -1481,56 +1101,36 @@ function WaveForecastMini({ spot, entry }: { spot: SurfSpotShape; entry: SurfWav
   const periodQuality = avgPeriod >= 10 ? 'largo (buena calidad)' : avgPeriod >= 7 ? 'medio' : 'corto (mar de viento)';
 
   return (
-    <div className="mb-1.5 pt-1 border-t border-slate-700/40">
-      <div className="flex items-center gap-1 mb-1">
-        <WeatherIcon id="waves" size={11} className="text-cyan-400" />
-        <span className="text-[11px] font-bold text-cyan-300">Olas 24h</span>
-        <span className="text-[10px] text-slate-500">(modelo)</span>
-        <span className="text-[10px] text-slate-500 ml-auto">Periodo {periodQuality}</span>
+    <div className="gf-sec">
+      <div className="gf-sectitle">
+        <h4>Olas 24 h <small>(modelo)</small></h4>
+        <small>Periodo {periodQuality}</small>
       </div>
-
-      {/* Bar chart — wave at the beach per hour, the quantity the verdict uses */}
-      <div className="flex items-end gap-px h-8 mb-1 relative" title="Altura de ola en la playa por hora (modelo)">
+      <div className="flex items-end" style={{ gap: 1, height: 34, marginBottom: 3 }} title="Altura de ola en la playa por hora (modelo)">
         {hours.map((h, i) => {
           const b = beach[i];
-          const pct = Math.max(4, (b.height / maxWave) * 100);
-          const isPeak = i === peakIdx;
-          const hourLabel = h.time.getHours();
           const isPast = h.time < now;
           return (
             <div
               key={i}
-              className="flex-1 rounded-t-sm relative"
+              className="flex-1"
               style={{
-                height: `${pct}%`,
-                backgroundColor: isPast ? 'rgba(100,116,139,0.3)' : waveBarColor(b.height),
-                opacity: isPast ? 0.5 : 1,
-                border: isPeak ? '1px solid #22d3ee' : 'none',
+                height: `${Math.max(4, (b.height / maxWave) * 100)}%`,
+                background: isPast ? 'var(--g-hair)' : 'var(--g-surf)',
+                outline: i === peakIdx ? '1px solid var(--g-ink)' : undefined,
               }}
-              title={`${hourLabel}h: ${formatSurfWave(b.height)} en la playa${b.period > 0 ? ` · Tp ${b.period.toFixed(0)}s` : ''} (modelo)`}
+              title={`${h.time.getHours()} h: ${formatSurfWave(b.height)} en la playa${b.period > 0 ? `, periodo ${b.period.toFixed(0)} s` : ''} (modelo)`}
             />
           );
         })}
       </div>
-
-      {/* Time labels (every 6h) */}
-      <div className="flex justify-between text-[9px] text-slate-600 mb-1">
+      <div className="flex justify-between gf-hint" style={{ marginBottom: 4 }}>
         {hours.filter((_, i) => i % 6 === 0).map((h, i) => (
-          <span key={i}>{h.time.getHours()}h</span>
+          <span key={i}>{h.time.getHours()} h</span>
         ))}
       </div>
-
-      {/* Period indicator at key hours */}
-      <div className="flex justify-between text-[8px] text-slate-600 mb-1">
-        {beach.filter((_, i) => i % 6 === 0).map((b, i) => {
-          const tp = b.period;
-          return tp > 0 ? <span key={i} style={{ color: tp >= 10 ? '#22d3ee' : tp >= 7 ? '#94a3b8' : '#f97316' }}>{tp.toFixed(0)}s</span> : <span key={i} />;
-        })}
-      </div>
-
-      {/* Summary line — "ahora" is the verdict's own figure */}
       {trend && currentWave != null && (
-        <div className="text-[10px] text-slate-400 leading-tight">
+        <div style={{ fontSize: 13.5 }}>
           Olas {trend}: {formatSurfWave(currentWave)} ahora{peakPart}
         </div>
       )}
@@ -1538,66 +1138,48 @@ function WaveForecastMini({ spot, entry }: { spot: SurfSpotShape; entry: SurfWav
   );
 }
 
-// ── Temperature section — primary visible, secondary collapsible ──
+// ── Temperatures: the main ones visible, the rest under «Más datos» ──
 
 function TemperatureSection({ score, mohidSeaTemp, marineSST }: { score: SpotScore; mohidSeaTemp?: number | null; marineSST?: number | null }) {
   const [showMore, setShowMore] = useState(false);
-  const hasSecondary = score.dewPoint != null || score.windChill != null || score.heatIndex != null;
+  const simpleMode = useUIStore((s) => s.simpleMode);
+  const hasSecondary = !simpleMode && (score.humidity != null || score.dewPoint != null || score.windChill != null || score.heatIndex != null);
   const waterTemp = score.waterTemp ?? mohidSeaTemp ?? marineSST;
-  const waterLabel = score.waterTemp != null ? 'Agua' : mohidSeaTemp != null ? 'Agua (MOHID)' : 'Agua (modelo)';
+  const waterLabel = score.waterTemp != null ? 'Agua' : 'Agua (modelo)';
 
   return (
-    <div className="mb-1.5 pt-1 border-t border-slate-700/40">
-      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
-        {score.airTemp != null && (
-          <Cell label="Aire" value={`${score.airTemp.toFixed(1)}°C`} color={temperatureColor(score.airTemp)} />
-        )}
+    <>
+      <dl className="gf-data">
+        {score.airTemp != null && <Cell label="Aire" value={`${dec(score.airTemp)} °C`} />}
         {waterTemp != null && (
-          <Cell
-            label={waterLabel}
-            value={`${waterTemp.toFixed(1)}°C · ${waterTempLabel(waterTemp)}`}
-            color={waterTColor(waterTemp)}
-          />
+          <Cell label={waterLabel}>
+            {dec(waterTemp)} °C <small>{waterTempLabel(waterTemp)}</small>
+          </Cell>
         )}
-        {score.humidity != null && (
-          <Cell label="Humedad" value={`${score.humidity.toFixed(0)}%`} color={humidityColor(score.humidity)} />
-        )}
-      </div>
+        {showMore && hasSecondary && score.humidity != null && <Cell label="Humedad" value={`${score.humidity.toFixed(0)} %`} />}
+        {showMore && hasSecondary && score.dewPoint != null && <Cell label="Punto de rocío" value={`${dec(score.dewPoint)} °C`} />}
+        {showMore && hasSecondary && score.windChill != null && <Cell label="Sensación térmica" value={`${dec(score.windChill)} °C`} />}
+        {/* Heat above 32 is a warning, in either mode; below that it is one more figure */}
+        {score.heatIndex != null && (score.heatIndex > 32 || (showMore && hasSecondary)) && <Cell label="Índice de calor" value={`${dec(score.heatIndex)} °C`} warn={score.heatIndex > 32} />}
+      </dl>
       {hasSecondary && (
-        <>
-          <button
-            onClick={() => setShowMore((o) => !o)}
-            className="text-[10px] text-slate-500 hover:text-slate-400 mt-1 transition-colors"
-          >
-            {showMore ? 'Menos datos ▲' : 'Más datos ▼'}
-          </button>
-          {showMore && (
-            <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mt-1">
-              {score.dewPoint != null && <Cell label="Punto rocío" value={`${score.dewPoint.toFixed(1)}°C`} />}
-              {score.windChill != null && <Cell label="Sensación térmica" value={`${score.windChill.toFixed(1)}°C`} color={temperatureColor(score.windChill)} />}
-              {score.heatIndex != null && <Cell label="Índice calor" value={`${score.heatIndex.toFixed(1)}°C`} color={score.heatIndex > 35 ? '#ef4444' : score.heatIndex > 32 ? '#fb923c' : '#facc15'} />}
-            </div>
-          )}
-        </>
+        <button type="button" className="gf-more" onClick={() => setShowMore((o) => !o)} aria-expanded={showMore}>
+          {showMore ? 'Menos datos' : 'Más datos'}
+        </button>
       )}
-    </div>
+    </>
   );
 }
 
-// ── Spot History 24h — inline chart from ingestor spot_scores (wind spots only) ──
-
-// SpotHistoryChart + SpotWindChart extracted to ../spot/SpotHistoryChart.tsx
-
-// ── Share button — Web Share API with clipboard fallback ──────────
+// ── Share button: Web Share API with clipboard fallback ──────────
 
 function ShareButton({ spot, score, verdict: _verdict, vs, surf }: {
   spot: SailingSpot;
   score?: SpotScore;
   verdict: SpotVerdict;
   vs: typeof VERDICT_STYLE[SpotVerdict];
-  /** Surf spots: the text says what the card says — the surf verdict (null =
-   *  not ready, no verdict stated) and the MODEL wave at the beach, never the
-   *  wind verdict with a tide gauge's «olas 0.0m». */
+  /** Surf spots: the text says what the card says, the surf verdict (null = not ready, no verdict stated)
+   *  and the MODEL wave at the beach, never the wind verdict with a tide gauge's «olas 0.0m». */
   surf?: { label: string | null; waveM: number | null };
 }) {
   const [copied, setCopied] = useState(false);
@@ -1607,9 +1189,12 @@ function ShareButton({ spot, score, verdict: _verdict, vs, surf }: {
   const surfLabel = surf?.label ?? null;
   const surfWaveM = surf?.waveM ?? null;
   const shareText = useMemo(() => {
-    const parts = [isSurf ? (surfLabel ? `${spot.name}: ${surfLabel}` : spot.name) : `${spot.name}: ${vs.label}`];
-    if (score?.wind) {
-      parts.push(`${(score.effectiveWindKt ?? score.wind.avgSpeedKt).toFixed(0)}kt ${displayWindDir(score)?.label ?? ''}`.trim());
+    // Closed by the sea, the text says what the card heads with, the sea; not the wind verdict with its
+    // knots (the «FUERTE · 8 kt» already fixed on the marker, review 18-nov).
+    const sea = isSurf ? null : gateWaveText(score);
+    const parts = [isSurf ? (surfLabel ? `${spot.name}: ${surfLabel}` : spot.name) : sea ? `${spot.name}: Oleaje · ${sea}` : `${spot.name}: ${vs.label}`];
+    if (score?.wind && !sea) {
+      parts.push(`${(score.effectiveWindKt ?? score.wind.avgSpeedKt).toFixed(0)} kt ${displayWindDir(score)?.label ?? ''}`.trim());
     }
     if (score?.airTemp != null) {
       parts.push(`${score.airTemp.toFixed(0)}°C`);
@@ -1617,7 +1202,7 @@ function ShareButton({ spot, score, verdict: _verdict, vs, surf }: {
     if (isSurf) {
       if (surfWaveM != null) parts.push(`olas ${formatSurfWave(surfWaveM)} (modelo)`);
     } else if (score?.waves?.waveHeight != null) {
-      parts.push(`olas ${score.waves.waveHeight.toFixed(1)}m`);
+      parts.push(`olas ${score.waves.waveHeight.toFixed(1).replace('.', ',')} m`);
     }
     parts.push('— MeteoMapGal');
     return parts.join(' | ');
@@ -1638,7 +1223,7 @@ function ShareButton({ spot, score, verdict: _verdict, vs, surf }: {
       try {
         await navigator.share(shareData);
       } catch {
-        // User cancelled — not an error
+        // User cancelled: not an error
       }
     } else {
       // Fallback: copy to clipboard
@@ -1653,32 +1238,20 @@ function ShareButton({ spot, score, verdict: _verdict, vs, surf }: {
   };
 
   return (
-    <button
-      onClick={handleShare}
-      className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-300 transition-colors rounded px-1.5 py-0.5 hover:bg-slate-800/60"
-      title="Compartir condiciones"
-    >
-      <WeatherIcon id="navigation" size={10} />
-      {copied ? 'Copiado' : 'Compartir'}
+    <button type="button" onClick={handleShare} className="gc-btn gc-btn--plain" title="Compartir condiciones">
+      <WeatherIcon id="navigation" size={14} />
+      <span role="status">{copied ? 'Copiado' : 'Compartir'}</span>
     </button>
   );
 }
 
 /**
- * Historical baseline badge — "Hoy vs media".
- *
- * Renders a single line near the verdict comparing current wind against
- * the spot's reference station's 30-day baseline. Skips entirely when:
- *   - The spot has no preferred station (early-life or surf)
- *   - The baseline has <24 h of samples (just-discovered station)
- *   - Current wind is within ±25 % of average (not actionable)
- *
- * Wired up as a per-popup mount; data is cached process-wide for 1 h.
+ * «Hoy frente a la media»: current wind against the 30-day baseline of the spot's reference station.
+ * Skips when the spot has no preferred station, the baseline has <24 h of samples, or the wind is
+ * within ±25 % of average. Data cached process-wide for 1 h.
  */
 function HistoricalBaselineBadge({ spot, currentKt, verdict }: { spot: SailingSpot; currentKt: number; verdict: SpotVerdict }) {
-  // Use the spot's first preferred station as the reference — it's the
-  // baseline-stable anchor (in `spots.ts` config), not subject to discovery
-  // churn that affects ad-hoc nearby stations.
+  // The first preferred station is the stable anchor (`spots.ts` config), not subject to discovery churn.
   const refStation = spot.preferredStations[0];
   const { baseline } = useHistoricalBaseline(refStation, 'wind', 30);
 
@@ -1687,21 +1260,19 @@ function HistoricalBaselineBadge({ spot, currentKt, verdict }: { spot: SailingSp
   const insight = describeVsBaseline(currentKt, baseline, 'kt', 'últimos 30 días');
   if (!insight) return null;
 
-  // Don't celebrate an "above-average" wind next to a poor verdict. At low-wind
-  // spots (e.g. Liméns, media 4 kt) a 7 kt day is "top 10%" yet still FLOJO —
-  // showing "top 10%" beside FLOJO reads contradictory and just creates doubt.
-  // Only surface the badge when the wind is actually usable; the sole exception
-  // is the genuinely-below-average ('low') case, which coheres with FLOJO.
+  // Don't celebrate an above-average wind next to a poor verdict: at low-wind spots (Liméns, media 4 kt)
+  // a 7 kt day is «top 10 %» yet still FLOJO, which reads contradictory. Only when the wind is usable;
+  // the one exception is the below-average case, which coheres with FLOJO.
   const windUsable = verdict === 'sailing' || verdict === 'good' || verdict === 'strong';
   if (!windUsable && insight.severity !== 'low') return null;
 
   return (
-    <div
-      className={`text-[11px] mb-1.5 px-2 py-0.5 rounded border ${severityToBadgeClass(insight.severity)}`}
+    <Note
+      icon="info"
+      tone={insight.severity === 'rare' || insight.severity === 'high' ? 'ok' : insight.severity === 'low' ? 'riesgo' : undefined}
       title={`Referencia: ${refStation} · p75 ${baseline.p75} kt · p90 ${baseline.p90} kt · ${baseline.hoursSampled} h muestreadas`}
     >
-      <WeatherIcon id="info" size={11} className="inline -mt-px mr-1" />
       {insight.phrase}
-    </div>
+    </Note>
   );
 }

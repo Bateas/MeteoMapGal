@@ -1,37 +1,23 @@
 /**
- * BuoyPanel — Marine buoy data for Rías Baixas sector.
- *
- * Shows real-time wave height, period, direction, water temperature,
- * wind, and currents from Puertos del Estado buoys.
- * Only visible in Rías Baixas sector.
+ * The marine buoys of the Estaciones tab, folded: one row each, with the sea or the wind and the water. Tapping a
+ * row opens its card, where the rest is. Who publishes the data is said on every use, as they ask.
  */
-
 import { memo, useMemo, useState } from 'react';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import { BuoyCredit } from '../common/BuoyCredit';
-import { buoyProviders, type BuoyReading } from '../../api/buoyClient';
+import { buoyProviders, RIAS_BUOY_STATIONS, type BuoyReading } from '../../api/buoyClient';
 import { useBuoyStore } from '../../store/buoyStore';
-import { msToKnots, windSpeedClass } from '../../services/windUtils';
-import { waveHeightClass, waterTempClass, currentSpeedClass, seaStateLabel } from '../../services/buoyUtils';
+import { useUIStore } from '../../store/uiStore';
+import { msToKnots } from '../../services/windUtils';
+import { BUOY_STALE_MAX_MIN, BUOY_WAVE_MAX_MIN } from '../../services/buoyUtils';
+import { ageMinutes, ageWords, dataAge, DATA_OLD_MIN } from '../../services/dataAge';
+import { useMinuteClock } from '../../hooks/useMinuteClock';
+import { listHoverHandlers } from '../../hooks/useListHover';
 
-/** Compass label from degrees */
-function dirLabel(deg: number | null): string {
-  if (deg == null) return '—';
-  const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
-  return dirs[Math.round(((deg % 360 + 360) % 360) / 22.5) % 16];
-}
+/** A buoy arrives up to two hours late by design: its figure stays in ink until then. */
+const BUOY_AGE_LIMITS = { oldMin: BUOY_STALE_MAX_MIN, goneMin: BUOY_WAVE_MAX_MIN };
 
-/** Format relative time */
-function timeAgo(ts: string): string {
-  const diff = Date.now() - new Date(ts).getTime();
-  const mins = Math.round(diff / 60_000);
-  if (mins < 60) return `${mins}min`;
-  const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs}h`;
-  return `${Math.round(hrs / 24)}d`;
-}
-
-// Color scales imported from buoyUtils.ts — shared with BuoyPopup + BuoySymbolLayer
+const dec = (v: number, digits = 1) => v.toFixed(digits).replace('.', ',');
 
 export const BuoyPanel = memo(function BuoyPanel() {
   // Display-only — data fetching handled by useBuoyData hook in AppShell
@@ -39,247 +25,89 @@ export const BuoyPanel = memo(function BuoyPanel() {
   const loading = useBuoyStore((s) => s.loading);
   const error = useBuoyStore((s) => s.error);
   const lastFetch = useBuoyStore((s) => s.lastFetch);
+  const selectedBuoyId = useBuoyStore((s) => s.selectedBuoyId);
   // Hooks MUST be before any early returns (React hooks rules)
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const providers = useMemo(() => buoyProviders(buoys.map((b) => b.stationId)), [buoys]);
+  const now = useMinuteClock();
 
-  if (loading || lastFetch === 0) {
-    return (
-      <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3">
-        <div className="flex items-center gap-2 text-cyan-400 text-[11px]">
-          <WeatherIcon id="waves" size={14} className="animate-pulse" />
-          Cargando datos de boyas...
-        </div>
-      </div>
-    );
-  }
-
-  if (error || buoys.length === 0) {
-    return (
-      <div className="rounded-lg border border-slate-700/50 bg-slate-900/50 p-3">
-        <div className="flex items-center gap-2 text-slate-500 text-[11px]">
-          <WeatherIcon id="waves" size={14} />
-          {error ? `Boyas: ${error}` : 'Sin datos de boyas marinas'}
-        </div>
-      </div>
-    );
-  }
+  // Only when there is nothing yet: every poll says «loading», and the open list would blink away.
+  if (buoys.length === 0 && (loading || lastFetch === 0)) return <p className="gc-small" role="status">Cargando las boyas…</p>;
+  if (error || buoys.length === 0) return <p className="gc-small" title={error ?? undefined}>{error ? 'No se pudieron cargar las boyas. Prueba en un rato.' : 'Sin datos de boyas marinas'}</p>;
 
   return (
-    <section aria-label="Datos de boyas marinas" className="space-y-2">
-      {/* Collapsible Header */}
-      <button
-        aria-expanded={expanded}
-        onClick={() => setExpanded(!expanded)}
-        className="w-full rounded-lg border border-cyan-500/20 bg-cyan-500/5 overflow-hidden cursor-pointer hover:bg-cyan-500/10 transition-colors"
-      >
-        <div className="flex items-center justify-between px-3 py-2">
-          <div className="flex items-center gap-2">
-            <WeatherIcon id="waves" size={15} className="text-cyan-400" />
-            <span className="text-[11px] font-bold text-cyan-300">
-              Boyas marinas
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-slate-500">
-              {buoys.length} estaciones
-            </span>
-            <svg className={`w-3 h-3 text-slate-500 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" d="M19 9l-7 7-7-7" />
-            </svg>
-          </div>
-        </div>
+    <section aria-label="Boyas marinas" className="gc-listwrap">
+      <button type="button" className="gc-foldbtn" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
+        <WeatherIcon id="waves" size={18} />
+        <span className="gc-foldbtn-name">Boyas marinas</span>
+        <small>{buoys.length}</small>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ transform: expanded ? 'rotate(180deg)' : undefined }}>
+          <path d="m6 9 6 6 6-6" />
+        </svg>
       </button>
-
-      {/* Buoy cards — collapsible */}
-      {expanded && buoys.map((b) => (
-        <BuoyCard key={b.stationId} reading={b} />
-      ))}
-      {expanded && <BuoyCredit providers={providers} className="block text-[11px] text-slate-500 leading-snug" />}
+      {expanded && (
+        <>
+          <ul className="gc-list">
+            {buoys.map((b) => <BuoyRow key={b.stationId} reading={b} isSelected={b.stationId === selectedBuoyId} now={now} />)}
+          </ul>
+          <BuoyCredit providers={providers} className="gc-small gc-credit" />
+        </>
+      )}
     </section>
   );
 });
 
-// ── BuoyCard ──────────────────────────────────────────────
+const BuoyRow = memo(function BuoyRow({ reading: b, isSelected, now }: { reading: BuoyReading; isSelected: boolean; now: number }) {
+  const info = useMemo(() => RIAS_BUOY_STATIONS.find((s) => s.id === b.stationId), [b.stationId]);
+  const ageMin = ageMinutes(b.timestamp, now);
 
-const BuoyCard = memo(function BuoyCard({ reading: b }: { reading: BuoyReading }) {
-  const hasWaves = b.waveHeight != null;
-  const hasWind = b.windSpeed != null;
+  // What it measures that matters most: the sea, or the wind. A tide gauge is there for the level: it sits in the
+  // harbour, and its «wave» of 0,02 m is the water of the dock, not the state of the sea.
+  const gauge = info?.type === 'REDMAR';
+  const main = gauge && b.seaLevel != null
+    ? { value: `${dec(b.seaLevel, 2)} m`, word: 'nivel' }
+    : !gauge && b.waveHeight != null
+    ? { value: `${dec(b.waveHeight)} m`, word: 'ola' }
+    : b.windSpeed != null
+      ? { value: `${Math.round(msToKnots(b.windSpeed))} kt`, word: 'viento' }
+      : b.seaLevel != null
+        ? { value: `${dec(b.seaLevel, 2)} m`, word: 'nivel' }
+        : null;
+
+  const onSelect = () => {
+    const ui = useUIStore.getState();
+    useBuoyStore.getState().selectBuoy(isSelected ? null : b.stationId);
+    if (ui.isMobile) ui.setSidebarOpen(false);
+  };
 
   return (
-    <div className="rounded-lg border border-slate-700/50 bg-slate-900/60 overflow-hidden">
-      {/* Station header */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-slate-800/50">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[11px] font-bold text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded flex items-center justify-center">
-            <WeatherIcon id="anchor" size={12} />
+    <li
+      className="gc-listrow"
+      data-current={isSelected ? '' : undefined}
+      data-age={dataAge(ageMin, BUOY_AGE_LIMITS)}
+      {...(info ? listHoverHandlers(info.lon, info.lat) : {})}
+    >
+      <button type="button" className="gc-rowbtn" aria-current={isSelected ? 'true' : undefined} onClick={onSelect}>
+        <svg className="gc-rowshape" width="20" height="20" viewBox="0 0 26 26" aria-hidden="true">
+          <polygon points="13,2 24,13 13,24 2,13" fill="var(--g-s-flojo)" stroke="var(--g-rule)" strokeWidth="1.5" />
+        </svg>
+        <span className="gc-rowmain">
+          <span className="gc-rowname">{b.stationName}</span>
+          {ageMin != null && ageMin > DATA_OLD_MIN && <span className="gc-rowsub"><span>{ageWords(ageMin)}</span></span>}
+        </span>
+        {main && (
+          <span className="gc-rowfig">
+            <b>{main.value}</b>{' '}
+            <small>{main.word}</small>
           </span>
-          <span className="text-[11px] font-bold text-slate-200">{b.stationName}</span>
-          {b.source === 'obscosteiro' && (
-            <span className="text-[11px] font-bold text-teal-400 bg-teal-500/10 px-1 py-0.5 rounded">
-              OBS
-            </span>
-          )}
-        </div>
-        <span className="text-[11px] text-slate-500">{timeAgo(b.timestamp)}</span>
-      </div>
-
-      {/* Data grid */}
-      <div className="grid grid-cols-3 gap-px bg-slate-700/20 text-[11px]">
-        {/* Wave data */}
-        {hasWaves && (
-          <>
-            <DataCell
-              label={seaStateLabel(b.waveHeight)}
-              value={`${b.waveHeight!.toFixed(1)} m`}
-              className={waveHeightClass(b.waveHeight!)}
-            />
-            <DataCell
-              label="Período"
-              value={b.wavePeriod != null ? `${b.wavePeriod.toFixed(1)} s` : '—'}
-            />
-            <DataCell
-              label="Dir ola"
-              value={dirLabel(b.waveDir)}
-              sub={b.waveDir != null ? `${Math.round(b.waveDir)}°` : undefined}
-            />
-          </>
         )}
-
-        {/* Wind data */}
-        {hasWind && (
-          <>
-            <DataCell
-              label="Viento"
-              value={`${msToKnots(b.windSpeed!).toFixed(1)} kt`}
-              className={windSpeedClass(b.windSpeed)}
-            />
-            <DataCell
-              label="Dir viento"
-              value={dirLabel(b.windDir)}
-              sub={b.windDir != null ? `${Math.round(b.windDir)}°` : undefined}
-            />
-            {b.windGust != null ? (
-              <DataCell
-                label="Racha"
-                value={`${msToKnots(b.windGust).toFixed(1)} kt`}
-                className={windSpeedClass(b.windGust)}
-              />
-            ) : (
-              <DataCell label="Racha" value="—" />
-            )}
-          </>
-        )}
-
-        {/* Temperature & extras */}
         {b.waterTemp != null && (
-          <DataCell
-            label="T agua"
-            value={`${b.waterTemp.toFixed(1)}°C`}
-            sub={b.waterTemp <= 14.5 ? 'Aflorando' : undefined}
-            className={waterTempClass(b.waterTemp!)}
-          />
+          <span className="gc-rowfig gc-rowfig--water">
+            <b>{Math.round(b.waterTemp)}°</b>{' '}
+            <small>agua</small>
+          </span>
         )}
-        {b.airTemp != null && (
-          <DataCell
-            label="T aire"
-            value={`${b.airTemp.toFixed(1)}°C`}
-          />
-        )}
-        {b.airPressure != null && (
-          <DataCell
-            label="Presión"
-            value={`${b.airPressure.toFixed(1)} hPa`}
-          />
-        )}
-        {b.currentSpeed != null && (
-          <DataCell
-            label="Corriente"
-            value={`${(b.currentSpeed * 100).toFixed(0)} cm/s`}
-            sub={dirLabel(b.currentDir)}
-            className={currentSpeedClass(b.currentSpeed)}
-            dirDeg={b.currentDir}
-          />
-        )}
-        {b.salinity != null && (
-          <DataCell
-            label="Salinidad"
-            value={`${b.salinity.toFixed(1)} PSU`}
-            sub={b.salinity >= 35.0 ? 'Fondo ACNA' : b.salinity < 33.0 ? 'Río / Estuario' : undefined}
-          />
-        )}
-        {b.seaLevel != null && (
-          <DataCell
-            label="Nivel mar"
-            value={`${b.seaLevel.toFixed(2)} m`}
-          />
-        )}
-
-        {/* Humidity & dew point — Observatorio Costeiro exclusive */}
-        {b.humidity != null && (
-          <DataCell
-            label="Humedad"
-            value={`${b.humidity.toFixed(0)}%`}
-            className={b.humidity > 85 ? 'text-blue-300' : 'text-slate-200'}
-          />
-        )}
-        {b.dewPoint != null && (
-          <DataCell
-            label="P. rocío"
-            value={`${b.dewPoint.toFixed(1)}°C`}
-          />
-        )}
-
-        {/* Max wave */}
-        {b.waveHeightMax != null && (
-          <DataCell
-            label="Ola máx"
-            value={`${b.waveHeightMax.toFixed(1)} m`}
-            className={waveHeightClass(b.waveHeightMax!)}
-          />
-        )}
-        {b.wavePeriodMean != null && (
-          <DataCell
-            label="P. medio"
-            value={`${b.wavePeriodMean.toFixed(1)} s`}
-          />
-        )}
-      </div>
-    </div>
+      </button>
+    </li>
   );
 });
-
-// ── DataCell ──────────────────────────────────────────────
-
-function DataCell({
-  label,
-  value,
-  sub,
-  className = 'text-slate-200',
-  dirDeg,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  className?: string;
-  /** Optional direction in degrees — shows a small direction arrow */
-  dirDeg?: number | null;
-}) {
-  return (
-    <div className="bg-slate-900/80 px-2 py-1.5 text-center">
-      <div className="text-[11px] text-slate-500 tracking-wide">{label}</div>
-      <div className={`text-[11px] font-bold mt-0.5 ${className} flex items-center justify-center gap-1`}>
-        {dirDeg != null && (
-          <svg width="10" height="10" viewBox="-5 -5 10 10" className="inline-block shrink-0">
-            <g transform={`rotate(${dirDeg})`}>
-              <line x1="0" y1="3" x2="0" y2="-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              <polygon points="-2,-1 2,-1 0,-4" fill="currentColor" />
-            </g>
-          </svg>
-        )}
-        {value}
-        {sub && <span className="text-[11px] text-slate-500 ml-0.5">{sub}</span>}
-      </div>
-    </div>
-  );
-}

@@ -248,7 +248,7 @@ describe('spatial wind coherence', () => {
   });
 });
 
-// ── Cesantes Canalization Override (S136+3) ───────────────────────────
+// ── Cesantes Canalization Override ────────────────────────────────────
 // Connects cesantesCanalizationDetector to scoring — sheltered preferred
 // stations (Lourizán/Marín/Vigo Porto) under-read by ~50% during thermal breeze.
 // Without this fix, popup said "FLOJO 6kt" while kiters/windsurfers planning

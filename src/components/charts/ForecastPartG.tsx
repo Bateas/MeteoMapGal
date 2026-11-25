@@ -4,17 +4,17 @@
  * good hours light up and the calm ones recede (6-oct: the hollow bars read too poor to tell good
  * hours from bad ones). Model wind, said in the note under the strips.
  */
+import { degreesToCardinal } from '../../services/windUtils';
 import { useMemo, useState, type ReactNode } from 'react';
 import type { HourlyForecast } from '../../types/forecast';
-import { buildDayParts, buildHourCols, cardinalEs, tempBand, TONES, type DayPart, type HourCol, type PartHour, type Tone } from '../../services/forecastParte';
+import { buildDayParts, buildHourCols, tempBand, TONES, type DayPart, type HourCol, type PartHour, type Tone } from '../../services/forecastParte';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
-import { skyIcon } from './ForecastTable';
 import { useWarningsStore } from '../../hooks/useWarnings';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { dayNotices, type DayNotice } from '../../services/dayNotices';
-
-/** The knots behind each word (forecastParte windTone), said once in the legend. */
-const TONE_RANGE: Record<Tone, string> = { calma: 'menos de 6', flojo: '6-8', navegable: '8-12', bueno: '12-18', fuerte: '18 o más' };
+import { bandLabel, bandRain, bandSky, bandTemp, buildDayBands, sunLine, BAND_RAIN_MIN_MM } from './dayBands';
+import { useSectorStore } from '../../store/sectorStore';
+import { mgWarningsAt, ipmaWarningsAt, type Place } from '../../services/warningReach';
 
 /** Gusts from here are marked on their hour, whatever the mean wind. */
 const GUST_WARN_KT = 25;
@@ -25,7 +25,7 @@ function bestTone(hours: PartHour[]): Tone {
 
 /**
  * Arrow pointing where the wind goes (the label says where it comes from). The head is drawn at the
- * TOP (north) and turned by from + 180, like ForecastTable. 6-oct: the head was drawn at the bottom
+ * TOP (north) and turned by from + 180. 6-oct: the head was drawn at the bottom
  * AND turned by +180, so every arrow pointed back into the wind.
  */
 function DirArrow({ fromDeg }: { fromDeg: number }) {
@@ -37,10 +37,25 @@ function DirArrow({ fromDeg }: { fromDeg: number }) {
 }
 
 function hourLabel(h: PartHour): string {
-  const dir = h.dirDeg != null ? ` del ${cardinalEs(h.dirDeg)}` : '';
+  const dir = h.dirDeg != null ? ` del ${degreesToCardinal(h.dirDeg)}` : '';
   const gust = h.gustKt != null ? `, rachas de ${Math.round(h.gustKt)}` : '';
   const rain = h.rainMm >= 0.1 ? `, ${h.rainMm.toFixed(1).replace('.', ',')} mm de lluvia` : '';
   return `${h.time.getHours()} h: ${h.tone}, ${Math.round(h.kt)} nudos${dir}${gust}${rain}`;
+}
+
+/** The warnings of a day, the same list in the parte and in the simple summary. */
+function DayNotices({ notices }: { notices: DayNotice[] }) {
+  if (notices.length === 0) return null;
+  return (
+    <ul className="g-notices">
+      {notices.map((n) => (
+        <li key={n.text} className={`g-notice lv${n.level}`}>
+          {n.level === 0 && <span className="g-zap"><WeatherIcon id="zap" size={16} /></span>}
+          {n.text}
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function DayStrip({ day, nowHour, notices }: { day: DayPart; nowHour: number | null; notices: DayNotice[] }) {
@@ -49,16 +64,7 @@ function DayStrip({ day, nowHour, notices }: { day: DayPart; nowHour: number | n
   return (
     <div className="g-day">
       <h4>{day.label}</h4>
-      {notices.length > 0 && (
-        <ul className="g-notices">
-          {notices.map((n) => (
-            <li key={n.text} className={`g-notice lv${n.level}`}>
-              {n.level === 0 && <span className="g-zap"><WeatherIcon id="zap" size={16} /></span>}
-              {n.text}
-            </li>
-          ))}
-        </ul>
-      )}
+      <DayNotices notices={notices} />
       <p className="g-sentence" style={{ ['--g-tone' as string]: `var(--g-s-${bestTone(day.hours)})` }}>{day.sentence}</p>
       <ol className="g-strip" aria-label={`Horas de luz, ${day.label.toLowerCase()}`}>
         {day.hours.map((h) => {
@@ -68,7 +74,7 @@ function DayStrip({ day, nowHour, notices }: { day: DayPart; nowHour: number | n
             <li key={h.time.getTime()} className={`g-cell${isNow ? ' now' : ''}`} aria-label={hourLabel(h)}>
               <span className="g-hr">{isNow ? 'ahora' : h.time.getHours()}</span>
               <span className={`g-kt t-${h.tone}`}>{Math.round(h.kt)}</span>
-              {anyGust && <span className={`g-gust${gusty ? ' warn' : ''}`}>{h.gustKt != null ? Math.round(h.gustKt) : ''}</span>}
+              {anyGust && <span className={`g-gust${gusty ? ' warn' : ''}`}>{h.gustKt != null ? Math.round(h.gustKt) : '–'}</span>}
               <span className="g-arrow">{h.dirDeg != null && <DirArrow fromDeg={h.dirDeg} />}</span>
               {anyRain && <span className="g-mm">{h.rainMm >= 0.1 ? h.rainMm.toFixed(1).replace('.', ',') : ''}</span>}
             </li>
@@ -79,17 +85,70 @@ function DayStrip({ day, nowHour, notices }: { day: DayPart; nowHour: number | n
   );
 }
 
-export function ForecastPartG({ hourly, source }: { hourly: HourlyForecast[]; source: string }) {
+/**
+ * Simple mode's first screen: today and tomorrow in three stretches, each with its sky, its
+ * temperature, its rain and its strongest wind. The figure and its unit go together, and nothing
+ * here needs a sideways scroll at 360 px.
+ */
+export function ForecastSimpleG({ hourly, place }: { hourly: HourlyForecast[]; place?: Place }) {
+  const days = useMemo(() => buildDayBands(buildHourCols(hourly, new Date(), 48)), [hourly]);
+  // The day's warnings stay in sight: folded with the hour table they would be one tap away from a reader
+  // who came to know whether to go out.
+  // A spot's forecast speaks only of the warnings that reach the spot (warningReach.ts).
+  const mgWarnings = mgWarningsAt(useWarningsStore((st) => st.sectorWarnings), place);
+  const ipmaWarnings = ipmaWarningsAt(useWarningsStore((st) => st.ipmaSectorWarnings), place);
+  const convection = useForecastStore((st) => st.convectionData);
+  const center = useSectorStore((st) => st.activeSector.center);
+  const now = new Date();
+  if (days.length === 0) return null;
+  return (
+    <section aria-label="Hoy y mañana" className="g-bands">
+      {days.map((d) => {
+        const sun = sunLine(d.from, now, center);
+        return (
+        <div key={d.key} className="g-bandday">
+          {/* The comma is for the screen reader only: without it the heading read «Mañanasol de 8:27…» */}
+          <h3>{d.label}{sun && <><span className="sr-only">, </span><small className="g-bandsun">{sun}</small></>}</h3>
+          <DayNotices notices={dayNotices(d.from, now, mgWarnings, ipmaWarnings, convection)} />
+          <ul>
+            {d.bands.map((b) => {
+              const sky = bandSky(b);
+              const temp = bandTemp(b);
+              return (
+                <li key={b.id} aria-label={bandLabel(d.label, b)}>
+                  <span className="g-bandname" aria-hidden="true">{b.label}<small>{b.span}</small></span>
+                  <span className="g-bandsky" aria-hidden="true">{sky && <WeatherIcon id={sky} size={20} />}</span>
+                  <span className={`g-bandtemp g-temp tb-${tempBand(b.tMin ?? b.tMax ?? 15)}`} aria-hidden="true">{temp ?? ''}</span>
+                  <span className={b.rainMm >= BAND_RAIN_MIN_MM ? 'g-bandrain g-rain' : 'g-bandrain g-banddry'} aria-hidden="true">{bandRain(b)}</span>
+                  <span className={`g-bandwind t-${b.tone}`} aria-hidden="true">{b.windKt} kt</span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+        );
+      })}
+    </section>
+  );
+}
+
+/**
+ * The days hour by hour in daylight: one sentence and one strip per day. Its warnings show only when
+ * nothing above already says them (`notices`): in simple mode the stretches above carry them, and a
+ * day's warnings printed twice on one screen read as twice the danger (18-nov). No legend: each cell
+ * prints its knots, and the colours are the map's, explained in the guide.
+ */
+export function ForecastPartG({ hourly, notices = true, place }: { hourly: HourlyForecast[]; notices?: boolean; place?: Place }) {
   const days = useMemo(() => buildDayParts(hourly, new Date(), 3), [hourly]);
-  const mgWarnings = useWarningsStore((s) => s.sectorWarnings);
-  const ipmaWarnings = useWarningsStore((s) => s.ipmaSectorWarnings);
+  const mgWarnings = mgWarningsAt(useWarningsStore((s) => s.sectorWarnings), place);
+  const ipmaWarnings = ipmaWarningsAt(useWarningsStore((s) => s.ipmaSectorWarnings), place);
   const convection = useForecastStore((s) => s.convectionData);
   const now = new Date();
+  const anyGustWarn = days.some((d) => d.hours.some((h) => h.gustKt != null && h.gustKt >= GUST_WARN_KT));
   return (
     <section aria-label="El parte" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div className="g-section-head">
         <h3>El parte</h3>
-        <span className="g-note">horas de luz · nudos</span>
       </div>
       {days.length === 0 ? (
         <p className="g-empty">Cargando la previsión…</p>
@@ -97,19 +156,35 @@ export function ForecastPartG({ hourly, source }: { hourly: HourlyForecast[]; so
         <div className="g-days">
           {days.map((d) => (
             <DayStrip key={d.key} day={d} nowHour={d.label === 'Hoy' ? now.getHours() : null}
-              notices={d.hours.length ? dayNotices(d.hours[0].time, now, mgWarnings, ipmaWarnings, convection) : []} />
+              notices={notices && d.hours.length ? dayNotices(d.hours[0].time, now, mgWarnings, ipmaWarnings, convection) : []} />
           ))}
         </div>
       )}
-      <div className="g-legend" aria-label="Leyenda">
-        {TONES.map((t) => (
-          <span key={t}><i className={`t-${t}`} />{t} <span className="g-range">{TONE_RANGE[t]}</span></span>
-        ))}
-        {days.some((d) => d.hours.some((h) => h.gustKt != null)) && <span><b className="g-gust-key">25</b> racha de 25 kt o más</span>}
-      </div>
-      <p className="g-how"><strong>Cómo lo sabemos:</strong> {source}. Es el viento que da el modelo en un punto, sin corregir con lo medido; el de cada spot puede ser distinto (abrigo, canalización, térmica), y eso lo dice el mapa con las estaciones.</p>
+      {anyGustWarn && <p className="g-under">Racha marcada: {GUST_WARN_KT} kt o más.</p>}
     </section>
   );
+}
+
+/** Map sky_state to icon, fallback to cloudCover */
+function skyIcon(skyState: string | null | undefined, cloudCover: number | null): IconId | null {
+  if (skyState) {
+    switch (skyState) {
+      case 'SUNNY': case 'CLEAR': return 'sun';
+      case 'CLEAR_NIGHT': return 'moon';
+      case 'HIGH_CLOUDS': case 'MID_CLOUDS': case 'PARTLY_CLOUDY': return 'cloud-sun';
+      case 'OVERCAST': case 'CLOUDY': case 'NIGHT_CLOUDS': case 'NIGHT_CLOUDY': return 'cloud';
+      case 'DRIZZLE': case 'WEAK_RAIN': case 'RAIN': case 'SHOWERS':
+      case 'WEAK_SHOWERS': case 'OVERCAST_AND_SHOWERS':
+      case 'NIGHT_RAIN': case 'NIGHT_SHOWERS': return 'cloud-rain';
+      case 'SNOW': case 'INTERMITENT_SNOW': case 'MELTED_SNOW': return 'snowflake';
+      case 'STORMS': case 'STORM_THEN_CLOUDY': case 'NIGHT_STORMS': case 'RAIN_HAIL': return 'zap';
+      case 'FOG': case 'FOG_BANK': case 'MIST': return 'fog';
+    }
+  }
+  if (cloudCover === null) return null;
+  if (cloudCover < 15) return 'sun';
+  if (cloudCover < 70) return 'cloud-sun';
+  return 'cloud';
 }
 
 /** The model's sky at night: the sun icons swap for the moon or a plain cloud. */
@@ -186,7 +261,7 @@ export function ForecastHoursG({ hourly }: { hourly: HourlyForecast[] }) {
             {/* With «Más datos» each arrow carries its bearing: two neighbouring arrows can look the same
                 and be 20 degrees apart, which is the difference between entering a spot or not. */}
             {row('Dirección', more ? '°' : null, (c) => (c.dirDeg != null ? (
-              <span className={`g-arrow${more ? ' g-arrow-deg' : ''}`} title={`del ${cardinalEs(c.dirDeg)} (${Math.round(c.dirDeg) % 360}°)`}>
+              <span className={`g-arrow${more ? ' g-arrow-deg' : ''}`} title={`del ${degreesToCardinal(c.dirDeg)} (${Math.round(c.dirDeg) % 360}°)`}>
                 <DirArrow fromDeg={c.dirDeg} />
                 {more && <span className="g-deg">{Math.round(c.dirDeg) % 360}</span>}
               </span>

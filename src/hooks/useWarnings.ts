@@ -13,6 +13,8 @@ import { devtools } from 'zustand/middleware';
 import { fetchMGWarnings, getWarningsForSector, type MGWarning } from '../api/mgWarningsClient';
 import { fetchIpmaWarnings, getIpmaWarningsForSector, type IpmaWarning } from '../api/ipmaWarningsClient';
 import { useSectorStore } from '../store/sectorStore';
+import { getSpotsForSector } from '../config/spots';
+import { ipmaWarningsAt } from '../services/warningReach';
 import { useVisibilityPolling } from './useVisibilityPolling';
 import { useCallback, useEffect } from 'react';
 
@@ -47,8 +49,19 @@ interface WarningsState {
 function pickFor(all: MGWarning[], allIpma: IpmaWarning[], sectorId: string) {
   return {
     sectorWarnings: getWarningsForSector(all, sectorId as 'embalse' | 'rias'),
-    ipmaSectorWarnings: getIpmaWarningsForSector(allIpma, sectorId),
+    ipmaSectorWarnings: ipmaReachingSpots(getIpmaWarningsForSector(allIpma, sectorId), sectorId),
   };
+}
+
+/**
+ * A Portuguese district warning counts for a sector only when it reaches one of its spots (warningReach.ts):
+ * the Interior listed rain for Viana do Castelo and Braga with no spot near the border (18-nov:
+ * a spot does not care about the warnings of other zones). A sector without spots keeps them.
+ */
+function ipmaReachingSpots(warnings: IpmaWarning[], sectorId: string): IpmaWarning[] {
+  const spots = getSpotsForSector(sectorId);
+  if (warnings.length === 0 || spots.length === 0) return warnings;
+  return spots.some((s) => ipmaWarningsAt(warnings, { lat: s.center[1], lon: s.center[0] }).length > 0) ? warnings : [];
 }
 
 export const useWarningsStore = create<WarningsState>()(

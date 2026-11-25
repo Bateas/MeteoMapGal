@@ -116,6 +116,8 @@ export function computePressureTrends(
   return { trends, medianDelta, droppingCount, totalAnalyzed: trends.length };
 }
 
+const PRESSURE_SCORE_CAP = 50;
+
 /**
  * Build unified alerts from pressure trend analysis.
  * Only emits alerts when multiple stations confirm the trend (consensus).
@@ -161,15 +163,18 @@ export function buildPressureTrendAlerts(
     return [];
   }
 
+  // One variable, never examined: at most yellow and never urgent, like the inversion. The rule asks
+  // for two independent variables or an official source before anything can open the red band.
+  // The score stays under the «high» band too, or its weight could beat a real storm in the risk.
   alerts.push({
     id: 'pressure-trend',
     category: 'pressure',
-    severity: score >= 75 ? 'critical' : score >= 50 ? 'high' : 'info',
-    score,
+    severity: score >= 50 ? 'moderate' : 'info',
+    score: Math.min(score, PRESSURE_SCORE_CAP),
     icon: 'gauge',
     title,
     detail,
-    urgent: score >= 75,
+    urgent: false,
     updatedAt: new Date(),
   });
 

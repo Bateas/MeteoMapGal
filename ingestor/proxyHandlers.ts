@@ -238,7 +238,6 @@ function rememberDataOrigin(stepOnePath: string, body: Buffer): void {
 export const AEMET_STEP_ONE_PATHS: ReadonlySet<string> = new Set([
   '/api/observacion/convencional/todas',
   '/api/valores/climatologicos/inventarioestaciones/todasestaciones',
-  '/api/avisos_cap/ultimoelaborado/area/61',
 ]);
 
 /** Step-two paths are the temporary links AEMET issues: /opendata/sh/<code>, nothing else. */
@@ -601,7 +600,7 @@ export async function handleMeteoSixProxy(
         pruneCache(meteosixCache, STALE_KEEP_MS, 100);
         upstreamDown.noteSuccess(downKey);
       } else {
-        // The error envelope comes and goes for the same query (src/api/CLAUDE.md) and the tide
+        // The error envelope comes and goes for the same query and the tide
         // client retries it once: a lone envelope does not pause the query, a second one does.
         noteUpstreamFailure('[MeteoSIX Proxy]', downKey, upstream.ok ? 502 : upstream.status, upstream.ok);
       }

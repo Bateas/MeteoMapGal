@@ -8,17 +8,24 @@
  * Wind arrows are handled separately by WindFieldOverlay (already GPU).
  * This layer shows: colored circle (temperature) + station name label.
  */
+import { useMapInk } from '../../hooks/useMapInk';
 import { useMemo, useEffect, useCallback, useState } from 'react';
 import { Source, Layer, Marker, useMap } from 'react-map-gl/maplibre';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
 import { temperatureColor, windSpeedColor } from '../../services/windUtils';
 import { SOURCE_CONFIG } from '../../config/sourceConfig';
 import { isWindBlacklisted } from '../../services/spotScoringEngine';
+import { useUIStore } from '../../store/uiStore';
 import {
   clusterStations,
   STATION_CLUSTER_DISABLE_ZOOM,
   type StationClusterGroup,
 } from '../../services/stationClustering';
+
+/** A group says the temperature of its zone too, softened so it stays behind the spots. */
+export function clusterFill(avgTemp: number | null): string {
+  return avgTemp != null ? `color-mix(in srgb, ${temperatureColor(avgTemp)} 62%, var(--g-bg))` : 'var(--g-bg)';
+}
 
 interface StationSymbolLayerProps {
   stations: NormalizedStation[];
@@ -28,21 +35,10 @@ interface StationSymbolLayerProps {
   zoomLevel: number;
   /** Simple mode: same markers, without the source initials (MG, WU, NT...). */
   hideSourceLabels?: boolean;
-  /**
-   * Simple mode: stations recede so the spots lead. Neutral grey instead of the
-   * temperature fill and the per-source ring (whose colours mean nothing without
-   * the initials, and whose orange read as a warning), smaller and fainter.
-   */
-  muted?: boolean;
+  /** Simple mode: smaller and fainter, so the spots lead. */
+  faint?: boolean;
 }
 
-/** Neutral grey for muted stations: context, not a reading to act on. */
-const MUTED_GREY = '#94a3b8';
-
-/** Bin temperature into discrete color index for icon-color expression */
-function tempBinColor(temp: number | null): string {
-  return temperatureColor(temp);
-}
 
 /** Freshness in minutes */
 function ageMins(timestamp?: Date | string | null): number {
@@ -94,8 +90,9 @@ export function StationSymbolLayer({
   onSelectStation,
   zoomLevel: _zoomLevel,
   hideSourceLabels = false,
-  muted = false,
+  faint = false,
 }: StationSymbolLayerProps) {
+  const ink = useMapInk();
   const { current: mapRef } = useMap();
 
   // Track current zoom — clustering only kicks in below threshold so this
@@ -148,10 +145,11 @@ export function StationSymbolLayer({
           name: station.name,
           source: station.source,
           sourceLabel: srcMeta?.label ?? '?',
-          sourceColor: srcMeta?.color ?? '#64748b',
           windSpeed: windMs,
           temperature: reading?.temperature ?? null,
-          tempColor: tempBinColor(reading?.temperature ?? null),
+          // The centre says the temperature: a cold station or a cold zone is bluer, without saying it
+          tempColor: temperatureColor(reading?.temperature ?? null),
+          sourceColor: srcMeta?.color ?? '#64748b',
           windColor: windSpeedColor(reading?.windSpeed ?? null),
           freshness: age < 15 ? 1.0 : age < 45 ? 0.85 : age < 90 ? 0.7 : age < 180 ? 0.5 : 0.35,
           isSelected: isSelected ? 1 : 0,
@@ -215,7 +213,7 @@ export function StationSymbolLayer({
   }, [mapRef, handleClick]);
 
   // Zoom-based size scaling — visible from zoom 8+
-  const sizeScale = muted ? 0.7 : 1;
+  const sizeScale = faint ? 0.7 : 1;
   const iconSize: maplibregl.ExpressionSpecification = [
     'interpolate', ['linear'], ['zoom'],
     8, 0.25 * sizeScale,
@@ -226,7 +224,7 @@ export function StationSymbolLayer({
   ];
   // Muted stations keep their freshness fade, at a bit over half the strength.
   const fade = (e: maplibregl.ExpressionSpecification): maplibregl.ExpressionSpecification =>
-    muted ? ['*', 0.55, e] : e;
+    faint ? ['*', 0.8, e] : e;
 
   // Synchronized filter: station markers are visible down to zoom 8+
   // (matches WindFieldOverlay minzoom=8, preventing circles from vanishing before wind arrows)
@@ -238,7 +236,7 @@ export function StationSymbolLayer({
 
   return (
     <Source id="stations-geo" type="geojson" data={geojson}>
-      {/* Source-colored ring — identifies data provider at a glance */}
+      {/* The ring says something else: which network it is, where the initials say so too. Neutral in simple mode. */}
       <Layer
         id="stations-source-ring"
         type="circle"
@@ -246,8 +244,7 @@ export function StationSymbolLayer({
         paint={{
           'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 5 * sizeScale, 9, 7 * sizeScale, 10, 9 * sizeScale, 11, 12 * sizeScale, 12, 15 * sizeScale],
           'circle-color': 'transparent',
-          // Source color for the ring (no red/amber override); grey when muted
-          'circle-stroke-color': muted ? MUTED_GREY : ['get', 'sourceColor'],
+          'circle-stroke-color': faint ? '#8a928e' : ['get', 'sourceColor'],
           'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 8, 0.8, 9, 1, 12, 1.5],
           // Freshness opacity: hourly stations remain visible even when readings are 1-2h old
           'circle-opacity': [
@@ -269,7 +266,7 @@ export function StationSymbolLayer({
         }}
       />
 
-      {/* Circle icon colored by temperature + source label centered */}
+      {/* Circle in the colour of its temperature + source label centered */}
       <Layer
         id="stations-icons"
         type="symbol"
@@ -291,7 +288,7 @@ export function StationSymbolLayer({
           'text-ignore-placement': true,
         }}
         paint={{
-          'icon-color': muted ? MUTED_GREY : ['get', 'tempColor'],
+          'icon-color': ['get', 'tempColor'],
           // Freshness opacity: minimum 0.35 so older readings are clearly identifiable
           'icon-opacity': fade([
             'step', ['get', 'freshness'],
@@ -324,15 +321,15 @@ export function StationSymbolLayer({
         layout={{
           'text-field': ['step', ['zoom'], '', 11, ['get', 'name']],
           'text-font': ['Noto Sans Regular'],
-          'text-size': 11,
+          'text-size': 12,
           'text-offset': [0, 1.8],
           'text-anchor': 'top',
           'text-optional': true,
           'text-allow-overlap': false,
         }}
         paint={{
-          'text-color': '#cbd5e1', // slate-300
-          'text-halo-color': '#0f172a', // slate-900
+          'text-color': ink.text,
+          'text-halo-color': ink.halo,
           'text-halo-width': 1.5,
           // Stale station names fade with the marker
           'text-opacity': [
@@ -354,7 +351,7 @@ export function StationSymbolLayer({
         paint={{
           'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 10, 12, 18],
           'circle-color': 'transparent',
-          'circle-stroke-color': '#60a5fa', // blue-400
+          'circle-stroke-color': ink.text,
           'circle-stroke-width': 2.5,
           'circle-opacity': 0.9,
         }}
@@ -362,7 +359,7 @@ export function StationSymbolLayer({
       {/* Station clusters are ambient context, not protagonists. Hide them
           entirely at sector scale (<zoom 8) so spots + weather overlays own the
           far view — an individual station's reading isn't a decision driver at
-          50 km (user feedback v2.81.78). */}
+          50 km (v2.81.78). */}
       {zoom >= 8 && clusterItems.map((cluster) => (
         <StationClusterMarker key={cluster.id} cluster={cluster} onClick={handleClusterClick} />
       ))}
@@ -378,9 +375,11 @@ interface StationClusterMarkerProps {
 }
 
 function StationClusterMarker({ cluster, onClick }: StationClusterMarkerProps) {
-  // AMBIENT styling on purpose (user feedback v2.81.78): station clusters are
+  const isMobile = useUIStore((s) => s.isMobile);
+  // AMBIENT styling on purpose (v2.81.78): station clusters are
   // secondary context, not protagonists. Small, translucent, thin muted ring,
   // small number — they recede so the bold coloured spots clearly dominate.
+  // What recedes is the drawing: the button around it is a full touch target.
   // A cluster just says "N stations here — click to zoom in"; it is NOT a
   // temperature reading (that's the dedicated temperature overlay's job). The
   // average temp + spread live in the hover tooltip for anyone curious.
@@ -392,26 +391,30 @@ function StationClusterMarker({ cluster, onClick }: StationClusterMarkerProps) {
   return (
     // Low z-index: station clusters sit BELOW spots (z-index 6) — spots are the
     // actionable element and must always paint on top.
-    <Marker longitude={cluster.lon} latitude={cluster.lat} anchor="center" style={{ zIndex: 1 }}>
+    <Marker longitude={cluster.lon} latitude={cluster.lat} anchor="center" style={{ zIndex: 20 }}>
       <button
+        type="button"
         onClick={(e) => { e.stopPropagation(); onClick(cluster); }}
-        className="flex items-center justify-center rounded-full transition-transform hover:scale-125 cursor-pointer"
+        className="flex items-center justify-center transition-transform hover:scale-125 cursor-pointer"
         style={{
-          width: 24,
-          height: 24,
-          background: 'rgba(15, 23, 42, 0.45)',
-          border: '1.5px solid rgba(148, 163, 184, 0.5)', // muted slate, thin
-          boxShadow: 'none',
+          width: isMobile ? 44 : 40,
+          height: isMobile ? 44 : 40,
+          background: 'transparent',
+          border: 0,
         }}
-        title={`${cluster.count} estaciones${tempLabel}${spreadLabel} — click para acercar`}
-        aria-label={`Cluster de ${cluster.count} estaciones`}
+        title={`${cluster.count} estaciones${tempLabel}${spreadLabel}: pulsa para acercar`}
+        aria-label={`${cluster.count} estaciones`}
       >
         <span
-          className="font-semibold tabular-nums leading-none"
+          className="flex items-center justify-center rounded-full font-semibold tabular-nums leading-none"
           style={{
-            color: 'rgba(203, 213, 225, 0.8)', // slate-300, dimmed
-            fontSize: '10px',
-            textShadow: '0 0 3px rgba(0,0,0,0.9)',
+            width: 26,
+            height: 26,
+            background: clusterFill(cluster.avgTemp),
+            border: '1px solid var(--g-rule)',
+            color: 'var(--g-ink)',
+            fontFamily: 'var(--g-narrow)',
+            fontSize: '13px',
           }}
         >
           {cluster.count}

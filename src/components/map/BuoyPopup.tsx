@@ -1,25 +1,20 @@
 /**
- * Popup for marine buoy stations (Puertos del Estado).
- * Shows summarized buoy data when a marker is clicked.
- * Desktop: MapLibre native popup. Mobile: bottom sheet with swipe-to-dismiss.
- *
- * Cyan marine theme to match BuoyMarker.
+ * Card of a marine buoy, opened from its marker. V3 style: what matters most in one big line (the sea, or
+ * the wind, or the water where it measures neither), and the rest in the grid. Shell: Ficha.
  */
-import { memo, useMemo, useEffect } from 'react';
-import { Popup } from 'react-map-gl/maplibre';
-import { PopupFit } from './PopupFit';
+import { memo, useCallback, useId, useMemo } from 'react';
+import { Ficha, FichaGroup, Note, dec } from './Ficha';
+import { Cell } from '../spot/Cell';
 import type { BuoyReading } from '../../api/buoyClient';
 import { RIAS_BUOY_STATIONS } from '../../api/buoyClient';
 import { useBuoyStore } from '../../store/buoyStore';
 import { useUIStore } from '../../store/uiStore';
 import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
-import { msToKnots, degreesToCardinal, windSpeedColor, temperatureColor } from '../../services/windUtils';
-import { waveHeightColor, waterTempColor, currentSpeedColor, seaStateLabel, isBuoyFresh, BUOY_WATER_MAX_MIN } from '../../services/buoyUtils';
+import { msToKnots, degreesToCardinal } from '../../services/windUtils';
+import { seaStateLabel, isBuoyFresh, BUOY_WATER_MAX_MIN } from '../../services/buoyUtils';
 import { classifyWaterMass } from '../../services/upwellingDetector';
 import { BuoyTrend48h } from './BuoyTrend48h';
-import { WeatherIcon } from '../icons/WeatherIcons';
 import { BuoyCredit } from '../common/BuoyCredit';
-import { useSwipeToDismiss } from '../../hooks/useSwipeToDismiss';
 
 /** Lightweight relative-time in Spanish (avoids date-fns locale bundle) */
 function timeAgoEs(ts: string): string {
@@ -28,18 +23,9 @@ function timeAgoEs(ts: string): string {
   if (mins < 1) return 'Actualizado ahora';
   if (mins < 60) return `Actualizado hace ${mins} min`;
   const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `Actualizado hace ${hrs}h`;
-  return `Actualizado hace ${Math.round(hrs / 24)}d`;
+  if (hrs < 24) return `Actualizado hace ${hrs} h`;
+  return `Actualizado hace ${Math.round(hrs / 24)} d`;
 }
-
-// ── Type badge colors ──────────────────────────────────────
-const TYPE_COLORS: Record<string, string> = {
-  REDEXT:      '#06b6d4',
-  CETMAR:      '#0891b2',
-  REMPOR:      '#0d9488',
-  REDMAR:      '#0ea5e9',
-  OBSCOSTEIRO: '#14b8a6',
-};
 
 interface BuoyPopupProps {
   reading: BuoyReading;
@@ -49,54 +35,15 @@ function getBuoyInfo(stationId: number) {
   return RIAS_BUOY_STATIONS.find((s) => s.id === stationId) ?? null;
 }
 
-function formatWaveDir(dir: number | null): string {
-  if (dir == null) return '--';
-  return `${degreesToCardinal(dir)} ${Math.round(dir)}°`;
-}
-
-/** Reusable data cell */
-function DataCell({ label, value, color, large }: {
-  label: string;
-  value: string;
-  color?: string;
-  large?: boolean;
-}) {
-  return (
-    <div>
-      <div className="text-slate-400 text-[11px] mb-0.5">{label}</div>
-      <div
-        className={`${large ? 'font-bold text-sm' : 'font-semibold text-xs'}`}
-        style={color ? { color } : undefined}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
+/** «NW 315°»; in simple mode only the word: the degrees change nothing a person does. */
+const dirText = (deg: number, plain = false) => (plain ? degreesToCardinal(deg) : `${degreesToCardinal(deg)} ${Math.round(deg)}°`);
 
 export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
   const selectBuoy = useBuoyStore((s) => s.selectBuoy);
-  const isMobile = useUIStore((s) => s.isMobile);
-  const chartStations = useWeatherSelectionStore((s) => s.chartSelectedStations);
+  const simpleMode = useUIStore((s) => s.simpleMode);
   const info = getBuoyInfo(reading.stationId);
-  const dismiss = () => selectBuoy(null);
-  const { sheetRef, onTouchStart, onTouchMove, onTouchEnd } = useSwipeToDismiss(dismiss);
-
-  // Escape closes the buoy popup (mobile sheet and desktop popup). Same rules
-  // as SpotPopup. Must stay above the `if (!info) return null` below, or the
-  // hook count changes between renders.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      if (document.querySelector('[aria-modal="true"]')) return;
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      selectBuoy(null);
-    };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [selectBuoy]);
-  const buoyChartId = `buoy_${reading.stationId}`;
-  const isInChart = chartStations.includes(buoyChartId);
+  const dismiss = useCallback(() => selectBuoy(null), [selectBuoy]);
+  const titleId = useId();
 
   const waterMass = useMemo(
     () => classifyWaterMass(reading.waterTemp, reading.salinity),
@@ -105,182 +52,123 @@ export const BuoyPopup = memo(function BuoyPopup({ reading }: BuoyPopupProps) {
 
   if (!info) return null;
 
-  // A buoy that stopped publishing keeps serving its last reading. Its values
-  // stay visible, labelled as old, but the water-mass diagnosis is a statement
-  // about the water now, so it is withheld.
+  // A buoy that stopped publishing keeps serving its last reading. Its values stay visible, labelled as
+  // old, but the water-mass diagnosis is a statement about the water now, so it is withheld.
   const isStale = !isBuoyFresh(reading, BUOY_WATER_MAX_MIN);
 
-  const typeColor = TYPE_COLORS[info.type] ?? '#06b6d4';
-  const hasWaves = reading.waveHeight != null;
+  // A tide gauge sits in the harbour: its «wave» of 0,02 m is the water of the dock, not the state of the sea
+  const gauge = info.type === 'REDMAR';
+  const hasWaves = !gauge && reading.waveHeight != null;
   const hasWind = reading.windSpeed != null;
-  const hasTemp = reading.waterTemp != null || reading.airTemp != null;
-  const hasCurrent = reading.currentSpeed != null;
+  const coldWater = reading.waterTemp != null && reading.waterTemp < 10.5;
 
-  const popupContent = (
-    <div className="min-w-[220px] font-sans">
-      {/* Header */}
-      <div className="flex items-center gap-1.5 mb-2.5">
-        <span className="text-[11px] font-bold px-1.5 py-px rounded text-white" style={{ background: typeColor }}>
-          {info.type}
-        </span>
-        <strong className="text-[13px] text-slate-200">{reading.stationName}</strong>
+  // The big line: the sea if it measures it, otherwise the wind, otherwise the water.
+  const big = hasWaves
+    ? { figure: `${dec(reading.waveHeight!)} m`, side: seaStateLabel(reading.waveHeight), sub: reading.waveDir != null ? `del ${dirText(reading.waveDir, simpleMode)}` : null }
+    : hasWind
+      ? { figure: msToKnots(reading.windSpeed!).toFixed(0), side: `nudos${reading.windDir != null ? ` del ${dirText(reading.windDir, simpleMode)}` : ''}`, sub: reading.windGust != null ? `racha ${msToKnots(reading.windGust).toFixed(0)}` : null }
+      : reading.waterTemp != null
+        ? { figure: `${dec(reading.waterTemp)} °C`, side: 'en el agua', sub: null }
+        : null;
+
+  return (
+    <Ficha longitude={info.lon} latitude={info.lat} onClose={dismiss} titleId={titleId}>
+      <div className="gf-head">
+        <div className="gf-titles">
+          <h2 id={titleId} className="gf-name">{reading.stationName}</h2>
+          <div className="gf-sub">
+            Boya · {reading.timestamp ? timeAgoEs(reading.timestamp).replace('Actualizado ', '') : 'hora desconocida'}
+          </div>
+        </div>
       </div>
 
       {isStale && (
-        <div className="mb-2 px-1.5 py-1 rounded border border-amber-700/60 bg-amber-950/40 text-[11px] text-amber-300">
+        <div className="gf-note gf-note--block gc-t-alto" style={{ display: 'block' }}>
           Sin datos nuevos: {reading.timestamp ? timeAgoEs(reading.timestamp).replace('Actualizado hace', 'último envío hace') : 'hora desconocida'}. Los valores son de entonces.
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-x-3.5 gap-y-2 text-xs">
-        {/* Waves */}
-        {hasWaves && (
-          <>
-            <DataCell label={`Oleaje — ${seaStateLabel(reading.waveHeight)}`} value={`${reading.waveHeight!.toFixed(1)} m`} color={waveHeightColor(reading.waveHeight)} large />
-            {reading.waveHeightMax != null && <DataCell label="Ola máx (Hmax)" value={`${reading.waveHeightMax.toFixed(1)} m`} color={waveHeightColor(reading.waveHeightMax)} />}
-            {reading.wavePeriod != null && <DataCell label="Periodo pico (Tp)" value={`${reading.wavePeriod.toFixed(1)} s`} />}
-            {reading.wavePeriodMean != null && <DataCell label="Periodo medio" value={`${reading.wavePeriodMean.toFixed(1)} s`} />}
-            {reading.waveDir != null && <DataCell label="Dir. oleaje" value={formatWaveDir(reading.waveDir)} />}
-          </>
-        )}
-
-        {/* Wind */}
-        {hasWind && (
-          <>
-            <DataCell label="Viento" value={`${msToKnots(reading.windSpeed!).toFixed(1)} kt`} color={windSpeedColor(reading.windSpeed)} large />
-            {reading.windDir != null && <DataCell label="Dir. viento" value={`${degreesToCardinal(reading.windDir)} ${Math.round(reading.windDir)}°`} />}
-            {reading.windGust != null && <DataCell label="Racha" value={`${msToKnots(reading.windGust).toFixed(1)} kt`} color={windSpeedColor(reading.windGust)} />}
-          </>
-        )}
-
-        {/* Temperature */}
-        {hasTemp && (
-          <>
-            {reading.waterTemp != null && (
-              <DataCell
-                label="T agua"
-                value={`${reading.waterTemp.toFixed(1)}°C${reading.waterTemp < 10.5 ? ' ⚠' : ''}`}
-                color={reading.waterTemp < 10.5 ? '#f59e0b' : waterTempColor(reading.waterTemp)}
-                large
-              />
-            )}
-            {reading.airTemp != null && <DataCell label="T aire" value={`${reading.airTemp.toFixed(1)}°C`} color={temperatureColor(reading.airTemp)} />}
-          </>
-        )}
-
-        {reading.airPressure != null && <DataCell label="Presión" value={`${reading.airPressure.toFixed(1)} hPa`} />}
-
-        {/* Currents */}
-        {hasCurrent && (
-          <>
-            <DataCell label="Corriente" value={`${(reading.currentSpeed! * 100).toFixed(0)} cm/s`} color={currentSpeedColor(reading.currentSpeed)} large />
-            {reading.currentDir != null && <DataCell label="Dir. corriente" value={`→ ${degreesToCardinal(reading.currentDir)} ${Math.round(reading.currentDir)}°`} color={currentSpeedColor(reading.currentSpeed)} />}
-          </>
-        )}
-
-        {reading.salinity != null && <DataCell label="Salinidad" value={`${reading.salinity.toFixed(1)} PSU`} />}
-        {reading.seaLevel != null && <DataCell label="Nivel del mar" value={`${reading.seaLevel.toFixed(2)} m`} />}
-        {reading.humidity != null && <DataCell label="Humedad" value={`${reading.humidity.toFixed(0)}%`} color={reading.humidity > 85 ? '#93c5fd' : undefined} />}
-        {reading.dewPoint != null && <DataCell label="Punto de rocío" value={`${reading.dewPoint.toFixed(1)}°C`} />}
-      </div>
-
-      {/* Water Mass / Upwelling Classification Badge */}
-      {waterMass.type !== 'unknown' && !isStale && (
-        <div
-          className="mt-2 p-1.5 rounded text-[11px] border flex items-start gap-1.5"
-          style={{ background: waterMass.bg, borderColor: waterMass.borderColor }}
-        >
-          <span className="shrink-0 mt-0.5 flex" style={{ color: waterMass.color }}>
-            <WeatherIcon
-              id={
-                waterMass.type === 'acna'
-                  ? 'waves'
-                  : waterMass.type === 'fluvial'
-                    ? 'droplets'
-                    : waterMass.type === 'anomaly'
-                      ? 'alert-triangle'
-                      : 'thermometer'
-              }
-              size={14}
-            />
+      {big && (
+        <div className="gf-big">
+          <svg className="gf-chip" width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
+            <polygon points="13,2 24,13 13,24 2,13" fill="var(--g-s-flojo)" stroke="var(--g-rule)" strokeWidth="1.5" />
+          </svg>
+          <span key={big.figure} className="gf-figure">{big.figure}</span>
+          <span className="gf-side">
+            <b>{big.side}</b>
+            {big.sub && <span>{big.sub}</span>}
           </span>
-          <div>
-            <div className="font-semibold" style={{ color: waterMass.color }}>
-              {waterMass.badgeText}
-            </div>
-            <div className="text-slate-300 text-[10px] leading-tight">
-              {waterMass.description}
-            </div>
-          </div>
         </div>
       )}
 
-      {/* 48h Historical Trend & Sparkline */}
-      <BuoyTrend48h
-        stationId={reading.stationId}
-        currentTemp={reading.waterTemp}
-        currentSalinity={reading.salinity}
-      />
+      <FichaGroup title="Medido aquí">
+      <dl className="gf-data">
+        {hasWaves && (
+          <>
+            {reading.wavePeriod != null && <Cell label="Periodo" value={`${dec(reading.wavePeriod)} s`} />}
+            {reading.waveHeightMax != null && <Cell label="Ola máxima" value={`${dec(reading.waveHeightMax)} m`} />}
+            {!simpleMode && reading.wavePeriodMean != null && <Cell label="Periodo medio" value={`${dec(reading.wavePeriodMean)} s`} />}
+          </>
+        )}
+        {/* Wind is in the big line when the buoy measures no sea */}
+        {hasWaves && hasWind && (
+          <Cell label="Viento" value={`${msToKnots(reading.windSpeed!).toFixed(0)} kt${reading.windDir != null ? ` ${degreesToCardinal(reading.windDir)}` : ''}`} />
+        )}
+        {hasWaves && reading.windGust != null && <Cell label="Racha" value={`${msToKnots(reading.windGust).toFixed(0)} kt`} />}
+        {reading.waterTemp != null && (hasWaves || hasWind) && (
+          <Cell label="Agua" warn={coldWater}>
+            {dec(reading.waterTemp)} °C{coldWater && <small> muy fría para la zona</small>}
+          </Cell>
+        )}
+        {reading.airTemp != null && <Cell label="Aire" value={`${dec(reading.airTemp)} °C`} />}
+        {!simpleMode && reading.airPressure != null && <Cell label="Presión" value={`${reading.airPressure.toFixed(0)} hPa`} />}
+        {!simpleMode && reading.currentSpeed != null && (
+          <Cell label="Corriente" value={`${(reading.currentSpeed * 100).toFixed(0)} cm/s${reading.currentDir != null ? ` hacia ${degreesToCardinal(reading.currentDir)}` : ''}`} />
+        )}
+        {!simpleMode && reading.salinity != null && <Cell label="Salinidad" value={`${dec(reading.salinity)} PSU`} />}
+        {/* A tide gauge measures this and little else: it is its main figure in any mode */}
+        {(!simpleMode || gauge || (!hasWaves && !hasWind)) && reading.seaLevel != null && <Cell label="Nivel del mar" value={`${dec(reading.seaLevel, 2)} m`} />}
+        {!simpleMode && reading.humidity != null && <Cell label="Humedad" value={`${reading.humidity.toFixed(0)} %`} />}
+        {!simpleMode && reading.dewPoint != null && <Cell label="Punto de rocío" value={`${dec(reading.dewPoint)} °C`} />}
+      </dl>
 
-      {/* Timestamp + who the data come from */}
-      <div className="text-[11px] text-slate-400 mt-2 pt-1.5 border-t border-slate-700">
-        {reading.timestamp ? timeAgoEs(reading.timestamp) : 'Hora desconocida'}
-      </div>
-      <BuoyCredit providers={info.providers} className="block text-[11px] text-slate-500 mt-0.5" />
+      {/* What kind of water it is, when it says something: warm surface water or «transitional» do not */}
+      {/* Simple mode keeps only the one that warns: the names of water masses are for who asks for more */}
+      {(waterMass.type === 'anomaly' || (!simpleMode && (waterMass.type === 'acna' || waterMass.type === 'fluvial'))) && !isStale && (
+        <div className="gf-notes">
+          <Note
+            icon={waterMass.type === 'acna' ? 'waves' : waterMass.type === 'fluvial' ? 'droplets' : waterMass.type === 'anomaly' ? 'alert-triangle' : 'thermometer'}
+            tone={waterMass.type === 'anomaly' ? 'alto' : 'riesgo'}
+          >
+            <span className="gf-strong">{waterMass.badgeText}</span>
+            <small>{waterMass.description}</small>
+          </Note>
+        </div>
+      )}
+      </FichaGroup>
 
-      {/* Action buttons */}
-      <div className="mt-2 flex flex-col gap-1">
+      {!simpleMode && (
+        <FichaGroup title="Más" list>
+          <BuoyTrend48h stationId={reading.stationId} />
+        </FichaGroup>
+      )}
+
+      {/* History is an advanced tab: in simple mode the panel would bounce back to the list */}
+      {!simpleMode && (
         <button
+          type="button"
+          className="gc-btn gf-action"
           onClick={() => {
-            const store = useWeatherSelectionStore.getState();
-            const wasInChart = store.chartSelectedStations.includes(buoyChartId);
-            store.toggleChartStation(buoyChartId);
-            if (!wasInChart) useUIStore.getState().setRequestedTab('chart');
-          }}
-          className={`w-full text-xs py-1.5 rounded border ${
-            isInChart
-              ? 'border-amber-600 bg-amber-900/30 text-amber-400 hover:bg-amber-900/50'
-              : 'border-slate-600 bg-slate-800 hover:bg-slate-700 text-slate-300'
-          }`}
-        >
-          {isInChart ? 'Quitar de gráfica' : 'Añadir a gráfica'}
-        </button>
-        <button
-          onClick={() => {
-            useWeatherSelectionStore.getState().openHistory(buoyChartId);
+            useWeatherSelectionStore.getState().openHistory(`buoy_${reading.stationId}`);
             useUIStore.getState().setRequestedTab('history');
           }}
-          className="w-full text-xs py-1.5 rounded border border-cyan-700 bg-slate-800 hover:bg-cyan-900/30 text-cyan-400"
         >
           Ver historial
         </button>
-      </div>
-    </div>
-  );
+      )}
 
-  // ── Mobile: bottom sheet with swipe-to-dismiss ──────────
-  if (isMobile) {
-    return (
-      <div className="fixed bottom-0 left-0 right-0 z-50 animate-slide-up">
-        <div ref={sheetRef} className="bg-slate-900 border-t border-cyan-800/50 rounded-t-2xl shadow-2xl max-h-[60dvh] overflow-y-auto p-4"
-             style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
-          <div className="flex justify-center mb-3" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
-            <div className="w-10 h-1 rounded-full bg-cyan-700/50" />
-          </div>
-          <button onClick={dismiss} className="absolute top-3 right-3 p-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white min-w-[44px] min-h-[44px] flex items-center justify-center" aria-label="Cerrar">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-          {popupContent}
-        </div>
-      </div>
-    );
-  }
-
-  // ── Desktop: MapLibre popup ───────────────────────────
-  return (
-    <Popup longitude={info.lon} latitude={info.lat} anchor="bottom" offset={[0, -30]} closeOnClick={false} onClose={dismiss} className="buoy-popup" maxWidth="380px">
-      <PopupFit />
-      {popupContent}
-    </Popup>
+      {/* Who the data come from: Puertos del Estado and the Xunta ask for it on every use */}
+      <p className="gf-credit">{!simpleMode && `Red ${info.type}. `}<BuoyCredit providers={info.providers} /></p>
+    </Ficha>
   );
 });

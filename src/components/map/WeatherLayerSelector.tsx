@@ -1,240 +1,119 @@
-import { memo, useMemo } from 'react';
+/**
+ * The one menu for what can be laid over the map by hand. What appears by itself (lightning, rain now,
+ * fog, fires) has no switch. Simple mode has no menu and no layer button: it keeps what the map shows by itself.
+ */
+import { memo, useCallback, useRef, useState } from 'react';
 import { useWeatherLayerStore } from '../../store/weatherLayerStore';
-import type { WeatherLayerType } from '../../store/weatherLayerStore';
 import { useUIStore } from '../../store/uiStore';
 import { useSectorStore } from '../../store/sectorStore';
-import { isCoastalSector } from '../../config/sectors';
-import { useAviationStore } from '../../store/aviationStore';
 import { useWebcamStore } from '../../store/webcamStore';
-import { useRegattaStore } from '../../store/regattaStore';
-import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
-
-// ── Layer button configs ───────────────────────────────────
-
-const LAYER_BUTTONS: { id: WeatherLayerType; icon: IconId; label: string; coastalOnly?: boolean }[] = [
-  { id: 'wind-particles', icon: 'wind', label: 'Viento' },
-  { id: 'radar', icon: 'radar', label: 'Radar' },
-];
-
-// ── Component ──────────────────────────────────────────────
+import { useMapStyleStore } from '../../store/mapStyleStore';
+import { useTemperatureOverlayStore } from '../../store/temperatureOverlayStore';
+import { useDismiss } from '../../hooks/useDismiss';
+import { WeatherIcon } from '../icons/WeatherIcons';
+import { windSpeedColor, WIND_TONE_STEPS_KT } from '../../services/windUtils';
+import { mapIsDark } from '../../hooks/useMapInk';
 
 export const WeatherLayerSelector = memo(function WeatherLayerSelector() {
   const isMobile = useUIStore((s) => s.isMobile);
+  const isCoastal = useSectorStore((s) => s.activeSector.coastal);
   const activeLayer = useWeatherLayerStore((s) => s.activeLayer);
   const layerOpacity = useWeatherLayerStore((s) => s.layerOpacity);
-  const sectorId = useSectorStore((s) => s.activeSector.id);
-
   const setActiveLayer = useWeatherLayerStore((s) => s.setActiveLayer);
   const setLayerOpacity = useWeatherLayerStore((s) => s.setLayerOpacity);
+  const showTemperature = useTemperatureOverlayStore((s) => s.showOverlay);
+  const toggleTemperature = useTemperatureOverlayStore((s) => s.toggleOverlay);
+  const showWebcams = useWebcamStore((s) => s.showOverlay);
+  const toggleWebcams = useWebcamStore((s) => s.toggleOverlay);
+  const showSwan = useMapStyleStore((s) => s.showSwan);
+  const toggleSwan = useMapStyleStore((s) => s.toggleSwan);
+  const showChart = useMapStyleStore((s) => s.showNauticalChart);
+  const toggleChart = useMapStyleStore((s) => s.toggleNauticalChart);
 
-  // Filter coastal-only buttons (kept for future marine-only layers)
-  const buttons = useMemo(
-    () => LAYER_BUTTONS.filter((b) => !b.coastalOnly || isCoastalSector(sectorId)),
-    [sectorId],
-  );
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+  useDismiss(rootRef, open, close);
 
-  const handleLayerClick = (id: WeatherLayerType) => {
-    setActiveLayer(activeLayer === id ? 'none' : id);
-  };
-
-  const isActive = activeLayer !== 'none';
+  const toggleLayer = (id: 'wind-particles' | 'radar') => setActiveLayer(activeLayer === id ? 'none' : id);
+  const coastOn = isCoastal && (showSwan || showChart);
+  const onCount = [activeLayer !== 'none', showTemperature, showWebcams, coastOn && showSwan, coastOn && showChart].filter(Boolean).length;
 
   return (
-    <div className="shrink-0" data-tour="layers">
-      <div
-        className={`bg-slate-900 border border-slate-700/50 rounded-xl
-          transition-all duration-200 ${isActive ? 'shadow-lg shadow-black/30' : ''}`}
-      >
-        {/* Expanded controls — ABOVE buttons so panel grows upward */}
-        {isActive && (
-          <div className={`border-b border-slate-700/40 space-y-2 ${isMobile ? 'w-[min(calc(100vw-2rem),18rem)] px-2.5 py-2' : 'w-72 px-3 py-2'}`}>
-            {/* Opacity slider */}
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-slate-500 shrink-0">Opacidad</span>
-              <input
-                type="range"
-                min={10}
-                max={100}
-                value={Math.round(layerOpacity * 100)}
-                onChange={(e) => setLayerOpacity(Number(e.target.value) / 100)}
-                className="flex-1 h-1 accent-sky-500 cursor-pointer"
-                aria-label="Opacidad de la capa"
-                aria-valuetext={`${Math.round(layerOpacity * 100)} por ciento`}
-              />
-              <span className="text-[11px] text-slate-400 w-8 text-right font-mono">
-                {Math.round(layerOpacity * 100)}%
-              </span>
+    <div ref={rootRef} className="gc-layers" data-tour="layers">
+      {open && (
+        <div className="g-theme gc-popover gc-layers-menu" role="group" aria-label="Ver en el mapa">
+          <Layer label="Viento" sub="Corriente entre las estaciones" on={activeLayer === 'wind-particles'} onClick={() => toggleLayer('wind-particles')} />
+          <Layer label="Radar" sub="Eco de las últimas 2 horas, sin filtrar" on={activeLayer === 'radar'} onClick={() => toggleLayer('radar')} />
+          <Layer label="Temperatura" sub="Cada estación y el agua" on={showTemperature} onClick={toggleTemperature} />
+          <Layer label="Webcams" sub="Dónde hay cámara y hacia dónde mira" on={showWebcams} onClick={toggleWebcams} />
+          {isCoastal && <Layer label="Oleaje (modelo)" sub="Altura de ola dentro de las rías, hasta 48 horas" on={showSwan} onClick={toggleSwan} />}
+          {isCoastal && <Layer label="Carta náutica" sub="Carta oficial del IHM: bajos y zonas" on={showChart} onClick={toggleChart} />}
+          {activeLayer !== 'none' && (
+            <div className="gc-toolpanel" style={{ width: 'auto', maxWidth: 'none', borderBottom: 0, borderTop: '1px solid var(--g-hair)' }}>
+              <label className="gc-toolpanel-row">
+                <span>Opacidad</span>
+                <input
+                  type="range"
+                  min={10}
+                  max={100}
+                  value={Math.round(layerOpacity * 100)}
+                  onChange={(e) => setLayerOpacity(Number(e.target.value) / 100)}
+                  aria-label="Opacidad de la capa"
+                  aria-valuetext={`${Math.round(layerOpacity * 100)} por ciento`}
+                />
+                <span className="gc-num">{Math.round(layerOpacity * 100)} %</span>
+              </label>
+              {activeLayer === 'wind-particles' && <WindLegend />}
+              {activeLayer === 'radar' && <RadarLegend />}
             </div>
-
-            {/* ── Color legend for wind particles ── */}
-            {activeLayer === 'wind-particles' && <WindLegend />}
-
-
-            {/* ── Radar info ── */}
-            {activeLayer === 'radar' && <RadarLegend />}
-
-            {/* ── Currents info ── */}
-          </div>
-        )}
-
-        {/* Layer toggle buttons + tracking toggles — single row */}
-        <div className={`flex items-center gap-0.5 ${isMobile ? 'p-0.5' : 'p-1.5'}`} role="group" aria-label="Capas meteorológicas">
-          {buttons.map((btn) => {
-            const isOn = activeLayer === btn.id;
-            return (
-              <button
-                key={btn.id}
-                onClick={() => handleLayerClick(btn.id)}
-                aria-pressed={isOn}
-                className={`flex items-center justify-center gap-1 rounded-lg font-bold
-                  transition-all duration-200 cursor-pointer
-                  ${isMobile ? 'min-w-[44px] min-h-[44px] px-2.5 py-2 text-base' : 'px-2.5 py-1 text-[11px]'}
-                  ${isOn
-                    ? 'bg-sky-500/25 border border-sky-400/50 text-sky-300 shadow-[0_0_10px_rgba(56,189,248,0.25)]'
-                    : 'border border-slate-600/30 text-slate-500 hover:bg-slate-700/60 hover:text-slate-200 hover:shadow-[0_0_12px_rgba(56,189,248,0.15)] hover:border-sky-500/20'
-                  }`}
-                title={isMobile ? btn.label : `${btn.label} (W para ciclar)`}
-              >
-                <WeatherIcon id={btn.icon} size={isMobile ? 18 : 14} />
-                {!isMobile && <span>{btn.label}</span>}
-              </button>
-            );
-          })}
-          {/* Tracking toggles inline — no border separator, same row */}
-          <TrackingTogglesInline isMobile={isMobile} sectorId={sectorId} />
+          )}
         </div>
-
-        {/* Event/Regatta mode button */}
-        <EventModeButton isMobile={isMobile} />
-      </div>
+      )}
+      <button
+        type="button"
+        className="gc-tool"
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        aria-label={onCount > 0 ? `Ver en el mapa, ${onCount} encendido${onCount > 1 ? 's' : ''}` : 'Ver en el mapa'}
+        title="Ver en el mapa: viento, radar, temperatura…"
+      >
+        <WeatherIcon id="layers" size={isMobile ? 18 : 15} />
+        {!isMobile && <span>Ver en el mapa</span>}
+        {onCount > 0 && <span className="gc-tool-count">{onCount}</span>}
+      </button>
     </div>
   );
 });
 
-/* ─── Tracking layer toggles (Webcams, Aviation) — inline in same row ─── */
-
-// `sector` undefined = available in ALL sectors. Webcams intentionally has no
-// sector gate: Embalse also has webcams (DGT) and without the button here the
-// overlay activated in Rías stayed stuck visible in Embalse with no way to
-// turn it off (getWebcamsForSector already routes cameras per sector).
-const TRACKING_BUTTONS: { id: string; icon: IconId; label: string; sector?: string; alpha?: boolean }[] = [
-  { id: 'webcams', icon: 'camera', label: 'Webcams' },
-  { id: 'aviation', icon: 'navigation', label: 'Aviones', sector: 'embalse', alpha: true },
-];
-
-function TrackingTogglesInline({ isMobile, sectorId }: { isMobile: boolean; sectorId: string }) {
-  const avShow = useAviationStore((s) => s.showOverlay);
-  const avAlert = useAviationStore((s) => s.alert);
-  const avToggle = useAviationStore((s) => s.toggleOverlay);
-  const wcShow = useWebcamStore((s) => s.showOverlay);
-  const wcToggle = useWebcamStore((s) => s.toggleOverlay);
-
-  const visible = TRACKING_BUTTONS.filter((b) => !b.sector || b.sector === sectorId);
-  if (visible.length === 0) return null;
-
-  const getState = (id: string) => {
-    if (id === 'webcams') return { isOn: wcShow, toggle: wcToggle, badge: undefined };
-    if (id === 'aviation') return { isOn: avShow, toggle: avToggle, badge: avAlert.level !== 'none' ? avAlert.aircraftInBbox.toString() : undefined };
-    return { isOn: false, toggle: () => {}, badge: undefined };
-  };
-
+function Layer({ label, sub, on, onClick }: { label: string; sub: string; on: boolean; onClick: () => void }) {
   return (
-    <>
-      {visible.map((btn) => {
-        const { isOn, toggle, badge } = getState(btn.id);
-        return (
-          <button
-            key={btn.id}
-            onClick={toggle}
-            aria-pressed={isOn}
-            className={`relative flex items-center justify-center gap-1 rounded-lg font-bold
-              transition-all duration-200 cursor-pointer
-              ${isMobile ? 'min-w-[44px] min-h-[44px] px-2.5 py-2 text-base' : 'px-2.5 py-1 text-[11px]'}
-              ${isOn
-                ? 'bg-teal-500/25 border border-teal-400/50 text-teal-300 shadow-[0_0_10px_rgba(20,184,166,0.25)]'
-                : 'border border-slate-600/30 text-slate-500 hover:bg-slate-700/60 hover:text-slate-200 hover:border-teal-500/20'
-              }`}
-            title={btn.label}
-          >
-            <WeatherIcon id={btn.icon} size={isMobile ? 18 : 14} />
-            {!isMobile && <span>{btn.label}</span>}
-            {btn.alpha && (
-              <span className="text-[7px] font-bold text-amber-400/80 uppercase tracking-wider">alpha</span>
-            )}
-            {badge && (
-              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 flex items-center justify-center rounded-full bg-teal-500 text-[8px] text-white font-bold">
-                {badge}
-              </span>
-            )}
-          </button>
-        );
-      })}
-    </>
+    <button type="button" role="switch" aria-checked={on} className="gc-option" onClick={onClick}>
+      <span className="gc-option-text">
+        <span>{label}</span>
+        <span className="gc-option-sub">{sub}</span>
+      </span>
+      <span className="gc-switch" />
+    </button>
   );
 }
 
-/* ─── Event/Regatta mode button ─── */
+/* ─── Wind speed colour legend ───
+   Each stop is a speed in m/s (windSpeedColor's input) and the knots from which that colour starts, so the
+   legend reads the colour from the function that paints the layer and cannot drift from it. */
+export const WIND_LEGEND_STOPS = [0, ...WIND_TONE_STEPS_KT].map((kt, i, all) => ({
+  ms: kt === 0 ? 0 : (kt + 0.01) / 1.94384,
+  label: i === all.length - 1 ? `${kt}+` : String(kt),
+}));
 
-function EventModeButton({ isMobile }: { isMobile: boolean }) {
-  const active = useRegattaStore((s) => s.active);
-  const alphaMode = useUIStore((s) => s.alphaMode);
-
-  // Alpha feature — hidden unless user enables Alpha Mode in settings
-  if (!alphaMode && !active) return null;
-
-  const handleClick = () => {
-    if (active) {
-      useRegattaStore.getState().deactivate();
-    } else {
-      useRegattaStore.getState().startEvent();
-      // In Embalse, aircraft are visible from the water — auto-enable aviation overlay
-      const sector = useSectorStore.getState().activeSector;
-      if (sector.id === 'embalse' && !useAviationStore.getState().showOverlay) {
-        useAviationStore.getState().toggleOverlay();
-      }
-    }
-  };
-
-  return (
-    <div className={`flex items-center gap-0.5 border-t border-slate-700/30 ${isMobile ? 'p-0.5' : 'px-1.5 pb-1.5 pt-1'}`}>
-      <button
-        onClick={handleClick}
-        className={`flex items-center justify-center gap-1.5 rounded-lg font-bold
-          transition-all duration-200 cursor-pointer w-full
-          ${isMobile ? 'min-h-[44px] px-2.5 py-2 text-[13px]' : 'px-2.5 py-1 text-[11px]'}
-          ${active
-            ? 'bg-amber-500/25 border border-amber-400/50 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.25)]'
-            : 'border border-amber-500/20 text-amber-400/70 bg-amber-500/5 hover:bg-amber-500/15 hover:text-amber-300'
-          }`}
-        title="Modo Evento / Regata"
-      >
-        <WeatherIcon id="sailboat" size={isMobile ? 18 : 14} />
-        <span>{active ? 'Cancelar Evento' : 'Modo Evento'}</span>
-        <span className="text-[7px] font-bold text-amber-400/60 uppercase">alpha</span>
-      </button>
-    </div>
-  );
-}
-
-/* ─── Wind speed color legend (matches windSpeedColor in windUtils.ts) ─── */
 function WindLegend() {
+  const onDarkMap = mapIsDark();
   return (
-    <div className="space-y-1">
-      <span className="text-[11px] text-slate-500 font-semibold">Velocidad viento (kt)</span>
-      <div className="flex items-center gap-0">
-        {[
-          { color: '#64748b', label: '0' },
-          { color: '#38bdf8', label: '6' },
-          { color: '#22c55e', label: '9' },
-          { color: '#84cc16', label: '13' },
-          { color: '#eab308', label: '17' },
-          { color: '#f97316', label: '23' },
-          { color: '#ef4444', label: '23+' },
-        ].map((s, i) => (
-          <div key={i} className="flex-1 flex flex-col items-center">
-            <div className="w-full h-2 rounded-sm" style={{ background: s.color }} />
-            <span className="text-[11px] text-slate-600 mt-0.5 font-mono">{s.label}</span>
-          </div>
+    <div>
+      <div className="gc-note" style={{ marginBottom: 4 }}>Viento, desde (kt)</div>
+      <div className="gc-scale">
+        {WIND_LEGEND_STOPS.map((s) => (
+          <span key={s.label}><i style={{ background: windSpeedColor(s.ms, onDarkMap) }} />{s.label}</span>
         ))}
       </div>
     </div>
@@ -243,31 +122,25 @@ function WindLegend() {
 
 /* ─── (SatelliteLegend removed — EUMETSAT non-commercial license incompatible) ─── */
 
-
-
 /* ─── Radar info panel ─── */
 function RadarLegend() {
   return (
-    <div className="space-y-1">
-      <span className="text-[11px] text-slate-500 font-semibold inline-flex items-center gap-1"><WeatherIcon id="radar" size={10} /> Radar</span>
-      <div className="text-[11px] text-slate-400">
-        RainViewer — radar animado de las últimas 2 h.
-        Pulsa el botón del mapa para reproducir. El beis claro es eco muy débil o ruido del mar.
+    <div>
+      <div className="gc-note" style={{ marginBottom: 6 }}>
+        RainViewer: radar animado de las últimas 2 h. Pulsa el botón del mapa para reproducir.
+        El beis claro es eco muy débil o ruido del mar.
       </div>
       {/* The colours RainViewer really draws (Universal Blue, the only scheme of the free tier;
           radarDecode.ts has the table): the old rainbow had a green it never uses (6-oct). */}
-      <div className="flex items-center gap-0">
+      <div className="gc-scale">
         {[
           { color: '#00a3e0', label: 'Débil' },
-          { color: '#005588', label: 'Moderada' },
+          { color: '#005588', label: 'Media' },
           { color: '#ffaa00', label: 'Fuerte' },
           { color: '#c10000', label: 'Tormenta' },
           { color: '#ff77ff', label: 'Granizo' },
-        ].map((s, i) => (
-          <div key={i} className="flex-1 flex flex-col items-center">
-            <div className="w-full h-2 rounded-sm" style={{ background: s.color }} />
-            <span className="text-[11px] text-slate-600 mt-0.5">{s.label}</span>
-          </div>
+        ].map((s) => (
+          <span key={s.label}><i style={{ background: s.color }} />{s.label}</span>
         ))}
       </div>
     </div>

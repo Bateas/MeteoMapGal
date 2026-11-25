@@ -760,24 +760,3 @@ function getActiveNames(signals: PrecursorSignals): string {
   return names.join(', ') || 'señales débiles';
 }
 
-function emptyResult(spotId: string, now: Date, summary: string): ThermalPrecursorResult {
-  const emptySignal: SignalDetail = { active: false, score: 0, value: '', weight: 0 };
-  return {
-    spotId,
-    probability: 0,
-    confidence: 'low',
-    eta: null,
-    etaMinutes: null,
-    signals: {
-      terral: { ...emptySignal, weight: W_TERRAL },
-      deltaTWaterAir: { ...emptySignal, weight: W_DELTA_T },
-      solarRamp: { ...emptySignal, weight: W_SOLAR },
-      humidityGradient: { ...emptySignal, weight: W_HUMIDITY },
-      windDivergence: { ...emptySignal, weight: W_DIVERGENCE },
-      forecastFavorable: { ...emptySignal, weight: W_FORECAST },
-    },
-    summary,
-    level: 'none',
-    computedAt: now,
-  };
-}

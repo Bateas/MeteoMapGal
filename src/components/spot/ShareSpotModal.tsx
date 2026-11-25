@@ -1,7 +1,7 @@
 /**
  * ShareSpotModal — share-as-image modal opened from SpotPopup.
  *
- * T3-5 (S136+3+4). Builds the share card on the client and offers
+ * Builds the share card on the client and offers
  * native share (mobile, Web Share API with files) or direct download
  * (desktop fallback).
  *
@@ -11,10 +11,13 @@
  *   - Native share sheet on iOS/Android, download anchor on desktop
  *   - Closeable with X or backdrop tap (matches popup pattern)
  */
+import { WeatherIcon } from '../icons/WeatherIcons';
 import { memo, useEffect, useRef, useState, useCallback } from 'react';
 import type { SpotScore } from '../../services/spotScoringEngine';
 import type { SailingSpot } from '../../config/spots';
 import { useSectorStore } from '../../store/sectorStore';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useBackCloses } from '../../hooks/useBackCloses';
 import {
   buildShareData,
   renderShareCanvas,
@@ -86,6 +89,11 @@ export const ShareSpotModal = memo(function ShareSpotModal({
     }
   }, [busy, data, spot.name]);
 
+  // A modal takes the focus (to its close button), keeps Tab inside and gives it back on close; the phone's
+  // back button closes it instead of leaving the app (P3 review, 19-nov: it opened with the focus left behind).
+  const trapRef = useFocusTrap<HTMLDivElement>(true);
+  useBackCloses(true, onClose, 'share');
+
   // Escape key closes
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -95,34 +103,23 @@ export const ShareSpotModal = memo(function ShareSpotModal({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm px-3 py-6"
-      onClick={onClose}
+      ref={trapRef}
+      className="fixed inset-0 z-[60] flex items-center justify-center"
       role="dialog"
       aria-modal="true"
-      aria-label="Compartir spot"
+      aria-labelledby="gf-share-title"
     >
-      <div
-        className="relative w-full max-w-[640px] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
-          <div className="flex flex-col">
-            <span className="text-[11px] uppercase tracking-wider text-slate-500">Compartir</span>
-            <span className="text-sm font-bold text-slate-100">{spot.name}</span>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-100 text-2xl leading-none px-2"
-            aria-label="Cerrar"
-          >
-            ×
+      <div className="gc-scrim" onClick={onClose} />
+      <div className="g-theme gc-dialog" style={{ margin: 16, maxWidth: 640 }}>
+        <div className="gc-dialog-head">
+          <h2 id="gf-share-title">Compartir {spot.name}</h2>
+          <button type="button" onClick={onClose} className="gc-btn gc-btn--plain gc-btn--icon" aria-label="Cerrar">
+            <WeatherIcon id="x" size={16} />
           </button>
         </div>
 
-        {/* Canvas preview — scaled to fit container */}
-        <div className="p-4 bg-slate-950/50">
-          <div className="aspect-[1200/630] w-full overflow-hidden rounded-lg border border-slate-700 bg-slate-900">
+        <div className="gc-dialog-body">
+          <div style={{ aspectRatio: '1200 / 630', width: '100%', overflow: 'hidden', border: '1px solid var(--g-hair)' }}>
             <canvas
               ref={canvasRef}
               className="w-full h-full"
@@ -130,32 +127,15 @@ export const ShareSpotModal = memo(function ShareSpotModal({
               aria-label="Vista previa de la imagen a compartir"
             />
           </div>
-
-          {error && (
-            <p className="mt-2 text-[12px] text-red-400">{error}</p>
-          )}
-          {result?.method === 'web-share' && !result.cancelled && (
-            <p className="mt-2 text-[12px] text-green-400">Compartido</p>
-          )}
-          {result?.method === 'download' && (
-            <p className="mt-2 text-[12px] text-sky-400">Imagen descargada</p>
-          )}
+          {error && <p className="gc-small" role="alert">{error}</p>}
+          {result?.method === 'web-share' && !result.cancelled && <p className="gc-small" role="status">Compartido</p>}
+          {result?.method === 'download' && <p className="gc-small" role="status">Imagen descargada</p>}
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-2 px-4 py-3 border-t border-slate-800 bg-slate-900">
-          <button
-            onClick={onClose}
-            className="px-3 py-2 text-xs text-slate-300 hover:text-slate-100 rounded border border-slate-700 hover:bg-slate-800 transition-colors"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={handleShare}
-            disabled={busy || !!error}
-            className="flex-1 px-3 py-2 text-xs font-semibold rounded bg-sky-500/20 border border-sky-500/50 text-sky-200 hover:bg-sky-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {busy ? 'Generando…' : (typeof navigator !== 'undefined' && typeof navigator.canShare === 'function' ? 'Compartir' : 'Descargar PNG')}
+        <div className="gc-dialog-foot">
+          <button type="button" onClick={onClose} className="gc-btn gc-btn--plain">Cancelar</button>
+          <button type="button" onClick={handleShare} disabled={busy || !!error} className="gc-btn gc-btn--primary">
+            {busy ? 'Generando…' : (typeof navigator !== 'undefined' && typeof navigator.canShare === 'function' ? 'Compartir' : 'Descargar imagen')}
           </button>
         </div>
       </div>

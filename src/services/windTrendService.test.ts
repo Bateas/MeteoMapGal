@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { NormalizedReading } from '../types/station';
-import { analyzeSpotWindTrend, analyzeWindTrend, type TrendStation } from './windTrendService';
+import { analyzeSpotWindTrend, analyzeWindTrend, spotWindDrift, windDrift, type TrendStation, type WindTrend } from './windTrendService';
 
 const NOW = Date.UTC(2026, 9, 1, 10, 3); // 12:03 Madrid
 const KT = 0.514444;
@@ -122,5 +122,58 @@ describe('analyzeSpotWindTrend — what the spot shows', () => {
     ];
     const { history, current } = inputs({ a: ramp('a', 2, 8), b: ramp('b', 10, 4) });
     expect(analyzeSpotWindTrend(near, history, current, 6)).toBeNull();
+  });
+});
+
+describe('windDrift', () => {
+  const NOW = 1_800_000_000_000;
+  const ago = (min: number, kt: number) => ({ t: NOW - min * 60_000, kt });
+
+  it('says which way, comparing the last 45 minutes with the time before', () => {
+    expect(windDrift([ago(100, 5), ago(70, 5), ago(30, 9), ago(10, 10)], NOW)).toBe('sube');
+    expect(windDrift([ago(100, 12), ago(70, 11), ago(30, 7), ago(10, 6)], NOW)).toBe('baja');
+    expect(windDrift([ago(100, 8), ago(70, 8), ago(30, 8), ago(10, 9)], NOW)).toBe('estable');
+  });
+
+  it('one gust is not a trend', () => {
+    expect(windDrift([ago(100, 8), ago(70, 8), ago(30, 8), ago(25, 8), ago(10, 11)], NOW)).toBe('estable');
+  });
+
+  it('asks for more of a change at more wind', () => {
+    expect(windDrift([ago(100, 30), ago(70, 30), ago(30, 33), ago(10, 33)], NOW)).toBe('estable');
+    expect(windDrift([ago(100, 30), ago(70, 30), ago(30, 35), ago(10, 35)], NOW)).toBe('sube');
+  });
+
+  it('nothing to almost nothing is still calm', () => {
+    expect(windDrift([ago(100, 0), ago(70, 0.5), ago(30, 2.5), ago(10, 2.8)], NOW)).toBe('estable');
+  });
+
+  it('says nothing with too few readings at either side, or none recent', () => {
+    expect(windDrift([ago(100, 5), ago(30, 9), ago(10, 10)], NOW)).toBeNull();
+    expect(windDrift([ago(100, 5), ago(70, 5), ago(10, 10)], NOW)).toBeNull();
+    expect(windDrift([ago(100, 5), ago(90, 5), ago(80, 5), ago(70, 5)], NOW)).toBeNull();
+    expect(windDrift([], NOW)).toBeNull();
+  });
+
+  it('a reading from the future or without a figure does not count', () => {
+    expect(windDrift([ago(100, 5), ago(70, 5), ago(30, 5), ago(-10, 30), ago(10, NaN), ago(5, 5)], NOW)).toBe('estable');
+  });
+});
+
+describe('spotWindDrift', () => {
+  const NOW = 1_800_000_000_000;
+  const steady = [90, 70, 30, 10].map((m) => ({ t: NOW - m * 60_000, kt: 8 }));
+  const trend = (signal: WindTrend['signal']) => ({ signal } as WindTrend);
+
+  it('the stations moving together win', () => {
+    expect(spotWindDrift(trend('rapid'), steady, NOW)).toBe('sube');
+    expect(spotWindDrift(trend('building'), steady, NOW)).toBe('sube');
+    expect(spotWindDrift(trend('dropping'), steady, NOW)).toBe('baja');
+  });
+
+  it('without them, the figures the card has shown', () => {
+    expect(spotWindDrift(null, steady, NOW)).toBe('estable');
+    expect(spotWindDrift(trend('none'), steady, NOW)).toBe('estable');
+    expect(spotWindDrift(null, [], NOW)).toBeNull();
   });
 });

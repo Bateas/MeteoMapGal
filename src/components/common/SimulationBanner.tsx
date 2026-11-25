@@ -14,7 +14,8 @@ export function SimulationBanner({ search }: { search?: string }) {
     <div
       role="alert"
       className="shrink-0 w-full bg-fuchsia-800 text-white flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs"
-      style={{ padding: '6px 12px' }}
+      // A literal white: text-white is remapped to a dark slate in the light theme
+      style={{ padding: '6px 12px', color: '#ffffff' }}
     >
       <span className="font-bold tracking-wide">SIMULACIÓN</span>
       {/* Phone: one line, so the strip does not eat a fifth of the screen. */}

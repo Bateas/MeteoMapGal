@@ -2,284 +2,125 @@ import { useMemo } from 'react';
 import { LastUpdated } from '../common/LastUpdated';
 import { SourceStatusIndicator } from '../common/SourceStatusIndicator';
 import { WeatherIcon } from '../icons/WeatherIcons';
-import { useWeatherStore } from '../../store/weatherStore';
+import { SectorSelector } from '../map/SectorSelector';
 import { useSectorStore } from '../../store/sectorStore';
-import { useThermalStore } from '../../store/thermalStore';
-import { SECTORS } from '../../config/sectors';
 import { getSunTimes, formatTime } from '../../services/solarUtils';
-import { useForecastStore } from '../../hooks/useForecastTimeline';
-import { scoreForecastThermal, thermalColor } from '../../services/forecastScoringUtils';
 import { useUIStore } from '../../store/uiStore';
 import { useThemeStore } from '../../store/themeStore';
 import { APP_VERSION } from '../../config/version';
-
-interface WindFrontInfo {
-  active: boolean;
-  etaMin: number | null;
-  directionLabel: string;
-  frontSpeedKt: number;
-}
+import { CONDITIONS_LEVEL_WORD as LEVEL_WORD } from '../../config/levelWords';
+import { useMinuteClock } from '../../hooks/useMinuteClock';
 
 interface HeaderProps {
   onRefresh: () => void;
   fieldDrawerOpen?: boolean;
   onToggleFieldDrawer?: () => void;
-  fieldAlertLevel?: 'none' | 'riesgo' | 'alto' | 'critico';
-  windFront?: WindFrontInfo | null;
+  fieldAlertLevel?: 'none' | 'riesgo' | 'moderado' | 'alto' | 'critico';
 }
 
-export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldAlertLevel = 'none', windFront }: HeaderProps) {
-  const stationCount = useWeatherStore((s) => s.stations.length);
-  const readingCount = useWeatherStore((s) => s.currentReadings.size);
+
+export function Header({ onRefresh, fieldDrawerOpen, onToggleFieldDrawer, fieldAlertLevel = 'none' }: HeaderProps) {
   const activeSector = useSectorStore((s) => s.activeSector);
-  const switchSector = useSectorStore((s) => s.switchSector);
-  const isEmbalse = activeSector.id === 'embalse';
-  const forecastHourly = useForecastStore((s) => s.hourly);
-  const thermalRules = useThermalStore((s) => s.rules);
   const isMobile = useUIStore((s) => s.isMobile);
   const simpleMode = useUIStore((s) => s.simpleMode);
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
   const theme = useThemeStore((s) => s.theme);
 
-  const sun = useMemo(() => getSunTimes(new Date(), activeSector.center), [activeSector.center]);
-  const daylight = useMemo(() => {
-    const now = new Date();
-    return now >= sun.sunrise && now <= sun.sunset;
-  }, [sun.sunrise, sun.sunset]);
-
-  const nextSailingWindow = useMemo(() => {
-    if (forecastHourly.length === 0 || thermalRules.length === 0) return null;
-
-    const now = Date.now();
-    const futurePoints = forecastHourly.filter(p => p.time.getTime() > now);
-    if (futurePoints.length === 0) return null;
-
-    const temps = futurePoints
-      .map(p => p.temperature)
-      .filter((t): t is number => t !== null);
-    const deltaT = temps.length >= 2 ? Math.max(...temps) - Math.min(...temps) : null;
-
-    let bestScore = 0;
-    let bestPoint: typeof futurePoints[0] | null = null;
-
-    for (const point of futurePoints) {
-      const result = scoreForecastThermal(point, thermalRules, deltaT);
-      if (result.score > bestScore) {
-        bestScore = result.score;
-        bestPoint = point;
-      }
-    }
-
-    if (!bestPoint || bestScore < 40) return null;
-
-    return {
-      time: bestPoint.time,
-      score: Math.round(bestScore),
-      color: thermalColor(bestScore),
-    };
-  }, [forecastHourly, thermalRules]);
+  // A minute clock: the installed app stays open for days, and the sun and moon, and the hours of sunrise and
+  // sunset, stayed on the day it was opened (review, 18-nov).
+  const clock = useMinuteClock();
+  const day = new Date(clock).toDateString();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `day` is what changes the sun times, not every minute
+  const sun = useMemo(() => getSunTimes(new Date(clock), activeSector.center), [activeSector.center, day]);
+  const daylight = clock >= sun.sunrise.getTime() && clock <= sun.sunset.getTime();
 
   return (
-    // The page runs edge to edge on iOS (viewport-fit=cover, translucent status bar), so the
-    // installed app put the header under the clock and the notch without this inset.
-    <header
-      className="bg-slate-900 border-b border-slate-700 px-3 md:px-4 py-2 md:py-2 flex items-center justify-between gap-1.5 md:gap-2"
-      style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
-    >
-      <div className="flex items-center gap-1.5 md:gap-3 min-w-0">
-        <h1 className={`font-bold text-white tracking-tight flex-shrink-0 ${isMobile ? 'text-[13px]' : 'text-base'}`}>
-          MeteoMap<span className="text-sky-400">Gal</span>
-        </h1>
-        {!isMobile && <span className="text-[12px] font-medium text-slate-400 ml-1 px-1.5 py-0.5 rounded bg-slate-800/60" aria-label={`versión ${APP_VERSION}`}>v{APP_VERSION}</span>}
-        {/* Sector selector — compact on mobile (icon-only for inactive), label on desktop */}
-        {isMobile ? (
-          <div className="flex items-center gap-1.5" data-tour="sectors">
-            {SECTORS.map((sector) => {
-              const isActive = sector.id === activeSector.id;
-              return (
-                <button
-                  key={sector.id}
-                  onClick={() => switchSector(sector.id)}
-                  aria-label={`Cambiar a sector ${sector.name}`}
-                  className={`flex flex-col items-center justify-center rounded-lg font-bold border transition-all min-h-[40px]
-                    ${isActive
-                      ? 'text-[11px] px-2.5 py-1 bg-blue-600 text-white border-blue-400/50 shadow-[0_0_12px_rgba(59,130,246,0.35)]'
-                      : 'text-[11px] px-2.5 py-1 bg-transparent text-slate-400 border-slate-600/40 border-dashed active:bg-slate-700'
-                  }`}
-                >
-                  <span className="flex items-center gap-1">
-                    <WeatherIcon id={sector.icon} size={14} />
-                    <span>{sector.shortName}</span>
-                  </span>
-                  {isActive && stationCount > 0 && !simpleMode && (
-                    // blue-200/60 was 2.2:1 on the blue pill. blue-50 reaches 4.8:1; not text-white,
-                    // because the light theme remaps --color-white to a dark slate.
-                    <span className="text-[11px] text-blue-50 font-normal leading-none">{readingCount}/{stationCount}</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          <>
-            <span className="text-[11px] text-slate-500 font-medium truncate inline-flex items-center gap-1">
-              <WeatherIcon id={activeSector.icon} size={12} /> {activeSector.name}
-            </span>
-            {/* Readings/stations count and the source strip are for the advanced
-                view: in simple mode (a new visitor's first screen) they are jargon,
-                the same reason the map drops the MG/WU initials there. */}
-            {stationCount > 0 && !simpleMode && (
-              <span className="bg-slate-800 text-slate-400 rounded text-[11px] px-1.5 py-0.5 flex-shrink-0">
-                {readingCount}/{stationCount}
-              </span>
-            )}
-            {/* Simple/Avanzado toggle — placed next to the sector selector so
-                it sits in the same "view-mode" zone (sector + density both
-                pick what the user wants to see). Icon = current state:
-                eye = everything visible, eye-off = simpleMode hiding things.
-                Label = action: clicking will toggle to that mode. */}
-            <button
-              data-tour="simple-toggle"
-              onClick={() => useUIStore.getState().toggleSimpleMode()}
-              className={`ml-1 px-2.5 py-1.5 rounded-lg border transition-all min-h-[36px] inline-flex items-center gap-1.5 text-[12px] font-semibold ${
-                simpleMode
-                  ? 'text-amber-300 border-amber-500/50 bg-amber-500/15 hover:bg-amber-500/25 hover:border-amber-400/60 shadow-[0_0_10px_rgba(245,158,11,0.25)]'
-                  : 'text-slate-300 border-slate-600/60 bg-slate-800/60 hover:bg-slate-700/70 hover:text-white hover:border-slate-500/80'
-              }`}
-              // An action, not a switch: no aria-pressed ("Avanzado, activado"
-              // contradicted the "Modo simple activo" banner, which holds the state).
-              aria-label={simpleMode ? 'Pasar a modo avanzado' : 'Pasar a modo simple'}
-              title={simpleMode ? 'Modo simple ACTIVO — click para volver al avanzado' : 'Modo simple: oculta detalle del mapa y panel'}
-            >
-              <WeatherIcon id={simpleMode ? 'eye-off' : 'eye'} size={14} />
-              <span>{simpleMode ? 'Avanzado' : 'Simple'}</span>
-            </button>
-          </>
+    // .gc-header adds the safe-area inset: the page runs edge to edge on iOS (viewport-fit=cover,
+    // translucent status bar), so the installed app would put the header under the clock otherwise.
+    <header className="g-theme gc-header">
+      <div className="gc-header-group">
+        <h1 className="gc-brand" translate="no">MeteoMapGal</h1>
+        {!isMobile && <span className="gc-version gc-xl" aria-label={`versión ${APP_VERSION}`}>v{APP_VERSION}</span>}
+        <SectorSelector />
+        {!isMobile && (
+          // An action, not a switch: no aria-pressed ("Avanzado, activado" contradicted the
+          // button label, which already names the other mode).
+          <button
+            type="button"
+            data-tour="simple-toggle"
+            onClick={() => useUIStore.getState().toggleSimpleMode()}
+            className="gc-btn"
+            aria-label={simpleMode ? 'Pasar a modo avanzado' : 'Pasar a modo simple'}
+            title={simpleMode ? 'Ver también las capas, las estaciones y el historial' : 'Quedarse solo con lo esencial'}
+          >
+            <WeatherIcon id={simpleMode ? 'eye' : 'eye-off'} size={15} />
+            <span>{simpleMode ? 'Avanzado' : 'Simple'}</span>
+          </button>
         )}
-        {/* Source status — hidden on narrow desktop, visible on lg+ */}
-        {!isMobile && !simpleMode && <span className="hidden lg:inline-flex"><SourceStatusIndicator /></span>}
-        {/* Guide + Feedback — desktop only, text hidden on narrow screens */}
+        {/* Advanced only, and it says nothing while every source answers */}
+        {!isMobile && !simpleMode && <span className="gc-xl"><SourceStatusIndicator /></span>}
+      </div>
+
+      <div className="gc-header-group">
+        {!isMobile && (
+          <span className="gc-meta gc-xl" title={`Mediodía solar: ${formatTime(sun.solarNoon)} | Térmico: ${formatTime(sun.thermalStart)}–${formatTime(sun.thermalEnd)}`}>
+            <WeatherIcon id={daylight ? 'sun' : 'moon'} size={14} />
+            <span>{formatTime(sun.sunrise)} / {formatTime(sun.sunset)}</span>
+          </span>
+        )}
+
+        {/* On a phone these three live in the bottom bar's "Más" menu */}
+        {!isMobile && onToggleFieldDrawer && (
+          <button
+            type="button"
+            onClick={onToggleFieldDrawer}
+            data-tour="panel"
+            className="gc-btn"
+            aria-expanded={!!fieldDrawerOpen}
+            title="Condiciones (C)"
+            aria-label={`Condiciones (tecla C).${LEVEL_WORD[fieldAlertLevel]}`}
+          >
+            <WeatherIcon id="activity" size={15} />
+            <span className="gc-lg">Condiciones</span>
+            {fieldAlertLevel !== 'none' && (
+              <span className={`gc-dot gc-t-${fieldAlertLevel}${fieldAlertLevel === 'critico' && !fieldDrawerOpen ? ' animate-pulse' : ''}`} />
+            )}
+          </button>
+        )}
         {!isMobile && (
           <>
             <button
+              type="button"
+              data-tour="guide"
               onClick={() => useUIStore.getState().toggleGuide()}
-              className="px-2 lg:px-2.5 py-1.5 rounded-lg text-sky-400 border border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/20 hover:border-sky-400/50 transition-all min-h-[44px] flex items-center gap-1.5 text-[13px] font-semibold"
-              title="Guía completa de la app (G)"
+              className="gc-btn gc-btn--plain"
+              title="Guía de la app (G)"
               aria-label="Abrir guía meteorológica (tecla G)"
             >
-              <WeatherIcon id="book-open" size={14} />
-              <span className="hidden lg:inline">Guía</span>
+              <WeatherIcon id="book-open" size={15} />
+              <span className="gc-lg">Guía</span>
             </button>
             <button
+              type="button"
               onClick={() => useUIStore.getState().setFeedbackOpen(true)}
-              className="px-2 lg:px-2.5 py-1.5 rounded-lg text-emerald-400 border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 hover:border-emerald-400/50 transition-all min-h-[44px] flex items-center gap-1.5 text-[13px] font-semibold"
-              aria-label="Enviar feedback"
-              title="Enviar sugerencias o reportar problemas"
+              className="gc-btn gc-btn--plain"
+              aria-label="Enviar tu opinión"
+              title="Enviar sugerencias o avisar de un problema"
             >
-              <WeatherIcon id="message-square" size={14} />
-              <span className="hidden lg:inline">Feedback</span>
+              <WeatherIcon id="message-square" size={15} />
+              <span className="gc-lg">Opinión</span>
             </button>
           </>
         )}
-      </div>
-      <div className="flex items-center gap-1 md:gap-2 flex-shrink min-w-0">
-        {/* Sunrise / Sunset — only on wide screens */}
-        <div
-          className="hidden lg:flex items-center gap-1.5 text-[11px] font-mono px-2 py-0.5 rounded"
-          style={{
-            background: daylight ? 'rgba(250, 204, 21, 0.08)' : 'rgba(100, 116, 139, 0.1)',
-            color: daylight ? '#facc15' : '#64748b',
-            border: `1px solid ${daylight ? 'rgba(250, 204, 21, 0.2)' : 'rgba(100, 116, 139, 0.15)'}`,
-          }}
-          title={`Mediodía solar: ${formatTime(sun.solarNoon)} | Térmico: ${formatTime(sun.thermalStart)}–${formatTime(sun.thermalEnd)}`}
-        >
-          <span>{daylight ? '\u2600' : '\u263E'}</span>
-          <span>{formatTime(sun.sunrise)}</span>
-          <span className="text-slate-600">/</span>
-          <span>{formatTime(sun.sunset)}</span>
-        </div>
 
-        {/* Alerts drawer button — desktop only (mobile uses bottom nav) */}
-        {!isMobile && onToggleFieldDrawer && (
-          <button
-            onClick={onToggleFieldDrawer}
-            data-tour="panel"
-            className={`flex items-center gap-1 rounded-lg font-bold transition-all
-              ${isMobile ? 'px-2 py-1 text-[12px] min-h-[44px]' : 'px-2.5 py-1.5 text-[13px] min-h-[44px]'}
-              ${fieldDrawerOpen && fieldAlertLevel === 'none'
-                ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30'
-                : fieldAlertLevel !== 'none'
-                ? `border ${fieldDrawerOpen ? '' : 'animate-pulse'} hover:brightness-125 hover:scale-105`
-                : 'text-slate-400 border border-slate-600/40 hover:text-white hover:bg-slate-800'
-              }`}
-            style={
-              fieldAlertLevel !== 'none'
-                ? {
-                    color: fieldAlertLevel === 'critico' ? '#ef4444' : fieldAlertLevel === 'alto' ? '#f59e0b' : '#3b82f6',
-                    borderColor: fieldAlertLevel === 'critico' ? 'rgba(239,68,68,0.4)' : fieldAlertLevel === 'alto' ? 'rgba(245,158,11,0.4)' : 'rgba(59,130,246,0.3)',
-                    background: fieldAlertLevel === 'critico' ? 'rgba(239,68,68,0.12)' : fieldAlertLevel === 'alto' ? 'rgba(245,158,11,0.10)' : 'rgba(59,130,246,0.08)',
-                    boxShadow: !fieldDrawerOpen && fieldAlertLevel === 'critico' ? '0 0 14px rgba(239,68,68,0.3)' : !fieldDrawerOpen && fieldAlertLevel === 'alto' ? '0 0 12px rgba(245,158,11,0.25)' : 'none',
-                  }
-                : undefined
-            }
-            title="Condiciones, alertas y campo (C)"
-            aria-label="Condiciones, alertas y campo (tecla C)"
-          >
-            <span className="inline-flex items-center gap-1">
-              <WeatherIcon id="activity" size={isMobile ? 16 : 14} />
-              {!isMobile && <span className="hidden lg:inline">Condiciones</span>}
-            </span>
-          </button>
-        )}
-
-        {/* Wind front ETA badge — desktop only, propagation is BETA */}
-        {!isMobile && windFront?.active && windFront.etaMin != null && (
-          <div
-            className="flex items-center gap-1 rounded font-mono px-2 py-0.5 text-[11px]"
-            style={{
-              background: 'rgba(245, 158, 11, 0.10)',
-              border: '1px solid rgba(245, 158, 11, 0.30)',
-              color: '#f59e0b',
-            }}
-            title={`Frente de viento ${windFront.directionLabel} a ${windFront.frontSpeedKt.toFixed(0)} kt — llegada estimada ~${windFront.etaMin} min`}
-          >
-            <WeatherIcon id="radar" size={12} />
-            <span className="font-bold">~{windFront.etaMin} min</span>
-            {!isMobile && (
-              <span className="text-slate-500 text-[11px]">{windFront.directionLabel}</span>
-            )}
-          </div>
-        )}
-
-        {/* Next sailing window banner (Embalse only — hide on mobile) */}
-        {!isMobile && isEmbalse && nextSailingWindow && (
-          <div
-            className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono"
-            style={{
-              background: `${nextSailingWindow.color}12`,
-              border: `1px solid ${nextSailingWindow.color}30`,
-              color: nextSailingWindow.color,
-            }}
-            title={`Mejor ventana térmica en las próximas 48h: ${nextSailingWindow.score}%`}
-          >
-            <WeatherIcon id="sailboat" size={14} />
-            <span className="font-semibold">{nextSailingWindow.score}%</span>
-            <span className="text-slate-500 text-[11px]">
-              {nextSailingWindow.time.toLocaleDateString('es-ES', { weekday: 'short' })}{' '}
-              {nextSailingWindow.time.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
-            </span>
-          </div>
-        )}
-
-        {/* Theme toggle — sun/moon (smaller on mobile to save space) */}
         <button
+          type="button"
           onClick={toggleTheme}
-          className={`rounded-lg text-slate-400 hover:text-amber-400 hover:bg-slate-800/60 transition-all flex items-center justify-center
-            ${isMobile ? 'p-1.5 min-w-[44px] min-h-[44px]' : 'p-1.5 min-w-[44px] min-h-[44px]'}`}
+          className="gc-btn gc-btn--plain gc-btn--icon"
           aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
           title={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
         >
-          <WeatherIcon id={theme === 'dark' ? 'sun' : 'moon'} size={isMobile ? 12 : 14} />
+          <WeatherIcon id={theme === 'dark' ? 'sun' : 'moon'} size={17} />
         </button>
 
         <LastUpdated onRefresh={onRefresh} compact={isMobile} />

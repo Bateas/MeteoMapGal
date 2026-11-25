@@ -60,56 +60,32 @@ export function SpotPushOptIn({ spot }: SpotPushOptInProps) {
 
   if (status === 'denied') {
     return (
-      <div className="mb-1.5 text-[10px] text-slate-500">
-        Notificaciones bloqueadas en el navegador
+      <div className="gf-row gf-row--static">
+        <WeatherIcon id="bell-off" size={16} />
+        <span>Notificaciones bloqueadas en el navegador</span>
       </div>
     );
   }
 
   if (status === 'on') {
     return (
-      <div className="mb-1.5 flex items-center gap-2 text-[11px] leading-tight">
-        <span className="flex items-center gap-1 text-emerald-400">
-          <WeatherIcon id="bell" size={11} className="inline" />
-          Aviso de tormenta activado
-        </span>
-        <button
-          type="button"
-          onClick={handleTest}
-          className="px-1.5 py-px rounded border border-slate-600 bg-slate-800 text-slate-300 text-[10px] hover:text-slate-100"
-        >
-          Probar
-        </button>
-        <button
-          type="button"
-          onClick={handleDisable}
-          aria-label="Quitar aviso de tormenta"
-          className="px-1.5 py-px rounded border border-slate-600 bg-slate-800 text-slate-400 text-[10px] hover:text-slate-200"
-        >
-          Quitar
-        </button>
+      <div className="gf-row" style={{ cursor: 'default' }}>
+        <WeatherIcon id="bell" size={16} />
+        <span className="gf-grow">Aviso de tormenta activado</span>
+        <button type="button" onClick={handleTest} className="gc-btn gc-btn--plain">Probar</button>
+        <button type="button" onClick={handleDisable} aria-label="Quitar aviso de tormenta" className="gc-btn gc-btn--plain">Quitar</button>
       </div>
     );
   }
 
-  // off / requesting / error → single-line CTA (error adds a discreet note)
+  // off / requesting / error: one row (error adds a discreet note)
   return (
-    <div className="mb-1.5 leading-tight">
-      <button
-        type="button"
-        onClick={handleEnable}
-        disabled={status === 'requesting'}
-        aria-pressed={false}
-        className="flex items-center gap-1 min-h-11 text-[11px] text-slate-300 hover:text-slate-100 disabled:opacity-60"
-      >
-        <span className="flex text-amber-400">
-          <WeatherIcon id="bell" size={11} className="inline" />
-        </span>
+    <>
+      <button type="button" onClick={handleEnable} disabled={status === 'requesting'} aria-pressed={false} className="gc-btn gf-action">
+        <WeatherIcon id="bell" size={16} />
         {status === 'requesting' ? 'Pidiendo permiso…' : 'Avisarme si hay tormenta cerca'}
       </button>
-      {status === 'error' && (
-        <div className="text-[10px] text-slate-500">No se pudo activar el aviso</div>
-      )}
-    </div>
+      {status === 'error' && <div className="gf-hint" style={{ paddingBottom: 6 }}>No se pudo activar el aviso</div>}
+    </>
   );
 }

@@ -1,49 +1,36 @@
 /**
- * Map markers for sailing spots (multi-sector).
- *
- * Shows a pulsing circle at each spot center with an SVG icon,
- * verdict badge (CALMA/FLOJO/NAVEG./BUENO/FUERTE), and click-to-select.
- * Active spot has a brighter ring + larger size.
- * Badge shows wind in knots — the data a sailor actually needs.
- * Sector-aware: renders spots for the active sector.
+ * Spots on the map, V3 style G: the state fills the shape and the figure goes inside (SpotShape), with the name under
+ * it. The selected one is bigger and adds the state in a word. Sector-aware: renders the spots of the active sector.
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Marker, useMap, type MarkerInstance } from 'react-map-gl/maplibre';
 import { makeMarkerButton } from './markerA11y';
+import { useMapInk } from '../../hooks/useMapInk';
 import { getSpotsForSector } from '../../config/spots';
 import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
-import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 import type { SpotVerdict } from '../../services/spotScoringEngine';
-import { VERDICT_STYLE, gateWaveText, gateWaveWhere, isWaveGate } from '../../config/verdictStyles';
-import { clusterSpots, CLUSTER_DISABLE_ZOOM, type SpotClusterGroup } from '../../services/spotClustering';
+import { VERDICT_STYLE, windToneOver, surfTone, displayWindDir, displayWindKt, gateWaveText, gateWaveWhere, isWaveGate, verdictDoubt, isGusty, GUSTY_LABEL } from '../../config/verdictStyles';
+import { clusterSpots, spotDanger, CLUSTER_DISABLE_ZOOM, type SpotClusterGroup, type SpotDanger } from '../../services/spotClustering';
+import { useSpotLightningRisk } from '../../hooks/useSpotLightningRisk';
+import { spotWindDrift, TREND_MAX_AGE_MIN } from '../../services/windTrendService';
+import { ageMinutes } from '../../services/dataAge';
+import { useMinuteClock } from '../../hooks/useMinuteClock';
+import { TrendArrow } from '../spot/TrendMark';
+import { degreesToCardinal } from '../../services/windUtils';
 import { formatSurfWave, surfDisplayState, type SurfVerdictResult } from '../../services/surfVerdictEngine';
+import { ListHoverRing } from './ListHoverRing';
+import { SpotShape, polygonPoints, type SpotDoubt } from './SpotShape';
+import { spotTwinOffset } from './spotTwins';
 
-// ── Verdict colors — aligned with simplified windSpeedColor() scale ──
-const VERDICT_COLORS: Record<SpotVerdict, { ring: string; text: string; glow: string }> = {
-  calm:    { ring: '#94a3b8', text: '#94a3b8', glow: '#64748b' },  // slate — calm
-  light:   { ring: '#38bdf8', text: '#7dd3fc', glow: '#0284c7' },  // sky — flojo (blue)
-  sailing: { ring: '#22c55e', text: '#4ade80', glow: '#16a34a' },  // green — navegable
-  good:    { ring: '#eab308', text: '#fde047', glow: '#ca8a04' },  // yellow — bueno
-  strong:  { ring: '#f97316', text: '#fdba74', glow: '#ea580c' },  // orange — fuerte
-  unknown: { ring: '#94a3b8', text: '#94a3b8', glow: '#64748b' },  // slate
-};
-
-/** Short map labels — must fit in a tiny badge */
-const VERDICT_MAP_LABEL: Record<SpotVerdict, string> = {
-  calm:    'CALMA',
-  light:   'FLOJO',
-  sailing: 'NAVEG.',
-  good:    'BUENO',
-  strong:  'FUERTE',
-  unknown: '—',
-};
+/** Words on a marker: one size on screen whatever the zoom. The whole marker is scaled down when the map is far,
+ *  and without this a 12 px name read as 6 px at zoom 8. */
+const MARKER_TEXT_PX = 13;
 
 export const SpotMarkers = memo(function SpotMarkers() {
   const activeSpotId = useSpotStore((s) => s.activeSpotId);
   const selectSpot = useSpotStore((s) => s.selectSpot);
   const scores = useSpotStore((s) => s.scores);
-  const lastScored = useSpotStore((s) => s.lastScored);
   const surfWaveCache = useSpotStore((s) => s.surfWaveCache);
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const spots = useMemo(() => getSpotsForSector(sectorId), [sectorId]);
@@ -62,7 +49,8 @@ export const SpotMarkers = memo(function SpotMarkers() {
       // no visible change. Round + bail when the band is unchanged.
       const z = Math.round(map.getZoom() * 2) / 2;
       setZoom((prev) => (prev === z ? prev : z));
-      setZoomScale(z >= 11 ? 1 : z >= 10 ? 0.8 : z >= 9 ? 0.65 : 0.5);
+      // Not under 0.7: the figure inside is 19 px, and it has to stay readable (13 px).
+      setZoomScale(z >= 11 ? 1 : z >= 10 ? 0.9 : z >= 9 ? 0.8 : 0.7);
     };
     onZoom();
     // Use 'zoom' event (fires during animation) not just 'zoomend'
@@ -70,17 +58,34 @@ export const SpotMarkers = memo(function SpotMarkers() {
     return () => { map.off('zoom', onZoom); };
   }, [mapRef]);
 
-  // Compute cluster items based on current zoom + verdicts
-  const items = useMemo(() => {
-    const verdictMap = new Map<string, SpotVerdict>();
+  const items = useMemo(() => clusterSpots(spots, zoom), [spots, zoom]);
+
+  // Where each spot's wind is going, when it is going somewhere: the same rule as the list and the card. Only
+  // with a wind figure beside it: not on surf (the figure is the wave), a spot closed by the sea, or a
+  // provisional score, and not once the score is old, like the list: the clock takes it away if the readings stop.
+  // Handed down as a word, so a new reading repaints only the markers that changed.
+  const windHistory = useSpotStore((s) => s.windHistory);
+  const now = useMinuteClock();
+  const trends = useMemo(() => {
+    const out = new Map<string, 'sube' | 'baja'>();
     for (const spot of spots) {
       const score = scores.get(spot.id);
-      // Provisional score (cold load, reading set still partial): treat as
-      // 'unknown' so cluster aggregates never color from an untrusted verdict.
-      verdictMap.set(spot.id, score?.provisional ? 'unknown' : (score?.verdict ?? 'unknown'));
+      if (spot.category === 'surf' || isWaveGate(score) || displayWindKt(score) == null) continue;
+      const ageMin = ageMinutes(score?.computedAt, now);
+      if (ageMin == null || ageMin > TREND_MAX_AGE_MIN) continue;
+      const points = (windHistory.get(spot.id) ?? []).map((p) => ({ t: p.ts, kt: p.kt }));
+      const drift = spotWindDrift(score?.windTrend, points, now);
+      if (drift === 'sube' || drift === 'baja') out.set(spot.id, drift);
     }
-    return clusterSpots(spots, verdictMap, zoom);
-  }, [spots, scores, zoom]);
+    return out;
+  }, [spots, scores, windHistory, now]);
+
+  // Spots under a lightning danger now: the same rule as the banner, so a group cannot stay quiet beside it.
+  const lightningRisks = useSpotLightningRisk();
+  const lightningSpots = useMemo(
+    () => new Set(lightningRisks.filter((r) => r.level === 'peligro').map((r) => r.spotId)),
+    [lightningRisks],
+  );
 
   const handleClusterClick = useCallback((cluster: SpotClusterGroup) => {
     const map = mapRef?.getMap();
@@ -88,14 +93,6 @@ export const SpotMarkers = memo(function SpotMarkers() {
     // Fly to centroid + zoom to the threshold where the cluster will split.
     map.flyTo({ center: [cluster.lon, cluster.lat], zoom: CLUSTER_DISABLE_ZOOM + 0.5, duration: 800 });
   }, [mapRef]);
-
-  // Dismiss spinner immediately once scoring has completed
-  const [showSpinner, setShowSpinner] = useState(true);
-  useEffect(() => {
-    if (lastScored > 0) {
-      setShowSpinner(false);
-    }
-  }, [lastScored]);
 
   return (
     <>
@@ -107,7 +104,7 @@ export const SpotMarkers = memo(function SpotMarkers() {
               cluster={item}
               zoomScale={zoomScale}
               onClick={handleClusterClick}
-              seaClosed={item.spots.some((sp) => isWaveGate(scores.get(sp.id)))}
+              danger={item.spots.map((sp) => spotDanger(scores.get(sp.id), lightningSpots.has(sp.id))).find(Boolean) ?? null}
             />
           );
         }
@@ -131,19 +128,18 @@ export const SpotMarkers = memo(function SpotMarkers() {
         // Show spinner while provisional data, or no data yet scored
         const spotLoading = isSurf && !surfDanger
           ? provisional || surfState === 'loading'
-          : (showSpinner && verdict === 'unknown') || provisional || verdict === 'unknown';
+          : provisional || verdict === 'unknown';
         return (
           <SpotMarkerItem
             key={spot.id}
             spotId={spot.id}
-            icon={spot.icon}
             shortName={spot.shortName}
             lon={spot.center[0]}
             lat={spot.center[1]}
             verdict={verdict}
             windKt={provisional ? null : (score?.effectiveWindKt ?? score?.wind?.avgSpeedKt ?? null)}
+            windFromDeg={provisional ? null : (displayWindDir(score)?.deg ?? null)}
             waveHeight={isSurf ? (surfEntry?.waveHeight ?? null) : (score?.waves?.waveHeight ?? null)}
-            wavePeriod={isSurf ? (surfEntry?.period ?? null) : (score?.waves?.wavePeriod ?? null)}
             isActive={isActive}
             isLoading={spotLoading}
             isProvisional={provisional}
@@ -154,9 +150,15 @@ export const SpotMarkers = memo(function SpotMarkers() {
             surfVerdict={surfState === 'ready' ? surfEntry?.verdict : null}
             seaGateText={gateWaveText(score)}
             seaGateWhere={gateWaveWhere(score)}
+            trend={trends.get(spot.id) ?? null}
+            doubtOther={ringDoubt(score, isSurf)?.other ?? null}
+            doubtAbove={ringDoubt(score, isSurf)?.above ?? false}
+            gusty={!isSurf && isGusty(score)}
+            offsetX={spotTwinOffset(spot.id)}
           />
         );
       })}
+      <ListHoverRing />
     </>
   );
 });
@@ -167,28 +169,24 @@ interface SpotClusterMarkerProps {
   cluster: SpotClusterGroup;
   zoomScale: number;
   onClick: (c: SpotClusterGroup) => void;
-  /** A grouped spot is closed by the SEA: the group says so instead of «fuerte» (wind). */
-  seaClosed?: boolean;
+  /** A real danger in some spot of the group. Without one the group is neutral: it counts, it does not judge. */
+  danger: SpotDanger | null;
 }
 
 const SpotClusterMarker = memo(function SpotClusterMarker({
   cluster,
   zoomScale,
   onClick,
-  seaClosed,
+  danger,
 }: SpotClusterMarkerProps) {
-  const colors = VERDICT_COLORS[cluster.worstVerdict];
-  const size = 44 * zoomScale;
-  const half = size / 2;
-  // Padding so stroke + drop-shadow aren't clipped by the SVG box.
-  const svgSize = size + 12;
-  const svgHalf = svgSize / 2;
+  const r = Math.max(17, 22 * zoomScale);
+  // Never under the touch target.
+  const svgSize = Math.max(r * 2 + 12, 44);
+  const c = svgSize / 2;
 
   // The Marker wrapper is the keyboard button (see markerA11y); it carries the
   // name the inner <button> used to have.
-  // Spoken name: Spanish, like the rest of the UI (the enum key is 'calm'/'sailing').
-  const worst = seaClosed && cluster.worstVerdict === 'strong' ? 'cerrado por oleaje' : VERDICT_STYLE[cluster.worstVerdict].label.toLowerCase();
-  const label = `Grupo de ${cluster.count} spots; el peor, ${worst}`;
+  const label = `Grupo de ${cluster.count} spots${danger ? `; peligro por ${danger}` : ''}`;
   const markerRef = useCallback(
     (mk: MarkerInstance | null) => makeMarkerButton(mk, label, () => onClick(cluster)),
     [label, onClick, cluster],
@@ -198,58 +196,56 @@ const SpotClusterMarker = memo(function SpotClusterMarker({
     // z-index 6: spots always paint above station clusters (z-index 1).
     // Hexagon (not a circle) so a clustered group still reads as "spots",
     // distinct from the round station/buoy context clusters.
-    <Marker ref={markerRef} longitude={cluster.lon} latitude={cluster.lat} anchor="center" style={{ zIndex: 6 }}>
+    <Marker ref={markerRef} longitude={cluster.lon} latitude={cluster.lat} anchor="center" style={{ zIndex: 26 }}>
       {/* div, not <button>: the wrapper is now the one button. A <button> inside
           role="button" is nested-interactive and a second tab stop. */}
       <div
         onClick={(e) => { e.stopPropagation(); onClick(cluster); }}
         className="relative flex items-center justify-center transition-transform hover:scale-110 cursor-pointer bg-transparent border-0 p-0"
         style={{ width: svgSize, height: svgSize }}
-        title={`${cluster.count} spots${seaClosed ? ' (uno cerrado por oleaje)' : ''} — click para acercar`}
+        title={`${cluster.count} spots${danger ? `, peligro por ${danger}` : ''}: pulsa para acercar`}
       >
-        <svg
-          width={svgSize}
-          height={svgSize}
-          viewBox={`${-svgHalf} ${-svgHalf} ${svgSize} ${svgSize}`}
-          style={{ position: 'absolute', inset: 0 }}
-          aria-hidden="true"
-        >
-          <path
-            d={hexPath(half)}
-            fill="rgba(15, 23, 42, 0.85)"
-            stroke={colors.ring}
-            strokeWidth={2.5}
+        <svg width={svgSize} height={svgSize} viewBox={`0 0 ${svgSize} ${svgSize}`} style={{ position: 'absolute', inset: 0 }} aria-hidden="true">
+          <polygon
+            points={polygonPoints(6, r, c, c)}
+            fill="var(--g-bg)"
+            stroke={danger ? 'var(--g-danger)' : 'var(--g-m-ring)'}
+            strokeWidth={danger ? 3 : 2}
             strokeLinejoin="round"
-            style={{ filter: `drop-shadow(0 0 8px ${colors.glow}80)` }}
           />
         </svg>
-        <span
-          className="relative font-bold tabular-nums"
-          style={{
-            color: colors.text,
-            fontSize: `${Math.max(13, 18 * zoomScale)}px`,
-            textShadow: '0 0 6px rgba(0,0,0,0.9)',
-          }}
-        >
-          {cluster.count}
+        <span className="relative tabular-nums" style={{ color: 'var(--g-ink)', font: `800 ${Math.max(14, 18 * zoomScale)}px var(--g-narrow)` }}>
+          {cluster.count}{danger ? '!' : ''}
         </span>
       </div>
     </Marker>
   );
 });
 
+/**
+ * The doubt the ring draws: only on the lines that change a plan (12 and 18 kt), and never on a beach that reads its
+ * waves. Lower lines stay out of the map, the card says them.
+ */
+export function ringDoubt(score: Parameters<typeof verdictDoubt>[0], isSurf: boolean): SpotDoubt | null {
+  if (isSurf) return null;
+  const d = verdictDoubt(score);
+  if (!d || (d.high !== 'good' && d.high !== 'strong')) return null;
+  const above = score!.verdict === d.low;
+  return { other: above ? d.high : d.low, above };
+}
+
 // ── Individual spot marker ──────────────────────────────────────
 
 interface SpotMarkerItemProps {
   spotId: string;
-  icon: IconId;
   shortName: string;
   lon: number;
   lat: number;
   verdict: SpotVerdict;
   windKt: number | null;
+  /** Where the wind comes from; null when the sources disagree. */
+  windFromDeg: number | null;
   waveHeight: number | null;
-  wavePeriod: number | null;
   isActive: boolean;
   isLoading: boolean;
   /** Cold-load provisional score — label/tooltip say "calculando" (verdict already downgraded to 'unknown' by the parent) */
@@ -266,40 +262,15 @@ interface SpotMarkerItemProps {
    *  gauge then show the SEA; the wind figure next to «FUERTE» read as a bug (Cíes, 21-oct). */
   seaGateText?: string | null;
   seaGateWhere?: string | null;
-}
-
-/** Hexagon path for sailing spots — 6 sides */
-function hexPath(r: number): string {
-  const pts: string[] = [];
-  for (let i = 0; i < 6; i++) {
-    const angle = (Math.PI / 3) * i - Math.PI / 2; // start at top
-    pts.push(`${r * Math.cos(angle)},${r * Math.sin(angle)}`);
-  }
-  return `M ${pts.join(' L ')} Z`;
-}
-
-/** Pentagon path for surf spots — 5 sides, visually distinct from hex */
-function pentaPath(r: number): string {
-  const pts: string[] = [];
-  for (let i = 0; i < 5; i++) {
-    const angle = (2 * Math.PI / 5) * i - Math.PI / 2; // start at top
-    pts.push(`${r * Math.cos(angle)},${r * Math.sin(angle)}`);
-  }
-  return `M ${pts.join(' L ')} Z`;
-}
-
-/** SVG arc path for wind gauge (0-20kt mapped to 0-270°) */
-function gaugeArc(r: number, windKt: number | null): string {
-  if (windKt == null || windKt < 1) return '';
-  const angle = Math.min(270, (windKt / 20) * 270); // 20kt = full arc
-  const rad = ((angle - 90) * Math.PI) / 180; // start at top (-90°)
-  const startRad = (-90 * Math.PI) / 180;
-  const x1 = r * Math.cos(startRad);
-  const y1 = r * Math.sin(startRad);
-  const x2 = r * Math.cos(rad);
-  const y2 = r * Math.sin(rad);
-  const large = angle > 180 ? 1 : 0;
-  return `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`;
+  /** The wind is going up or down; nothing when it holds or there is no way to say. */
+  trend?: 'sube' | 'baja' | null;
+  /** Within a knot of the 12 or the 18 kt line: the other level it may be. */
+  doubtOther?: SpotVerdict | null;
+  doubtAbove?: boolean;
+  /** A light mean with strong gusts (isGusty): the name says «racheado». */
+  gusty?: boolean;
+  /** Sideways on screen, for two spots on one beach. */
+  offsetX?: number;
 }
 
 /**
@@ -325,14 +296,13 @@ function isVerdictUpgrade(prev: string, next: string): boolean {
 
 const SpotMarkerItem = memo(function SpotMarkerItem({
   spotId,
-  icon,
   shortName,
   lon,
   lat,
   verdict,
   windKt,
+  windFromDeg,
   waveHeight,
-  wavePeriod: _wavePeriod,
   isActive,
   isLoading,
   isProvisional,
@@ -343,20 +313,19 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
   surfVerdict,
   seaGateText,
   seaGateWhere,
+  trend,
+  doubtOther = null,
+  doubtAbove = false,
+  gusty = false,
+  offsetX = 0,
 }: SpotMarkerItemProps) {
-  // A surf spot shows its WAVE verdict — badge, colours, gauge — unless the
-  // engine's hard gate is on, where it reads the wind verdict like any spot.
-  // The pentagon stays either way: the shape says what kind of spot it is.
+  const ink = useMapInk();
+  // A surf spot shows its WAVE verdict unless the engine's hard gate is on, where it reads the wind verdict like any
+  // spot. The pentagon stays either way: the shape says what kind of spot it is.
   const surfWaveMode = !!isSurf && !surfDanger;
-  // Surf spots: THE verdict from the cache entry (same one list, popup and
-  // ticker read). No fallback of its own: without it the badge is a dash.
+  // Surf spots: THE verdict from the cache entry (same one list, popup and ticker read). No fallback of its own:
+  // without it the shape says there is nothing yet.
   const surfV = surfWaveMode && surfVerdict ? surfVerdict : null;
-  const colors = surfV
-    ? { ring: surfV.color, text: surfV.text, glow: surfV.color }
-    : (surfWaveMode ? VERDICT_COLORS.unknown : VERDICT_COLORS[verdict]);
-  const size = isActive ? 48 : 42;
-  const iconSize = isActive ? 22 : 18;
-  const gaugeR = size / 2 + 5;
 
   // Verdict upgrade flash (see isVerdictUpgrade). The key changes only with
   // the verdict the badge shows, so a sailing spot behaves exactly as before.
@@ -381,17 +350,23 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
     [onSelect, spotId],
   );
 
-  // Badge text: surf uses wave label + height, sailing uses wind label + kt.
-  // The beach height is a model value, hence the «~».
-  const badgeText = seaGateText
-    ? `OLEAJE ${seaGateText.replace(' m', 'm')}`
-    : surfWaveMode
-    ? (surfV
-      ? (waveHeight !== null && waveHeight >= 0.3 ? `${surfV.label} ${formatSurfWave(waveHeight)}` : surfV.label)
-      : VERDICT_MAP_LABEL.unknown)
-    : (windKt !== null && verdict !== 'calm' && verdict !== 'unknown'
-      ? `${VERDICT_MAP_LABEL[verdict]} ${windKt.toFixed(0)}kt`
-      : VERDICT_MAP_LABEL[verdict]);
+  const surfHeight = waveHeight !== null ? formatSurfWave(waveHeight) : null;
+  // What goes inside the shape: the sea when it closes the spot (the wind figure next to «FUERTE» read as a bug, Cíes,
+  // 21-oct), the wave at the beach (a model, hence the «~»), otherwise the wind. Nothing while it is being worked out.
+  const figure = isLoading ? null
+    : seaGateText ? seaGateText.replace(' m', '')
+    : surfWaveMode ? (surfV ? (waveHeight !== null && waveHeight >= 0.3 ? surfHeight!.replace(' m', '') : surfV.label) : null)
+    : (windKt !== null && verdict !== 'unknown' ? windKt.toFixed(0) : null);
+  // The ring fills with what the figure says, up to 20 kt or 2,5 m. Nothing while there is no figure.
+  const gauge = figure == null ? null
+    : seaGateText || surfWaveMode ? (waveHeight ?? 0) / 2.5
+    : (windKt ?? 0) / 20;
+  // The state in a word: only on the one selected, the colour already says it. A closed spot always says it, because
+  // its figure is not wind.
+  const word = isLoading ? '' : seaGateText ? 'oleaje' : surfWaveMode ? (surfV?.label ?? '') : (VERDICT_STYLE[verdict]?.label ?? '');
+  const badgeText = surfWaveMode
+    ? (surfV ? `${surfV.label}${waveHeight !== null && waveHeight >= 0.3 ? ` ${surfHeight}` : ''}` : 'sin dato')
+    : `${word}${figure ? ` ${figure} kt` : ''}${figure && windFromDeg != null && !seaGateText ? ` del ${degreesToCardinal(windFromDeg)}` : ''}`;
 
   // Same text the inner <svg> used to carry; it now names the wrapper, which is
   // the element MapLibre exposes as role="button". Enter/Space select the spot
@@ -403,159 +378,47 @@ const SpotMarkerItem = memo(function SpotMarkerItem({
       ? (surfV ? `Spot ${shortName}: ${badgeText} (olas: modelo)` : `Spot ${shortName}: sin dato de olas`)
       : seaGateText
         ? `Spot ${shortName}: oleaje de ${seaGateText} ${seaGateWhere ?? ''}`
-        : `Spot ${shortName}: ${badgeText}`;
+        : `Spot ${shortName}: ${badgeText}${gusty ? `, ${GUSTY_LABEL}` : ''}${trend ? `, ${trend}` : ''}`;
   // The hover title says what the «~» means: the only surface where the word
   // «modelo» does not fit on screen.
   const title = calculating
     ? `${shortName} — calculando condiciones`
     : seaGateText ? `${shortName} — oleaje de ${seaGateText} ${seaGateWhere ?? ''}; no es viento`
-    : surfV ? `${shortName} — olas: modelo, nadie las mide en la playa` : shortName;
+    : surfV ? `${shortName}: ${badgeText}. Olas: modelo, nadie las mide en la playa`
+    : trend ? `${shortName} — el viento ${trend}, últimos 45 minutos frente al rato anterior` : shortName;
   const markerRef = useCallback(
     (mk: MarkerInstance | null) => makeMarkerButton(mk, ariaLabel, () => onSelect(spotId)),
     [ariaLabel, onSelect, spotId],
   );
 
-  const svgSize = size + 24;
-  const half = svgSize / 2;
-
   return (
     // z-index above station clusters (1); active spot floats above other spots.
-    <Marker ref={markerRef} longitude={lon} latitude={lat} anchor="center" onClick={handleClick} style={{ zIndex: isActive ? 8 : 6 }}>
+    <Marker ref={markerRef} longitude={lon} latitude={lat} anchor="center" offset={[offsetX, 0]} onClick={handleClick} style={{ zIndex: isActive ? 28 : 26 }}>
       <div className="spot-marker relative cursor-pointer" title={title} style={{ transform: `scale(${zoomScale})`, transformOrigin: 'center' }}>
-        <svg
-          width={svgSize}
-          height={svgSize}
-          viewBox={`${-half} ${-half} ${svgSize} ${svgSize}`}
-          aria-hidden="true"
-        >
-          {/* Hit area */}
-          <circle r={half} fill="transparent" />
-
-          {/* Pulse ring — active only */}
-          {isActive && (
-            <circle r={size / 2 + 8} fill="none" stroke={colors.ring} strokeWidth="1" opacity="0.3">
-              <animate attributeName="r" values={`${size / 2 + 6};${size / 2 + 12};${size / 2 + 6}`} dur="2.5s" repeatCount="indefinite" />
-              <animate attributeName="opacity" values="0.4;0.1;0.4" dur="2.5s" repeatCount="indefinite" />
-            </circle>
-          )}
-
-          {/* Ambient glow — always visible, makes spot "pop" vs stations */}
-          <circle
-            r={size / 2 + 8}
-            fill="none"
-            stroke={colors.glow}
-            strokeWidth="1"
-            opacity={isActive ? 0.25 : 0.12}
-          />
-
-          {/* Gauge track ring */}
-          <circle
-            r={gaugeR}
-            fill="none"
-            stroke={colors.ring}
-            strokeWidth={isActive ? 3.5 : 2.5}
-            opacity={0.2}
-          />
-
-          {/* Gauge arc — wind speed for sailing, wave height for surf */}
-          {(seaGateText ? waveHeight != null : surfWaveMode ? (surfV != null && waveHeight != null && waveHeight >= 0.3) : (windKt != null && windKt >= 1)) && (
-            <path
-              d={seaGateText || surfWaveMode ? gaugeArc(gaugeR, (waveHeight ?? 0) * 8) : gaugeArc(gaugeR, windKt)}
-              fill="none"
-              stroke={colors.ring}
-              strokeWidth={isActive ? 4 : 3}
-              strokeLinecap="round"
-              opacity={isActive ? 1 : 0.8}
-            />
-          )}
-
-          {/* Main hexagon — distinctive shape vs circular stations */}
-          <path
-            d={(isSurf ? pentaPath : hexPath)(size / 2)}
-            fill={`${colors.ring}15`}
-            stroke={colors.ring}
-            strokeWidth={isActive ? 2.5 : 2}
-            strokeLinejoin="round"
-            style={{ filter: `drop-shadow(0 0 ${isActive ? 8 : 4}px ${colors.glow}55)` }}
-          />
-
-          {/* Icon */}
-          <foreignObject
-            x={-iconSize / 2}
-            y={-iconSize / 2}
-            width={iconSize}
-            height={iconSize}
-            style={{ pointerEvents: 'none' }}
-          >
-            {/* Lucide icons usan currentColor — el color va en el contenedor, WeatherIcon no acepta style */}
-            <div style={{ width: iconSize, height: iconSize, display: 'flex', alignItems: 'center', justifyContent: 'center', color: colors.ring }}>
-              <WeatherIcon id={icon} size={iconSize} />
-            </div>
-          </foreignObject>
-        </svg>
-
-        {/* Verdict badge — centered above the marker */}
-        <div
-          className={`absolute left-1/2 -translate-x-1/2 pointer-events-none whitespace-nowrap flex items-center${upgradeFlash ? ' animate-verdict-pop' : ''}`}
-          style={{
-            top: -2,
-            transform: `translateX(-50%) translateY(-100%)`,
-            fontSize: 11,
-            fontWeight: 800,
-            fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-            lineHeight: '14px',
-            padding: isLoading ? '2px 6px' : '3px 8px',
-            background: upgradeFlash ? 'rgba(34, 197, 94, 0.25)' : 'rgba(15, 23, 42, 0.9)',
-            border: `1.5px solid ${upgradeFlash ? '#22c55e' : colors.ring + '70'}`,
-            boxShadow: upgradeFlash ? `0 0 12px ${colors.glow}88` : undefined,
-            transition: 'background 1s ease, border-color 1s ease, box-shadow 1s ease',
-            borderRadius: 6,
-            color: isLoading ? '#93c5fd' : colors.text,
-            // No backdrop blur: ~14 badges over the WebGL canvas forced a
-            // per-frame re-blur during pan; the 0.9 background reads the same.
-          } as React.CSSProperties}
-        >
-          {isLoading ? <LoadingSpinner /> : badgeText}
+        <div className={upgradeFlash ? 'animate-verdict-pop' : undefined}>
+          <SpotShape pentagon={isSurf} hollow={surfWaveMode} verdict={surfV ? surfTone(surfV.level) : verdict} tone={surfWaveMode || surfV ? null : windToneOver(verdict, windKt)} value={figure} gauge={gauge} doubt={doubtOther && !seaGateText && !surfWaveMode ? { other: doubtOther, above: doubtAbove } : null} fromDeg={!seaGateText && !surfWaveMode ? windFromDeg : null} big={isActive} />
         </div>
 
-        {/* Name label — below marker */}
+        {/* Name under it, with where the wind is going when it is going somewhere. Same size on screen at any zoom. */}
         <div
-          className="absolute left-1/2 -translate-x-1/2 pointer-events-none whitespace-nowrap text-[11px] font-bold px-2 py-0.5"
+          className="absolute left-1/2 pointer-events-none whitespace-nowrap"
           style={{
-            bottom: -2,
-            transform: `translateX(-50%) translateY(100%)`,
-            color: colors.text,
-            textShadow: '0 1px 3px rgba(0,0,0,0.9), 0 0 10px rgba(0,0,0,0.7)',
-            letterSpacing: '0.03em',
+            top: '100%',
+            transform: 'translateX(-50%)',
+            marginTop: -9,
+            textAlign: 'center',
+            font: `${isActive ? 700 : 600} ${MARKER_TEXT_PX / zoomScale}px/1.2 var(--g-font)`,
+            color: ink.text,
+            textShadow: ink.shadow,
           } as React.CSSProperties}
         >
-          {shortName}
-          {isSurf && (
-            <span className="ml-1 text-[8px] font-bold tracking-wider text-cyan-300 bg-cyan-500/20 px-1 py-px rounded border border-cyan-500/30 align-middle">SURF</span>
-          )}
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3em' }}>
+            {shortName}
+            {!isLoading && trend && <TrendArrow drift={trend} size="0.9em" />}
+          </span>
+          {word && (isActive || seaGateText) && <div style={{ fontWeight: 800 }}>{word}</div>}
         </div>
       </div>
     </Marker>
   );
 });
-
-// ── Loading spinner for spot badges ─────────────────────────────
-/** Tiny animated arc spinner — shown while scoring data loads */
-function LoadingSpinner() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" style={{ display: 'block' }}>
-      <circle cx="6" cy="6" r="4.5" fill="none" stroke="#334155" strokeWidth="1.5" />
-      <circle
-        cx="6" cy="6" r="4.5" fill="none"
-        stroke="#60a5fa" strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeDasharray="14 14"
-      >
-        <animateTransform
-          attributeName="transform" type="rotate"
-          values="0 6 6;360 6 6" dur="1s" repeatCount="indefinite"
-        />
-      </circle>
-    </svg>
-  );
-}

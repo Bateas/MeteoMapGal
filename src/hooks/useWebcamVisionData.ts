@@ -26,6 +26,7 @@ function rowToResult(row: {
 }): WebcamVisionResult {
   return {
     spotId: row.spot_id ?? row.webcam_id,
+    webcamLabel: RIAS_WEBCAMS.find((w) => w.id === row.webcam_id)?.name ?? row.webcam_id,
     beaufort: row.beaufort,
     beaufortLabel: beaufortLabel(row.beaufort),
     windEstimateKt: beaufortToKt(row.beaufort),
@@ -36,9 +37,9 @@ function rowToResult(row: {
       visibility: row.visibility as 'good' | 'moderate' | 'poor' || 'moderate',
       precipitation: false,
       fogVisible: row.fog,
-      cloudTypes: [],
+      cloudType: null,
       seaState: '',
-      lightCondition: 'bright',
+      light: null,
       weatherDescription: row.description || '',
     },
     rawResponse: '',

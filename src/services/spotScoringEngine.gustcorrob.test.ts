@@ -48,6 +48,34 @@ describe('spotGustKt — gusts backed by a second instrument', () => {
     expect(spotGustKt([src('x', 3.3, 23), src('ok', 8, 19)], NOW)).toBeCloseTo(23, 1); // AEMET hourly max, light wind
   });
 
+  describe('a hobby station does not set the gust alone (24-nov, A Lanzada)', () => {
+    it('Cambados 16.7/9.3 with the beach station at 6.9: the gust is the beach station\'s', () => {
+      const s = [src('nt_b90d86', 9.3, 16.7, { distKm: 6.5 }), src('mg_19069', 4.8, 6.9, { distKm: 0.9 }), src('mg_10129', 2.3, 5.2, { distKm: 7.9 })];
+      expect(spotGustKt(s, NOW)).toBeCloseTo(6.9, 1);
+    });
+
+    it('backed by another instrument at 0.6 of it, it counts', () => {
+      expect(spotGustKt([src('nt_A', 9, 20), src('mg_B', 8, 12)], NOW)).toBeCloseTo(20, 1);
+      expect(spotGustKt([src('nt_A', 9, 20), src('mg_B', 8, 11.9)], NOW)).toBeCloseTo(11.9, 1);
+      expect(spotGustKt([src('wu_A', 9, 20), src('mc_B', 8, 14)], NOW)).toBeCloseTo(20, 1); // two hobby stations back each other
+    });
+
+    it('the only instrument around the spot still gives its gust', () => {
+      expect(spotGustKt([src('nt_A', 9, 20)], NOW)).toBeCloseTo(20, 1);
+      expect(spotGustKt([src('nt_A', 9, 20), src('mg_B', 8, 5, { altitudeM: 400 })], NOW, 250)).toBeCloseTo(20, 1); // the other is out of range
+    });
+
+    it('an official station needs no backing', () => {
+      expect(spotGustKt([src('mg_A', 9, 20), src('nt_B', 3, 5)], NOW)).toBeCloseTo(20, 1);
+      expect(spotGustKt([src('buoy_4272', 9, 20), src('mg_B', 3, 5)], NOW)).toBeCloseTo(20, 1);
+    });
+
+    it('the FUERTE gate does not count an unbacked hobby gust as its second instrument', () => {
+      expect(gustGateReading([src('mg_A', 14, 31), src('mg_B', 12, 26)], NOW)).not.toBeNull();
+      expect(gustGateReading([src('nt_A', 14, 45), src('mg_B', 12, 26)], NOW)).toBeNull(); // 26 < 0.6 x 45
+    });
+  });
+
   it('the FUERTE gate reads the same gusts', () => {
     expect(gustGateReading([src('a', 9, 31), src('b', 8, 26)], NOW)).toEqual({ peakKt: 31, secondKt: 26 });
     expect(gustGateReading([src('a', 3.9, 39), src('b', 6, 14)], NOW)).toBeNull();

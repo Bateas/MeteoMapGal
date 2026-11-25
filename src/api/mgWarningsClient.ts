@@ -104,6 +104,14 @@ export async function fetchMGWarnings(): Promise<MGWarning[]> {
 }
 
 /**
+ * When MeteoGalicia last really answered (ms), 0 if never. fetchMGWarnings returns its copy on a
+ * failure, so «fetched» says nothing about how old the warnings are: this does.
+ */
+export function mgWarningsLastOkMs(): number {
+  return lastFetch;
+}
+
+/**
  * Get warnings relevant to a specific sector, optionally filtered by type.
  */
 export function getWarningsForSector(
@@ -130,22 +138,6 @@ export function getWarningsForSector(
 }
 
 /**
- * Check if any storm-type warning is active for a sector.
- * Returns the max level (0=none, 1=yellow, 2=orange, 3=red).
- */
-export function getStormWarningLevel(
-  warnings: MGWarning[],
-  sectorId: 'embalse' | 'rias',
-): number {
-  const sectorWarnings = getWarningsForSector(warnings, sectorId);
-  const stormWarnings = sectorWarnings.filter((w) =>
-    STORM_TYPES.has(w.type) || RAIN_TYPES.has(w.type),
-  );
-  if (stormWarnings.length === 0) return 0;
-  return Math.max(...stormWarnings.map((w) => w.maxLevel));
-}
-
-/**
  * Classify warning type for UI display.
  */
 export function classifyWarningType(type: string): 'storm' | 'wave' | 'wind' | 'rain' | 'other' {
@@ -154,13 +146,6 @@ export function classifyWarningType(type: string): 'storm' | 'wave' | 'wind' | '
   if (WIND_TYPES.has(type)) return 'wind';
   if (RAIN_TYPES.has(type)) return 'rain';
   return 'other';
-}
-
-/**
- * Human-readable level label in Spanish.
- */
-export function warningLevelLabel(level: number): string {
-  return level === 3 ? 'Rojo' : level === 2 ? 'Naranja' : level === 1 ? 'Amarillo' : 'Sin aviso';
 }
 
 /** Where the "Aviso oficial" link may point. The feed is fetched over https
@@ -178,10 +163,6 @@ export function safeWarningLink(raw: string | null | undefined): string {
     /* not a URL */
   }
   return MG_WARNINGS_HOME;
-}
-
-export function warningLevelColor(level: number): string {
-  return level === 3 ? '#ef4444' : level === 2 ? '#f97316' : level === 1 ? '#eab308' : '#64748b';
 }
 
 // ── XML Parser ───────────────────────────────────────────

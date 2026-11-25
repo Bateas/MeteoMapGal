@@ -15,7 +15,7 @@ describe('SpotReportBox', () => {
 
   it('asks about the wind straight away and shows the rest only after an answer', () => {
     render(<SpotReportBox spotId="cesantes" shownWindKt={12.4} shownVerdict="good" />);
-    expect(screen.getByText(/comparado con los 12 kt/)).toBeTruthy();
+    expect(screen.getByText(/frente a los 12 kt/)).toBeTruthy();
     expect(screen.queryByText('Enviar')).toBeNull();                 // nothing to send before the main answer
     expect(screen.queryByText('Espejo')).toBeNull();
     fireEvent.click(screen.getByText('Igual'));
@@ -31,7 +31,7 @@ describe('SpotReportBox', () => {
     const { unmount } = render(<SpotReportBox spotId="cesantes" shownWindKt={12.4} shownVerdict="good" />);
     fireEvent.click(screen.getByText('Más viento'));
     fireEvent.click(screen.getByText('Mucha espuma'));
-    fireEvent.click(screen.getByText('SO'));
+    fireEvent.click(screen.getByText('SW'));
     fireEvent.click(screen.getByText('Enviar'));
     await waitFor(() => expect(screen.getByText(/Gracias/)).toBeTruthy());
     expect(postBody(fetchMock)).toMatchObject({ spotId: 'cesantes', windVsApp: 1, waterState: 3, dirSeen: 225, appWindKt: 12.4, appVerdict: 'good' });
@@ -55,7 +55,7 @@ describe('SpotReportBox', () => {
   it('says so when the server does not take it, without blocking a retry', async () => {
     vi.stubGlobal('fetch', api({ ok: false, status: 503 }));
     render(<SpotReportBox spotId="castrelo" shownWindKt={null} shownVerdict="calm" />);
-    expect(screen.getByText(/comparado con lo que dice la app/)).toBeTruthy();
+    expect(screen.getByText(/frente a lo que dice la app/)).toBeTruthy();
     fireEvent.click(screen.getByText('Igual'));
     fireEvent.click(screen.getByText('Enviar'));
     await waitFor(() => expect(screen.getByText(/No se pudo enviar/)).toBeTruthy());
@@ -67,7 +67,7 @@ describe('SpotReportBox', () => {
     render(<SpotReportBox spotId="cesantes" shownWindKt={11} shownVerdict="sailing" />);
     await waitFor(() => expect(screen.getByText('En el agua, hace 15 min · 2 reportes')).toBeTruthy());
     expect(screen.getByText('Más viento que los 9 kt de la app · algo de espuma · del N')).toBeTruthy();
-    expect(screen.getByText(/comparado con los 11 kt/)).toBeTruthy();
+    expect(screen.getByText(/frente a los 11 kt/)).toBeTruthy();
   });
 
   it('asks again before sending «Menos viento» with foam when the app shows under 8 kt', () => {
@@ -107,9 +107,9 @@ describe('SpotReportBox with a personal observer code', () => {
     const fetchMock = route('Ana');
     vi.stubGlobal('fetch', fetchMock);
     render(<SpotReportBox spotId="cesantes" shownWindKt={9} shownVerdict="sailing" />);
-    await waitFor(() => expect(screen.getByText('observador: Ana')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Observador: Ana')).toBeTruthy());
     expect(screen.getByText('Tu zona de observador')).toBeTruthy();
-    expect(screen.getByText(/12-16 kt · algo de espuma · del SO · la app decía 9/)).toBeTruthy();
+    expect(screen.getByText(/12-16 kt · algo de espuma · del SW · la app decía 9/)).toBeTruthy();
     fireEvent.click(screen.getByText('Más viento'));
     fireEvent.click(screen.getByText('12-16 kt'));
     fireEvent.click(screen.getByText('Enviar'));
@@ -125,7 +125,7 @@ describe('SpotReportBox with a personal observer code', () => {
     fireEvent.click(screen.getByText('Código de observador'));
     fireEvent.change(screen.getByLabelText('Código de observador'), { target: { value: 'https://meteomapgal.com/?obs=abcdefgh23456k' } });
     fireEvent.click(screen.getByText('Guardar'));
-    await waitFor(() => expect(screen.getByText('observador: Luis')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Observador: Luis')).toBeTruthy());
   });
 
   it('another observer link opened on this device is asked about, not taken', async () => {
@@ -201,7 +201,7 @@ describe('SpotReportBox: the observers-only BETA', () => {
     __clearObserverCacheForTests();
     vi.stubGlobal('fetch', route(undefined));
     render(<SpotReportBox spotId="lourido" shownWindKt={7} shownVerdict="light" />);
-    await waitFor(() => expect(screen.getByText('observador: Ana')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Observador: Ana')).toBeTruthy());
     expect(screen.queryByText('Solo para observadores · BETA')).toBeNull();
   });
 });

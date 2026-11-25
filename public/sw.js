@@ -4,7 +4,7 @@
 // CACHE_NAME is derived from the ?v=<APP_VERSION> query that main.tsx appends
 // when registering the SW. Every app version bump → new CACHE_NAME → activate
 // handler purges all previous caches automatically. Prevents the "stale chunk
-// after rapid deploys" bug seen in S136+1 day 3 (`h.value is not iterable`).
+// after rapid deploys" bug (`h.value is not iterable`).
 // TILE_CACHE keeps its own stable name on purpose — map tiles outlive app
 // versions.
 const SW_VERSION = new URL(self.location.href).searchParams.get('v') || 'dev';
@@ -36,8 +36,8 @@ function reloadStaleClient(clientId, pathname) {
 const API_PATHS = [
   '/meteogalicia-api', '/meteoclimatic-api',
   '/netatmo-api', '/netatmo-auth',
-  '/enaire-api', '/ihm-api', '/skyx-api',
-  '/noaa-api', '/opensky-api', '/swan-api', '/api/webhook', '/api/v1',
+  '/ihm-api', '/skyx-api',
+  '/noaa-api', '/swan-api', '/api/webhook', '/api/v1',
 ];
 
 // Tile CDN domains — cache-then-network for fast map loads
@@ -51,8 +51,6 @@ const TILE_DOMAINS = [
   'tms-ign-base.idee.es',
   'www.ign.es',
   's3.amazonaws.com', // terrain DEM tiles
-  'tiles.openseamap.org',
-  'nrt-services.marine.copernicus.eu',
 ];
 
 self.addEventListener('install', (event) => {

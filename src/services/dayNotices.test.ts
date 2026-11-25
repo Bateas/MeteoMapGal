@@ -26,27 +26,37 @@ describe('isStormRiskHour: the summary rule', () => {
 describe('officialNotices', () => {
   it('one line per source and type: the top level with its own window, the lower one when it covers more time', () => {
     const w = mg('Vento', [[1, at(7, 12), at(7, 20)], [2, at(7, 14), at(7, 18)]]);
-    expect(officialNotices(at(7, 0), [w], [])).toEqual([{ level: 2, text: 'Aviso naranja de MeteoGalicia por viento, de 14 a 18 h (amarillo de 12 a 20 h)' }]);
+    expect(officialNotices(at(7, 0), [w], [])).toEqual([{ level: 2, text: 'Aviso naranja por viento, de 14 a 18 h (amarillo de 12 a 20 h)' }]);
   });
   it('a warning crossing midnight reads «desde» on the first day and «hasta» on the next', () => {
     const w = mg('Ondas', [[1, at(7, 15), at(8, 9)]]);
-    expect(officialNotices(at(7, 0), [w], [])[0].text).toBe('Aviso amarillo de MeteoGalicia por oleaje, desde las 15 h');
-    expect(officialNotices(at(8, 0), [w], [])[0].text).toBe('Aviso amarillo de MeteoGalicia por oleaje, hasta las 9 h');
+    expect(officialNotices(at(7, 0), [w], [])[0].text).toBe('Aviso amarillo por oleaje, desde las 15 h');
+    expect(officialNotices(at(8, 0), [w], [])[0].text).toBe('Aviso amarillo por oleaje, hasta las 9 h');
     expect(officialNotices(at(9, 0), [w], [])).toEqual([]);
   });
   it('IPMA warnings name their source, in Spanish', () => {
     const ipma: IpmaWarning = { id: 'x', districtCode: 'VCT', districtName: 'Viana', type: 'Agitação Marítima', level: 1, levelName: 'yellow', startTime: at(7, 0), endTime: at(8, 0), description: '' };
-    expect(officialNotices(at(7, 0), [], [ipma])[0].text).toBe('Aviso amarillo de IPMA por oleaje, todo el día');
+    expect(officialNotices(at(7, 0), [], [ipma])[0].text).toBe('Aviso amarillo por oleaje, todo el día (IPMA)');
   });
   it('yellow from 3 h and orange from 18 h is not «naranja desde las 3 h» (Castrelo, 16-nov)', () => {
     const base = { id: 'x', districtCode: 'VCT', districtName: 'Viana', type: 'Precipitação', description: '' };
     const y: IpmaWarning = { ...base, level: 1, levelName: 'yellow', startTime: at(7, 3), endTime: at(7, 18) };
     const o: IpmaWarning = { ...base, level: 2, levelName: 'orange', startTime: at(7, 18), endTime: at(8, 19) };
-    expect(officialNotices(at(7, 0), [], [y, o])[0].text).toBe('Aviso naranja de IPMA por lluvia, desde las 18 h (amarillo de 3 a 18 h)');
+    expect(officialNotices(at(7, 0), [], [y, o])[0].text).toBe('Aviso naranja por lluvia, desde las 18 h (amarillo de 3 a 18 h) (IPMA)');
+  });
+  it('one line per phenomenon: IPMA only speaks of what MeteoGalicia does not (Cesantes, 18-nov)', () => {
+    const base = { id: 'x', districtCode: 'VCT', districtName: 'Viana', description: '' };
+    const sea: IpmaWarning = { ...base, type: 'Agitação Marítima', level: 2, levelName: 'orange', startTime: at(7, 18), endTime: at(8, 0) };
+    const rain: IpmaWarning = { ...base, type: 'Precipitação', level: 1, levelName: 'yellow', startTime: at(7, 12), endTime: at(7, 18) };
+    const w = mg('Ondas', [[2, at(7, 12), at(8, 0)]]);
+    expect(officialNotices(at(7, 0), [w], [sea, rain]).map((n) => n.text)).toEqual([
+      'Aviso naranja por oleaje, desde las 12 h',
+      'Aviso amarillo por lluvia, de 12 a 18 h (IPMA)',
+    ]);
   });
   it('a lower level inside the top window adds nothing', () => {
     const w = mg('Vento', [[2, at(7, 12), at(7, 20)], [1, at(7, 14), at(7, 18)]]);
-    expect(officialNotices(at(7, 0), [w], [])[0].text).toBe('Aviso naranja de MeteoGalicia por viento, de 12 a 20 h');
+    expect(officialNotices(at(7, 0), [w], [])[0].text).toBe('Aviso naranja por viento, de 12 a 20 h');
   });
 });
 
@@ -62,7 +72,7 @@ describe('stormNotice and dayNotices', () => {
   it('an official storm warning replaces the model risk; nothing at all on a quiet day', () => {
     const c = [conv(7, 14, 600, -4)];
     const storm = mg('Tormenta', [[1, at(7, 13), at(7, 21)]]);
-    expect(dayNotices(at(7, 0), at(6, 20), [storm], [], c).map((n) => n.text)).toEqual(['Aviso amarillo de MeteoGalicia por tormenta, de 13 a 21 h']);
+    expect(dayNotices(at(7, 0), at(6, 20), [storm], [], c).map((n) => n.text)).toEqual(['Aviso amarillo por tormenta, de 13 a 21 h']);
     expect(dayNotices(at(7, 0), at(6, 20), [], [], [conv(7, 14, 100, 1)])).toEqual([]);
   });
 });

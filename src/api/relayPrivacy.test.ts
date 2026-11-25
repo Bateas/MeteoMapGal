@@ -31,7 +31,7 @@ const VISITOR_DATA = /\$(remote_addr|binary_remote_addr|proxy_add_x_forwarded_fo
 describe('third-party relays send no visitor data', () => {
   it('every relay drops the visitor headers and sets none of its own', async () => {
     const routes = await thirdPartyRoutes();
-    expect(routes.length).toBeGreaterThanOrEqual(7);   // a scan that finds nothing proves nothing
+    expect(routes.length).toBeGreaterThanOrEqual(5);   // a scan that finds nothing proves nothing
     for (const r of routes) {
       expect(r.body, r.name).toContain('proxy_pass_request_headers off;');
       for (const line of r.body.split('\n').filter((l) => /proxy_set_header/.test(l))) {

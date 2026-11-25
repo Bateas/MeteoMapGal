@@ -1,24 +1,27 @@
 import { useEffect, useState, memo } from 'react';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { WeatherIcon } from '../icons/WeatherIcons';
 
-const SHORTCUTS = [
-  { key: 'P', desc: 'Prevision fullscreen (tabla Windguru + meteograma)' },
-  { key: 'C', desc: 'Panel alertas (Navegacion / Campo / Meteo)' },
-  { key: '1-4', desc: 'Cambiar pestana del panel alertas (si esta abierto)' },
+// Only keys that do something: AppShell (C R T W P), MeteoGuide (G), this file (?), and Escape in each panel.
+export const SHORTCUTS = [
+  { key: 'P', desc: 'Previsión a pantalla completa' },
+  { key: 'C', desc: 'Condiciones' },
   { key: 'R', desc: 'Refrescar datos' },
-  { key: 'T', desc: 'Gradiente temperatura' },
-  { key: 'A', desc: 'Panel alertas unificado' },
-  { key: 'W', desc: 'Ciclar capas (viento → humedad → radar)' },
-  { key: 'B', desc: 'Numeros grandes (viento/temp)' },
-  { key: 'G', desc: 'Guia meteorologica' },
-  { key: '?', desc: 'Mostrar/ocultar esta ayuda' },
+  { key: 'T', desc: 'Temperatura sobre el mapa. En avanzado' },
+  { key: 'W', desc: 'Ir cambiando: viento, radar, nada. En avanzado' },
+  { key: 'G', desc: 'Guía' },
+  { key: '?', desc: 'Mostrar u ocultar esta ayuda' },
+  { key: 'Esc', desc: 'Cerrar lo que esté abierto' },
 ];
 
 export const KeyboardShortcutHelp = memo(function KeyboardShortcutHelp() {
   const [open, setOpen] = useState(false);
+  const trapRef = useFocusTrap<HTMLDivElement>(open);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
         e.preventDefault();
         setOpen((o) => !o);
@@ -35,38 +38,30 @@ export const KeyboardShortcutHelp = memo(function KeyboardShortcutHelp() {
     // aria-modal also tells the map popups' Escape handlers to leave this key
     // alone, so one Escape closes only this help and not the popup behind it.
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={() => setOpen(false)}
+      ref={trapRef}
+      className="fixed inset-0 z-50 flex items-center justify-center"
       role="dialog"
       aria-modal="true"
-      aria-label="Atajos de teclado"
+      aria-labelledby="gc-shortcuts-title"
     >
-      <div
-        className="bg-slate-900 border border-slate-700 rounded-lg shadow-2xl p-5 max-w-sm w-full mx-4"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-bold text-white tracking-wide">Atajos de teclado</h2>
-          <button
-            onClick={() => setOpen(false)}
-            className="text-slate-500 hover:text-white text-lg leading-none"
-          >
-            &times;
+      <div className="gc-scrim" onClick={() => setOpen(false)} />
+      <div className="g-theme gc-dialog" style={{ margin: 16 }}>
+        <div className="gc-dialog-head">
+          <h2 id="gc-shortcuts-title">Atajos de teclado</h2>
+          <button type="button" onClick={() => setOpen(false)} className="gc-btn gc-btn--plain gc-btn--icon" aria-label="Cerrar">
+            <WeatherIcon id="x" size={16} />
           </button>
         </div>
-        <div className="space-y-2">
-          {SHORTCUTS.map((s) => (
-            <div key={s.key} className="flex items-center gap-3">
-              <kbd className="inline-flex items-center justify-center min-w-[28px] h-7 px-2 rounded bg-slate-800 border border-slate-600 text-xs font-mono font-bold text-slate-200">
-                {s.key}
-              </kbd>
-              <span className="text-xs text-slate-400">{s.desc}</span>
-            </div>
-          ))}
+        <div className="gc-dialog-body">
+          <ul className="gc-kbdlist">
+            {SHORTCUTS.map((s) => (
+              <li key={s.key}>
+                <kbd className="gc-kbd">{s.key}</kbd>
+                <span>{s.desc}</span>
+              </li>
+            ))}
+          </ul>
         </div>
-        <p className="mt-4 text-[11px] text-slate-600 text-center">
-          Pulsa <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 font-mono">?</kbd> o <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 font-mono">Esc</kbd> para cerrar
-        </p>
       </div>
     </div>
   );

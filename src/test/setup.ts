@@ -39,8 +39,9 @@ Object.defineProperty(window, 'matchMedia', {
 });
 
 // ── Stub ResizeObserver ──
-globalThis.ResizeObserver = vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-}));
+// A class: `new ResizeObserver()` throws on an arrow-function mock since Vitest 4.
+globalThis.ResizeObserver = class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+} as unknown as typeof ResizeObserver;

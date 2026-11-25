@@ -5,8 +5,15 @@
  * This component touches 4 Zustand stores (spot, sector, alert, ui).
  * A wrong selector would crash the entire app on mobile (no ErrorBoundary).
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+
+// The band itself is tested with its service; here only «is there one or not» matters.
+const lightning = vi.hoisted(() => ({ risks: [] as unknown[] }));
+vi.mock('../../hooks/useSpotLightningRisk', () => ({
+  useSpotLightningRisk: () => lightning.risks,
+}));
+
 import { MobileSailingBanner } from './MobileSailingBanner';
 import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
@@ -20,17 +27,69 @@ describe('MobileSailingBanner', () => {
   beforeEach(() => {
     useSpotStore.setState({
       scores: new Map(),
-      activeSpotId: null,
+      activeSpotId: '',
     });
     useAlertStore.setState({
       risk: { score: 0, severity: 'info', color: 'green', activeCount: 0 },
     });
+    lightning.risks = [];
   });
 
-  it('renders without crashing with empty stores', () => {
+  it('with no spot chosen and no scores it shows nothing, not the first of the list', () => {
     const { container } = render(<MobileSailingBanner />);
-    // With default sector (embalse) and empty scores, still renders spot name
-    expect(container).toBeDefined();
+    expect(container.innerHTML).toBe('');
+  });
+
+  describe('with no spot chosen', () => {
+    const scored = (verdict: string, kt: number) => ({
+      verdict, provisional: false, hardGateTriggered: null, effectiveWindKt: kt,
+      wind: { avgSpeedKt: kt, dominantDir: 'SW' },
+    } as any);
+    const rias = SECTORS.find((s) => s.id === 'rias')!;
+    beforeEach(() => useSectorStore.setState({ activeSectorId: 'rias', activeSector: rias }));
+
+    it('names the best spot of the sector', () => {
+      useSpotStore.setState({
+        activeSpotId: '',
+        scores: new Map([['cesantes', scored('light', 7)], ['bocana', scored('good', 14)]]),
+      });
+      const { container } = render(<MobileSailingBanner />);
+      const bocana = ALL_SPOTS.find((s) => s.id === 'bocana')!;
+      expect(container.textContent).toContain(bocana.shortName);
+      expect(container.textContent).toContain('14 kt');
+    });
+
+    it('shows nothing when every spot is in calm: there is no best', () => {
+      useSpotStore.setState({
+        activeSpotId: '',
+        scores: new Map([['cesantes', scored('calm', 2)], ['bocana', scored('calm', 3)]]),
+      });
+      const { container } = render(<MobileSailingBanner />);
+      expect(container.innerHTML).toBe('');
+    });
+
+    it('with a spot card open it shows nothing: the sheet below already says it', () => {
+      useSpotStore.setState({
+        activeSpotId: 'cesantes',
+        scores: new Map([['cesantes', scored('calm', 2)], ['bocana', scored('good', 14)]]),
+      });
+      const { container } = render(<MobileSailingBanner />);
+      expect(container.innerHTML).toBe('');
+    });
+  });
+
+  it('hides under the lightning band: no «Calma» below «sal del agua»', () => {
+    useSpotStore.setState({
+      activeSpotId: '',
+      scores: new Map([['cesantes', { verdict: 'good', provisional: false, hardGateTriggered: null, effectiveWindKt: 13, score: 70, wind: { avgSpeedKt: 13, dominantDir: 'SW' } } as any]]),
+    });
+    const before = render(<MobileSailingBanner />);
+    expect(before.container.innerHTML).not.toBe('');
+    before.unmount();
+
+    lightning.risks = [{ spotId: 'cesantes', level: 'peligro' }];
+    const { container } = render(<MobileSailingBanner />);
+    expect(container.innerHTML).toBe('');
   });
 
   it('renders without crashing in rias sector', () => {
@@ -63,16 +122,19 @@ describe('MobileSailingBanner', () => {
       scores: new Map([
         ['cesantes', {
           verdict: 'good',
+          provisional: false,
+          hardGateTriggered: null,
+          effectiveWindKt: 12,
           score: 70,
           wind: { avgSpeedKt: 12, dominantDir: 'SW' },
         } as any],
       ]),
-      activeSpotId: 'cesantes',
+      activeSpotId: '',
     });
 
     const { container } = render(<MobileSailingBanner />);
     expect(container.innerHTML).not.toBe('');
-    expect(screen.getAllByText(/12kt/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/12 kt/).length).toBeGreaterThan(0);
   });
 
   // ── Surf spot: the pill says what its marker, row and card say ──
@@ -96,7 +158,7 @@ describe('MobileSailingBanner', () => {
       useSpotStore.setState({
         scores: new Map([['surf-corrubedo', sc]]),
         surfWaveCache: new Map([['surf-corrubedo', buildSurfEntry(corrubedo, hours, sc, Date.now(), Date.now())]]),
-        activeSpotId: 'surf-corrubedo',
+        activeSpotId: '',
       });
     }
     afterEach(() => useSpotStore.setState({ surfWaveCache: new Map() }));
@@ -110,11 +172,35 @@ describe('MobileSailingBanner', () => {
       expect(container.textContent).not.toContain('Calma');
     });
 
-    it('over the engine hard gate it reads the wind verdict like any spot', () => {
+    it('a beach closed by the engine hard gate is never named as the best', () => {
       seed(surfScore(315, 30, 'Viento 30kt > 25kt'));
       const { container } = render(<MobileSailingBanner />);
-      expect(container.textContent).toContain('Fuerte');
-      expect(container.textContent).not.toContain('SURF OK');
+      expect(container.innerHTML).toBe('');
     });
+  });
+});
+
+describe('MobileSailingBanner: what a tap opens', () => {
+  it('simple mode opens the card of the spot it names, not the list that mode no longer has', async () => {
+    const { useUIStore } = await import('../../store/uiStore');
+    const { useSpotStore } = await import('../../store/spotStore');
+    const { useSectorStore } = await import('../../store/sectorStore');
+    const { getSpotsForSector } = await import('../../config/spots');
+    const { fireEvent, render, screen } = await import('@testing-library/react');
+    const spot = getSpotsForSector(useSectorStore.getState().activeSector.id)[0];
+    useSpotStore.setState({
+      activeSpotId: '',
+      scores: new Map([[spot.id, { verdict: 'good', provisional: false, hardGateTriggered: null, effectiveWindKt: 13, wind: { avgSpeedKt: 13, dominantDir: 'SW' } } as any]]),
+    });
+    for (const simple of [true, false]) {
+      useUIStore.setState({ simpleMode: simple, sidebarOpen: false });
+      const selectSpot = vi.fn();
+      useSpotStore.setState({ selectSpot });
+      const view = render(<MobileSailingBanner />);
+      fireEvent.click(screen.getByRole('button'));
+      expect(selectSpot.mock.calls.length).toBe(simple ? 1 : 0);
+      expect(useUIStore.getState().sidebarOpen).toBe(!simple);
+      view.unmount();
+    }
   });
 });

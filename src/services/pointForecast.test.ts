@@ -81,7 +81,7 @@ describe('describeNextRain', () => {
   });
 
   it('leaves a trace out of the sentence', () => {
-    expect(describeNextRain([h(11, 0.2), h(16, 0)], now)).toBe('El modelo no da lluvia en las próximas 6 h');
+    expect(describeNextRain([h(11, 0.2), h(16, 0)], now)).toBeNull();
   });
 
   it('says a far end by the part of the day', () => {
@@ -90,8 +90,8 @@ describe('describeNextRain', () => {
     expect(describeNextRain(hours, now)).toBe('Según el modelo llueve ahora. Para por la madrugada del martes');
   });
 
-  it('says so when the model sees none', () => {
-    expect(describeNextRain([h(11, 0), h(16, 0)], now)).toBe('El modelo no da lluvia en las próximas 6 h');
+  it('says nothing when the model sees no rain', () => {
+    expect(describeNextRain([h(11, 0), h(16, 0)], now)).toBeNull();
   });
 
   it('gives nothing without hours ahead', () => {

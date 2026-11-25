@@ -13,19 +13,16 @@ import { useUserSpotStore } from '../../store/userSpotStore';
 import { useSpotStore } from '../../store/spotStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { WeatherIcon } from '../icons/WeatherIcons';
-import { displayVerdict, displayWindKt, verdictLabel } from '../../config/verdictStyles';
+import { displayVerdict, displayWindKt, verdictLabel, VERDICT_MAP_LABEL } from '../../config/verdictStyles';
 import { withMeteoPoints } from '../../config/userSpots';
 import type { SpotVerdict } from '../../services/spotScoringEngine';
+import { useMapInk } from '../../hooks/useMapInk';
 
-const VERDICT_LABEL: Record<SpotVerdict, string> = {
-  calm: 'CALMA', light: 'FLOJO', sailing: 'NAVEG.', good: 'BUENO', strong: 'FUERTE', unknown: '—',
-};
-const VERDICT_TEXT: Record<SpotVerdict, string> = {
-  calm: '#94a3b8', light: '#7dd3fc', sailing: '#4ade80', good: '#fde047', strong: '#fdba74', unknown: '#94a3b8',
-};
+/** Ink for ALL user pins, dashed: an own pin says no state, and the violet they had was the colour of «fuerte». */
+const PIN_ACCENT = 'var(--g-ink)';
 
-/** Distinct accent for ALL user pins — signals "experimental / uncalibrated". */
-const PIN_ACCENT = '#a78bfa'; // violet-400
+/** Words on a pin: one size on screen whatever the zoom (the marker itself is scaled down when the map is far). */
+const PIN_TEXT_PX = 12;
 
 export const UserSpotMarkers = memo(function UserSpotMarkers() {
   const sectorId = useSectorStore((s) => s.activeSector.id);
@@ -33,6 +30,7 @@ export const UserSpotMarkers = memo(function UserSpotMarkers() {
   const scores = useUserSpotStore((s) => s.scores);
   const selectedId = useUserSpotStore((s) => s.selectedUserSpotId);
   const selectUserSpot = useUserSpotStore((s) => s.selectUserSpot);
+  const ink = useMapInk();
 
   const mine = useMemo(() => withMeteoPoints(userSpots).filter((u) => u.sectorId === sectorId), [userSpots, sectorId]);
 
@@ -68,11 +66,10 @@ export const UserSpotMarkers = memo(function UserSpotMarkers() {
         const verdict: SpotVerdict = displayVerdict(score);
         const windKt = displayWindKt(score);
         const isActive = us.id === selectedId;
-        const textColor = VERDICT_TEXT[verdict];
         // The local map renders 'unknown' as a dash, which reads as "no data"
         // rather than "not finished yet" — so while the score is provisional the
         // shared label speaks instead, the same wording every other surface uses.
-        const label = score?.provisional ? verdictLabel(score) : VERDICT_LABEL[verdict];
+        const label = score?.provisional ? verdictLabel(score) : VERDICT_MAP_LABEL[verdict];
         const badge = windKt !== null && verdict !== 'calm' && verdict !== 'unknown'
           ? `${label} ${windKt.toFixed(0)}kt`
           : label;
@@ -89,7 +86,7 @@ export const UserSpotMarkers = memo(function UserSpotMarkers() {
             latitude={us.center[1]}
             anchor="center"
             onClick={(e) => { e.originalEvent.stopPropagation(); handleSelect(us.id); }}
-            style={{ zIndex: isActive ? 7 : 5 }}
+            style={{ zIndex: isActive ? 27 : 25 }}
           >
             <div
               className="relative cursor-pointer flex flex-col items-center"
@@ -101,13 +98,13 @@ export const UserSpotMarkers = memo(function UserSpotMarkers() {
                 <div
                   className="pointer-events-none whitespace-nowrap font-bold mb-0.5"
                   style={{
-                    fontSize: 10,
-                    fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+                    fontSize: PIN_TEXT_PX / zoomScale,
+                    fontFamily: 'var(--g-narrow)',
                     padding: '2px 6px',
-                    borderRadius: 5,
-                    background: 'rgba(15, 23, 42, 0.9)',
-                    border: `1px dashed ${PIN_ACCENT}aa`,
-                    color: textColor,
+                    borderRadius: 3,
+                    background: 'var(--g-bg)',
+                    border: '1px dashed var(--g-rule)',
+                    color: 'var(--g-ink)',
                   }}
                 >
                   {badge}
@@ -120,9 +117,8 @@ export const UserSpotMarkers = memo(function UserSpotMarkers() {
                 style={{
                   width: size,
                   height: size,
-                  background: 'rgba(15, 23, 42, 0.82)',
+                  background: 'var(--g-bg)',
                   border: `2px dashed ${PIN_ACCENT}`,
-                  boxShadow: isActive ? `0 0 10px ${PIN_ACCENT}88` : `0 0 5px ${PIN_ACCENT}44`,
                 }}
               >
                 <span style={{ color: PIN_ACCENT, display: 'flex' }}>
@@ -132,12 +128,12 @@ export const UserSpotMarkers = memo(function UserSpotMarkers() {
 
               {/* Name + uncalibrated tag */}
               <div className="pointer-events-none whitespace-nowrap text-center mt-0.5">
-                <div className="text-[10px] font-bold" style={{ color: PIN_ACCENT, textShadow: '0 1px 3px rgba(0,0,0,0.9)' }}>
+                <div className="font-bold" style={{ fontSize: PIN_TEXT_PX / zoomScale, color: ink.text, textShadow: ink.shadow }}>
                   {us.name}
                 </div>
                 <div
-                  className="text-[8px] font-bold tracking-wider mx-auto inline-block px-1 rounded"
-                  style={{ color: '#ddd6fe', background: 'rgba(124, 58, 237, 0.25)', border: '1px solid rgba(167,139,250,0.4)' }}
+                  className="font-bold mx-auto inline-block rounded"
+                  style={{ fontSize: PIN_TEXT_PX / zoomScale, padding: '0 4px', color: 'var(--g-bg)', background: 'var(--g-ink)' }}
                 >
                   {us.meteoOnly ? 'BETA' : 'SIN CALIBRAR'}
                 </div>

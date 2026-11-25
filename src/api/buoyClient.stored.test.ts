@@ -10,7 +10,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('./fetchWithRetry', () => ({ fetchWithRetry: vi.fn() }));
 
 import { fetchWithRetry } from './fetchWithRetry';
-import { fetchStoredBuoys, storedRowToReading } from './buoyClient';
+import { fetchStoredBuoys, storedRowToReading, fetchSilentBuoys, RIAS_BUOY_STATIONS, __clearSilentBuoyCacheForTests } from './buoyClient';
 
 /** A row exactly as /api/v1/buoys/latest serves it (Cortegada, 23-sep). */
 const ROW = {
@@ -109,5 +109,51 @@ describe('buoys from our own service', () => {
   it('an empty answer is not a failure: the caller decides what to do with none', async () => {
     vi.mocked(fetchWithRetry).mockResolvedValue(ok([]));
     await expect(fetchStoredBuoys()).resolves.toEqual([]);
+  });
+});
+
+describe('buoys that went silent (Ons, 17-nov 18:10: the map dropped it after 3 h without a word)', () => {
+  beforeEach(() => { vi.mocked(fetchWithRetry).mockReset(); __clearSilentBuoyCacheForTests(); });
+  const enabled = RIAS_BUOY_STATIONS.filter((s) => s.enabled !== false).map((s) => s.id);
+  const ons = { ...ROW, station_id: 4272, station_name: null, source: 'portus', time: '2026-11-17 18:10:00+01' };
+
+  it('asks only for the buoys of the list missing from the batch, and names them from the list', async () => {
+    vi.mocked(fetchWithRetry).mockResolvedValue(ok([ons]));
+    const out = await fetchSilentBuoys(enabled.filter((id) => id !== 4272), Date.UTC(2026, 10, 18, 0, 30));
+    expect(vi.mocked(fetchWithRetry)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(fetchWithRetry).mock.calls[0][0]).toBe('/api/v1/buoys/latest?station_id=4272');
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ stationId: 4272, stationName: 'Ons', timestamp: '2026-11-17T17:10:00.000Z' });
+  });
+
+  it('never asks for a buoy switched off in the list (Cíes)', async () => {
+    vi.mocked(fetchWithRetry).mockResolvedValue(ok([]));
+    await fetchSilentBuoys(enabled, Date.UTC(2026, 10, 18));
+    expect(vi.mocked(fetchWithRetry)).not.toHaveBeenCalled();
+  });
+
+  it('remembers an answer 30 min, a failure not at all', async () => {
+    const present = enabled.filter((id) => id !== 4272);
+    const t0 = Date.UTC(2026, 10, 18, 0, 0);
+    vi.mocked(fetchWithRetry).mockRejectedValueOnce(new Error('down'));
+    expect(await fetchSilentBuoys(present, t0)).toEqual([]);
+    vi.mocked(fetchWithRetry).mockResolvedValue(ok([ons]));
+    expect(await fetchSilentBuoys(present, t0 + 60_000)).toHaveLength(1);
+    expect(await fetchSilentBuoys(present, t0 + 20 * 60_000)).toHaveLength(1);
+    expect(vi.mocked(fetchWithRetry)).toHaveBeenCalledTimes(2);
+    await fetchSilentBuoys(present, t0 + 32 * 60_000);
+    expect(vi.mocked(fetchWithRetry)).toHaveBeenCalledTimes(3);
+  });
+
+  it('a buoy back in the batch is forgotten: silent again, its new last hour (P3 review, 19-nov)', async () => {
+    const present = enabled.filter((id) => id !== 4272);
+    const t0 = Date.UTC(2026, 10, 18, 9, 0);
+    vi.mocked(fetchWithRetry).mockResolvedValue(ok([ons]));
+    await fetchSilentBuoys(present, t0);
+    await fetchSilentBuoys(enabled, t0 + 5 * 60_000); // back with a reading
+    const later = { ...ons, time: '2026-11-18 10:05:00+01' };
+    vi.mocked(fetchWithRetry).mockResolvedValue(ok([later]));
+    const out = await fetchSilentBuoys(present, t0 + 15 * 60_000); // silent again
+    expect(out[0].timestamp).toBe('2026-11-18T09:05:00.000Z');
   });
 });

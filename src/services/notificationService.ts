@@ -10,10 +10,7 @@
  */
 
 import type { AlertSeverity, AlertCategory, UnifiedAlert, CompositeRisk } from './alertService';
-import { postAlertWebhook } from '../api/webhookClient';
-import { useSectorStore } from '../store/sectorStore';
 import {
-  WEBHOOK_MIN_SEVERITY,
   NOTIFICATION_DEFAULT_MIN_SEVERITY,
   NOTIFICATION_SOUND_COOLDOWN_MS,
   NOTIFICATION_PER_ALERT_COOLDOWN_MS,
@@ -161,7 +158,7 @@ function sendBrowserNotification(alert: UnifiedAlert): void {
   try {
     const notification = new Notification(`MeteoMapGal — ${alert.title}`, {
       body: alert.detail,
-      icon: '/favicon.ico',
+      icon: '/icon-192.png',
       tag: alert.id, // Replaces existing notification with same tag
       silent: true,  // We handle sound ourselves
       requireInteraction: alert.severity === 'critical',
@@ -241,30 +238,7 @@ export function processAlertNotifications(
         lastNotified.set(a.id, now);
       }
     }
-
-    // Send webhook alerts to n8n (threshold from alertPipeline.ts)
-    const sectorName = useSectorStore.getState().activeSector.name;
-    for (const a of notifiableAlerts) {
-      if (a.category !== 'drone' && meetsMinSeverity(a.severity, WEBHOOK_MIN_SEVERITY)) {
-        postAlertWebhook({
-          alertId: a.id,
-          category: a.category,
-          severity: a.severity,
-          title: a.title,
-          detail: a.detail,
-          icon: a.icon,
-          score: a.score,
-          sector: sectorName,
-          timestamp: new Date().toISOString(),
-          confidence: a.confidence,
-          compositeRisk: {
-            score: risk.score,
-            severity: risk.severity,
-            activeCount: risk.activeCount,
-          },
-        });
-      }
-    }
+    // Alerts to Telegram are sent by the server around the clock (ingestor alertDispatcher), not from here.
   }
 
   // Update state for next comparison

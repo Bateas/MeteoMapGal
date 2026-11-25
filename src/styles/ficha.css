@@ -10,15 +10,22 @@
 .gf-dock:focus { outline: none; }
 .gf-dock:focus-visible { outline: 2px solid var(--g-ink); outline-offset: -2px; }
 /* On a narrow map the notices need the top: the card goes to the bottom (WeatherMap sets the attribute) */
-[data-narrow] .gf-dock { top: auto; bottom: 64px; max-height: 50%; }
+[data-narrow] .gf-dock { top: auto; bottom: calc(var(--map-tools-h, 40px) + 24px); max-height: 50%; }
 .gf-body { flex: 1; min-width: 0; overflow-x: hidden; overflow-y: auto; padding: 14px 16px 10px; }
 
 /* ── Shell: bottom sheet on a phone ── */
 .gf-sheetwrap { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; }
 .gf-sheetbox { position: relative; }
-.gf-sheet { max-height: 60dvh; overflow-x: hidden; overflow-y: auto; padding: 0 16px calc(5rem + env(safe-area-inset-bottom, 0px)); background: var(--g-bg); border-top: 2px solid var(--g-rule); box-shadow: var(--g-shadow-lg); }
-.gf-handle { display: flex; justify-content: center; padding: 8px 0 12px; touch-action: none; }
-.gf-handle span { width: 40px; height: 4px; border-radius: 2px; background: var(--g-rule); }
+/* Open, the sheet stops under what floats over the top of the map: the warnings strip and the safety bands. */
+.gf-sheet { overscroll-behavior: contain; max-height: min(var(--gf-open, 85dvh), calc(var(--gf-box, 100dvh) - var(--ticker-h, 0px) - var(--map-stack-h, 0px) - 14px)); overflow-x: hidden; overflow-y: auto; padding: 0 16px calc(5rem + env(safe-area-inset-bottom, 0px)); background: var(--g-bg); border-top: 2px solid var(--g-rule); box-shadow: var(--g-shadow-lg); transition: max-height .22s ease-out; }
+/* Peeking: the head of the card and nothing under it; the map above is still in use (Ficha.tsx measures the head) */
+.gf-sheetwrap[data-detent="peek"] .gf-sheet { max-height: calc(44px + var(--gf-peek, 160px) + 3.25rem + env(safe-area-inset-bottom, 0px)); padding-bottom: calc(3.25rem + env(safe-area-inset-bottom, 0px)); overflow-y: hidden; }
+@media (prefers-reduced-motion: reduce) { .gf-sheet { transition: none; } }
+.gf-handle { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; width: 100%; padding: 8px 0 12px; border: 0; background: transparent; color: var(--g-muted); font: 600 13px/1 var(--g-font); touch-action: none; }
+button.gf-handle { min-height: 44px; padding: 7px 0 5px; cursor: pointer; }
+button.gf-handle:focus-visible { outline: 2px solid var(--g-ink); outline-offset: -2px; }
+.gf-handle-bar { width: 40px; height: 4px; border-radius: 2px; background: var(--g-rule); }
+.gf-handle-say { display: inline-flex; align-items: center; gap: 2px; }
 .gf-close { position: absolute; top: 4px; right: 4px; z-index: 1; background: var(--g-bg); }
 .gf-sheetwrap .gf-close { top: 8px; }
 
@@ -46,6 +53,8 @@
 .gf-side b { font-weight: 600; white-space: nowrap; }
 .gf-side span { color: var(--g-muted); }
 .gf-side span.gf-trend { color: var(--g-ink); font-weight: 600; }
+/* The trend on a line of its own, named, when there is no heading beside it to read it with */
+.gf-side span.gf-trendline { flex-basis: 100%; display: inline-flex; align-items: center; gap: 4px; }
 .gf-model { font-size: 13px; color: var(--g-muted); }
 .gf-pending { font-size: 15px; font-weight: 600; color: var(--g-muted); }
 .gf-say { margin: 0 0 10px; padding: 2px 0 2px 12px; border-left: 4px solid var(--gf-tone, var(--g-rule)); font-size: 15px; font-weight: 600; line-height: 1.32; }
@@ -67,10 +76,11 @@
 /* A list of folds: rows of a list keep a hairline between them, and only them */
 .gf-group--list { gap: 0; }
 .gf-group--list > .gf-grouphead + .gf-row { border-top: 0; }
-.gf-group > .gf-row--link { margin-top: -4px; border-top: 0; min-height: 40px; font-weight: 600; }
-.gf-sheetwrap .gf-group > .gf-row--link { min-height: 44px; }
 .gf-label { margin: 0 0 2px; font-size: 12.5px; font-weight: 400; color: var(--g-muted); }
 .gf-action { width: 100%; margin-top: 16px; white-space: normal; }
+/* An action that takes you somewhere: label left, arrow right, so it reads as a way on and not as a title. */
+.gc-btn.gf-action--go { justify-content: space-between; margin-top: 4px; padding: 0 12px; border-color: var(--g-rule); }
+.gf-group > .gc-btn.gf-action--go { margin-top: 0; }
 
 /* ── Sections, one rule apart ── */
 .gf-notes { display: flex; flex-direction: column; gap: 7px; padding: 10px 0; border-top: 1px solid var(--g-hair); }
@@ -95,6 +105,8 @@
 .gf-cell dd svg { display: inline-block; vertical-align: -2px; color: var(--g-l-alto); }
 .gf-more { align-self: flex-start; min-height: 40px; padding: 0; border: 0; background: transparent; color: var(--g-muted); font: 500 13px var(--g-font); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .gf-sheetwrap .gf-more { min-height: 44px; }
+/* The sheet itself takes the focus when opened from the keyboard: a landing place, not a control, so no ring */
+.gf-sheetwrap:focus { outline: none; }
 .gf-link { display: inline-flex; align-items: center; min-height: 40px; font-size: 13px; text-decoration: underline; text-underline-offset: 2px; color: inherit; }
 .gf-sheetwrap .gf-link { min-height: 44px; }
 .gf-more:hover { color: var(--g-ink); }
@@ -118,6 +130,7 @@
 .gf-row { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0; border: 0; border-top: 1px solid var(--g-hair); background: transparent; color: var(--g-ink); font: 500 14px/1.25 var(--g-font); text-align: left; text-decoration: none; cursor: pointer; }
 .gf-row:hover { background: color-mix(in srgb, var(--g-ink) 6%, transparent); }
 .gf-row:focus-visible, .gf-opt:focus-visible, .gf-namebtn:focus-visible, .gf-more:focus-visible { outline: 2px solid var(--g-ink); outline-offset: -2px; }
+.gf-opt[aria-pressed="true"]:focus-visible { outline-color: var(--g-bg); }
 .gf-row:disabled { opacity: .6; cursor: default; }
 .gf-row > .gf-grow { flex: 1; min-width: 0; }
 .gf-row small { font-size: 12.5px; font-weight: 400; color: var(--g-muted); }
@@ -162,6 +175,8 @@
 .gf-chart { display: block; width: 100%; height: auto; color: var(--g-ink); }
 .gf-chart text { fill: var(--g-muted); font-family: var(--g-font); }
 .gf-chartfoot { display: flex; justify-content: space-between; gap: 8px; margin-top: 2px; }
+/* The place of the wind chart while it is on its way: its sentence, its plot and its legend (154 px measured on a phone). */
+.gf-plotwait { height: 154px; }
 .gf-plot { display: grid; grid-template-columns: 32px minmax(0, 1fr); column-gap: 6px; }
 .gf-plot-y { position: relative; }
 .gf-plot-y span { position: absolute; right: 0; transform: translateY(-50%); font-size: 12px; line-height: 1; color: var(--g-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -176,6 +191,13 @@
 .gf-swatch { display: inline-block; width: 18px; border-top: 2.25px solid currentColor; }
 .gf-swatch--model { border-top: 0; height: 2.5px; background-image: radial-gradient(circle, currentColor 1.1px, transparent 1.3px); background-size: 5px 2.5px; }
 
+/* ── Phone: nothing under 13 px (read outdoors, at arm's length), and a figure never parts from its unit ── */
+.gf-sheetwrap :is(.gf-more, .gf-tag, .gf-label, .gf-note small, .gf-cell dt, .gf-sectitle small, .gf-table caption, .gf-table th, .gf-row small, .gf-signal, .gf-ask p span, .gf-hint, .gf-credit, .gf-plot-y span, .gf-plot-foot, .gf-plot-foot span, .gf-chartfoot, .gf-axislegend) { font-size: 13px; }
+.gf-sheetwrap .gf-cell dd { white-space: nowrap; }
+/* Said in the head only while the rest of the card is folded away */
+.gf-peekonly { display: none; }
+.gf-sheetwrap[data-detent="peek"] .gf-peekonly { display: block; }
+
 /* ── Movement (curve and durations in v3tokens.css, reduced motion at the top of index.css) ── */
 @keyframes gf-in-side { from { opacity: 0; translate: -8px 0; } }
 @keyframes gf-in-rise { from { opacity: 0; translate: 0 8px; } }
@@ -188,3 +210,7 @@
    that one says the verdict went up). */
 @keyframes gf-figure-in { from { opacity: .35; translate: 0 3px; } }
 .gf-figure { animation: gf-figure-in var(--g-t-slow) var(--g-ease); }
+/* The colour of a figure goes in a chip, the words in ink (station card, 18-nov) */
+.gf-figchip { padding: 0 .16em; border-radius: 6px; }
+.gf-chip { display: inline-block; min-width: 1.6em; padding: 0 5px; border-radius: 4px; font-weight: 700; text-align: center; }
+.gf-dot { display: inline-block; width: 9px; height: 9px; margin-right: 6px; border-radius: 50%; vertical-align: 1px; }

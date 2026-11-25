@@ -34,25 +34,14 @@ export function NewVersionBanner({ enabled = import.meta.env.PROD }: { enabled?:
   if (!published || published === dismissed) return null;
 
   return (
-    <div
-      role="status"
-      className="pointer-events-auto bg-slate-800 border border-sky-600/60 rounded-xl p-3 shadow-2xl"
-    >
-      <p className="text-sm font-semibold text-white">Hay una versión nueva</p>
-      <p className="text-[11px] text-slate-400 mt-0.5">Recarga para ver los últimos arreglos.</p>
-      <div className="mt-2 flex gap-2">
-        <button
-          type="button"
-          onClick={() => window.location.reload()}
-          className="flex-1 min-h-[36px] rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold"
-        >
+    <div role="status" className="g-theme gc-card">
+      <p className="gc-card-title">Hay una versión nueva</p>
+      <p className="gc-card-text">Recarga para ver los últimos arreglos.</p>
+      <div className="gc-card-row">
+        <button type="button" onClick={() => window.location.reload()} className="gc-btn gc-btn--primary gc-btn--grow">
           Recargar
         </button>
-        <button
-          type="button"
-          onClick={() => setDismissed(published)}
-          className="min-h-[36px] px-3 rounded-lg border border-slate-600 text-slate-300 text-xs hover:bg-slate-700"
-        >
+        <button type="button" onClick={() => setDismissed(published)} className="gc-btn">
           Luego
         </button>
       </div>

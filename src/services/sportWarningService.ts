@@ -266,7 +266,7 @@ export function buildSportWarningNotice(params: SportWarningParams): SportWarnin
       ...common,
       level: 2,
       exceptionApplies: true,
-      headline: `Aviso naranja por ${label}`,
+      headline: `Aviso naranja por ${label} · umbral del deporte`,
       thresholdText,
       currentText: knownText,
       statusText: `No hay dato ${missing} en este spot, así que esa parte del umbral no se puede comparar.`,
@@ -300,7 +300,7 @@ export function buildSportWarningNotice(params: SportWarningParams): SportWarnin
     ...common,
     level: 2,
     exceptionApplies: true,
-    headline: `Aviso naranja por ${label}`,
+    headline: `Aviso naranja por ${label} · umbral del deporte`,
     thresholdText,
     currentText: `Ahora mismo: ${waveText(wave)} y ${formatKnots(wind)} de viento.`,
     // Below the threshold we add nothing. Any sentence here would read as a

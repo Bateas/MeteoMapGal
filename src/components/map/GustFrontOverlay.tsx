@@ -11,15 +11,17 @@
  *        the station marker underneath.
  *
  * phase 1 (visual). Phase 2 (DB persistence) planned in
- * memory/pending-work.md.
+ * the project notes (not in this repository).
  */
 import { memo, useMemo } from 'react';
 import { Source, Layer } from 'react-map-gl/maplibre';
 import { useLightningStore } from '../../hooks/useLightningData';
+import { useMapInk } from '../../hooks/useMapInk';
 
 function GustFrontOverlayInner() {
   const gustFronts = useLightningStore((s) => s.gustFronts);
   const showOverlay = useLightningStore((s) => s.showOverlay);
+  const ink = useMapInk();
 
   const geoJson = useMemo<GeoJSON.FeatureCollection>(() => {
     if (!showOverlay || gustFronts.length === 0) {
@@ -39,7 +41,7 @@ function GustFrontOverlayInner() {
           windKt: f.windKt,
           clusterDistKm: f.clusterDistKm,
           // Pre-built label for the symbol layer
-          label: `Outflow ${f.gustKt.toFixed(0)}kt × ${f.ratio.toFixed(1)}`,
+          label: `Racha de tormenta ${f.gustKt.toFixed(0)} kt`,
         },
       })),
     };
@@ -102,18 +104,15 @@ function GustFrontOverlayInner() {
         layout={{
           'text-field': ['get', 'label'],
           'text-font': ['Noto Sans Bold'],
-          'text-size': 11,
+          'text-size': 12,
+          'text-max-width': 16,
           'text-offset': [0, 1.8],
           'text-allow-overlap': false,
           'text-optional': true,
         }}
         paint={{
-          'text-color': [
-            'match', ['get', 'confidence'],
-            'high',   '#fecaca',  // red-200 for high
-            /* medium */ '#fed7aa', // orange-200 for medium
-          ],
-          'text-halo-color': '#0f172a',
+          'text-color': ink.text,
+          'text-halo-color': ink.halo,
           'text-halo-width': 1.5,
         }}
       />

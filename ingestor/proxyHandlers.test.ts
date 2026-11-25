@@ -248,7 +248,7 @@ describe('keyed proxies — only the exact requests the map makes', () => {
   it('the AEMET list holds exactly the step-one paths the frontend asks for', async () => {
     const { AEMET_STEP_ONE_PATHS } = await import('./proxyHandlers');
     const used = new Set<string>();
-    for (const f of ['src/config/apiEndpoints.ts', 'src/api/aemetAvisosClient.ts']) {
+    for (const f of ['src/config/apiEndpoints.ts']) {
       for (const m of src(f).matchAll(/\/api\/v1\/aemet(\/api\/[A-Za-z0-9_/]+)/g)) used.add(m[1]);
     }
     expect([...used].sort()).toEqual([...AEMET_STEP_ONE_PATHS].sort());

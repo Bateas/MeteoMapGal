@@ -95,7 +95,7 @@ export function FeedbackModal() {
     const safeType = VALID_TYPES.includes(type) ? type : 'otro' as FeedbackType;
 
     if (getDailyCount() >= MAX_SUBMISSIONS_PER_DAY) {
-      addToast('Limite diario alcanzado (3 envios/dia)', 'warning');
+      addToast('Límite diario alcanzado (3 envíos al día)', 'warning');
       return;
     }
 
@@ -111,12 +111,11 @@ export function FeedbackModal() {
       });
       lastSubmitRef.current = Date.now();
       incrementDailyCount();
-      addToast('Enviado. Gracias por tu feedback', 'success');
+      addToast('Enviado. Gracias por tu opinión', 'success');
       resetForm();
       setOpen(false);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'desconocido';
-      addToast(`Error al enviar feedback (${msg}). Intentalo mas tarde`, 'error');
+    } catch {
+      addToast('No se pudo enviar. Prueba en un rato.', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -132,41 +131,22 @@ export function FeedbackModal() {
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="Enviar feedback"
+      aria-labelledby="gc-feedback-title"
     >
-      <div
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-        onClick={() => setOpen(false)}
-      />
+      <div className="gc-scrim" onClick={() => setOpen(false)} />
 
-      <div className="relative w-full max-w-sm bg-slate-900 border border-slate-700 rounded-xl shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-700/60">
-          <div className="flex items-center gap-2">
-            <WeatherIcon id="message-square" size={16} className="text-emerald-400" />
-            <h2 className="text-sm font-semibold text-white">Tu opinion</h2>
-          </div>
-          <button
-            onClick={() => setOpen(false)}
-            className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-lg
-              text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-            aria-label="Cerrar"
-          >
+      <div className="g-theme gc-dialog">
+        <div className="gc-dialog-head">
+          <h2 id="gc-feedback-title">Tu opinión</h2>
+          <button type="button" onClick={() => setOpen(false)} className="gc-btn gc-btn--plain gc-btn--icon" aria-label="Cerrar">
             <WeatherIcon id="x" size={16} />
           </button>
         </div>
 
-        <div className="px-5 py-4 space-y-3">
-          <div className="flex gap-1.5">
+        <div className="gc-dialog-body">
+          <div className="gc-seg" role="group" aria-label="Tipo de mensaje" style={{ alignSelf: 'flex-start' }}>
             {VALID_TYPES.map((t) => (
-              <button
-                key={t}
-                onClick={() => setType(t)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all
-                  ${type === t
-                    ? 'bg-emerald-600 text-white'
-                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                  }`}
-              >
+              <button key={t} type="button" onClick={() => setType(t)} aria-pressed={type === t}>
                 {TYPE_LABELS[t]}
               </button>
             ))}
@@ -176,17 +156,15 @@ export function FeedbackModal() {
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value.substring(0, MAX_CHARS))}
-              placeholder="Escribe tu idea, sugerencia o problema..."
-              rows={3}
+              placeholder="Escribe tu idea, sugerencia o problema"
+              aria-label="Tu mensaje"
+              rows={4}
               maxLength={MAX_CHARS}
-              className="w-full px-3 py-2.5 rounded-lg border border-slate-700 bg-slate-800/60
-                text-sm text-white placeholder-slate-500
-                focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30
-                resize-none transition-colors"
+              className="gc-field"
             />
-            <div className={`text-right text-[11px] mt-0.5 ${remaining < 30 ? 'text-amber-400' : 'text-slate-600'}`}>
-              {remaining} caracteres
-            </div>
+            <p className="gc-small" style={{ textAlign: 'right', fontWeight: remaining < 30 ? 700 : undefined }}>
+              Quedan {remaining} caracteres
+            </p>
           </div>
 
           <input
@@ -199,25 +177,18 @@ export function FeedbackModal() {
             aria-hidden="true"
           />
 
-          <div className="text-[11px] text-slate-600">
-            Anonimo. Sin datos personales. Max 3 envios/dia.
-          </div>
+          <p className="gc-small">Anónimo, sin datos personales. Máximo 3 envíos al día.</p>
         </div>
 
-        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-slate-700/60">
-          <button
-            onClick={() => setOpen(false)}
-            className="px-4 py-2 rounded-lg text-xs font-medium text-slate-400
-              hover:text-white hover:bg-slate-800 transition-colors"
-          >
+        <div className="gc-dialog-foot">
+          <button type="button" onClick={() => setOpen(false)} className="gc-btn gc-btn--plain">
             Cancelar
           </button>
           <button
+            type="button"
             onClick={handleSubmit}
             disabled={message.trim().length < 10 || isSubmitting}
-            className="px-5 py-2 rounded-lg text-xs font-semibold transition-all
-              bg-emerald-600 text-white hover:bg-emerald-500
-              disabled:opacity-40 disabled:cursor-not-allowed"
+            className="gc-btn gc-btn--primary"
           >
             {isSubmitting ? 'Enviando...' : 'Enviar'}
           </button>

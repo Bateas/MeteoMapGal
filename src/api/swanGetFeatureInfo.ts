@@ -1,7 +1,7 @@
 /**
  * SWAN GetFeatureInfo per-spot Hs (wave height) reader.
  *
- * T5-3 (S136+3+3). The SWAN overlay renders the whole Galicia coast as a
+ * The SWAN overlay renders the whole Galicia coast as a
  * raster tile, but for SpotPopup surf verdicts we need the actual wave
  * height (Hs) at the specific spot lat/lon. WMS GetFeatureInfo lets us
  * query a single pixel value without downloading and parsing tiles.

@@ -83,7 +83,7 @@ describe('scoreAllSpots with the verdict hold', () => {
     expect(held.verdict).toBe('sailing');
     expect(held.summary).not.toMatch(/Buenas condiciones/);
     // A held colour always comes with the doubt said.
-    expect(verdictDoubtText(held)).toBe('entre Navegable y Buen día');
+    expect(verdictDoubtText(held)).toBe('entre Navegable y Bueno');
     expect(score(onLine, { states, nowMs: T0 + 15 * MIN }).verdict).toBe('sailing');
     expect(score(onLine + 1.2, { states, nowMs: T0 + 16 * MIN }).verdict).toBe('good');
   });

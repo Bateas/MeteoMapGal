@@ -35,6 +35,10 @@ export const WIND_MIN_MEAN_KT = 12;
 export const WIND_MAX_GUST_RATIO = 3;
 export const WIND_MAX_GUST_KT = 90; // the same ceiling as the engines (MAX_PLAUSIBLE_GUST_KT)
 export const WIND_MAX_AGE_MIN = 90;
+/** Up to this age a reading is «now» in the message. An older one still counts as a source, but
+ *  the message gives its hour: on 24-nov the alert of 12:14 said «Medido ahora» over a gust of
+ *  10:50, the only reading that station had sent all day. */
+export const WIND_NOW_MAX_AGE_MIN = 20;
 /** Above this a station measures the mountain, not the water. Unknown altitude: left out. The
  *  same limits as the spot gust (spotScoringEngine), defined there once. */
 export const WIND_MAX_ALTITUDE_M: Record<WindSector, number> = WATER_LEVEL_MAX_ALTITUDE_M;
@@ -56,7 +60,17 @@ export function safetySpots(): SafetySpot[] {
   );
 }
 
-export interface WindEvidence { name: string; meanKt: number; gustKt: number; lat: number; lon: number }
+export interface WindEvidence {
+  name: string; meanKt: number; gustKt: number; lat: number; lon: number;
+  /** When the reading was taken (epoch ms). Absent when the row carries no time. */
+  atMs?: number;
+}
+
+function readingAtMs(time: string | Date | undefined): number | undefined {
+  if (time == null) return undefined;
+  const t = new Date(time).getTime();
+  return Number.isFinite(t) ? t : undefined;
+}
 
 export interface WindSafetyAssessment {
   sector: WindSector;
@@ -102,7 +116,7 @@ export function assessStrongWind(
       const meanKt = r.wind_speed * MS_TO_KT;
       const gustKt = r.wind_gust * MS_TO_KT;
       if (gustKt < WIND_AVISO_GUST_KT || !plausible(meanKt, gustKt)) continue;
-      evidence.push({ name: r.name ?? r.station_id, meanKt, gustKt, lat: r.latitude, lon: r.longitude });
+      evidence.push({ name: r.name ?? r.station_id, meanKt, gustKt, lat: r.latitude, lon: r.longitude, atMs: readingAtMs(r.time) });
       measuredBy.add(r.station_id);
     }
 
@@ -118,7 +132,7 @@ export function assessStrongWind(
       const meanKt = b.wind_speed * MS_TO_KT;
       const gustKt = b.wind_gust * MS_TO_KT;
       if (gustKt < WIND_AVISO_GUST_KT || !plausible(meanKt, gustKt)) continue;
-      evidence.push({ name: `Boya ${b.station_name ?? b.station_id}`, meanKt, gustKt, lat: b.lat, lon: b.lon });
+      evidence.push({ name: `Boya ${b.station_name ?? b.station_id}`, meanKt, gustKt, lat: b.lat, lon: b.lon, atMs: readingAtMs(b.time) });
     }
 
     evidence.sort((a, b) => b.gustKt - a.gustKt);
@@ -257,11 +271,27 @@ export function windLogDue(prev: { state: string; atMs: number } | undefined, st
 
 const SECTOR_LABEL: Record<WindSector, string> = { rias: 'Rías Baixas', embalse: 'Interior' };
 
-export function formatWindSafetyMessage(a: WindSafetyAssessment): { title: string; message: string } {
+function localHour(ms: number): string {
+  return new Date(ms).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Europe/Madrid' });
+}
+
+/**
+ * `nowMs` is the instant of the check. With it, a reading older than WIND_NOW_MAX_AGE_MIN carries
+ * its local hour and the heading stops saying «ahora» for all of them; the fresh ones say «ahora»
+ * each. Without it, or with every reading fresh, the message is the one it always was.
+ */
+export function formatWindSafetyMessage(a: WindSafetyAssessment, nowMs?: number): { title: string; message: string } {
   const where = SECTOR_LABEL[a.sector];
   const title = a.level === 'peligro' ? `VIENTO MUY FUERTE — ${where}` : `Viento fuerte — ${where}`;
-  const lines = a.evidence.slice(0, 5).map((e) => `${e.name}: rachas ${Math.round(e.gustKt)} kt (media ${Math.round(e.meanKt)})`);
-  let message = `*${title}*\nMedido ahora:\n${lines.join('\n')}`;
+  const shown = a.evidence.slice(0, 5);
+  const isOld = (e: WindEvidence) => nowMs != null && e.atMs != null && nowMs - e.atMs > WIND_NOW_MAX_AGE_MIN * 60_000;
+  const someOld = shown.some(isOld);
+  const lines = shown.map((e) => {
+    const figures = `${e.name}: rachas ${Math.round(e.gustKt)} kt (media ${Math.round(e.meanKt)})`;
+    if (!someOld) return figures;
+    return isOld(e) ? `${figures}, a las ${localHour(e.atMs!)}` : `${figures}, ahora`;
+  });
+  let message = `*${title}*\n${someOld ? 'Medido' : 'Medido ahora'}:\n${lines.join('\n')}`;
   if (a.spots.length > 0) message += `\nCerca de: ${a.spots.slice(0, 5).join(', ')}`;
   if (a.level === 'peligro') message += '\nCondiciones peligrosas para embarcaciones ligeras.';
   return { title, message };

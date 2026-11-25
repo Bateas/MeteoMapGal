@@ -22,7 +22,7 @@ import type { SpotId, SailingSpot } from '../config/spots';
 import type { SpotScore } from '../services/spotScoringEngine';
 import { scoreAllSpots, MAX_PLAUSIBLE_GUST_KT } from '../services/spotScoringEngine';
 import { scaleGustToSpot } from '../services/windUtils';
-import { displayVerdict, displayWindDir, displayWindKt, verdictLabel, VERDICT_HEX, gateWaveText } from '../config/verdictStyles';
+import { displayVerdict, displayWindDir, displayWindKt, verdictLabel, hexOf, windToneOver, gateWaveText } from '../config/verdictStyles';
 import { SECTORS, isCoastalSector } from '../config/sectors';
 import { useVisibilityPolling } from '../hooks/useVisibilityPolling';
 import { loadWidgetInputs } from './widgetData';
@@ -113,9 +113,9 @@ export function WidgetApp() {
 
 // ── Spot Card ───────────────────────────────────────
 export function SpotCard({ spot, score }: { spot: SailingSpot; score: SpotScore | null }) {
-  const color = VERDICT_HEX[displayVerdict(score)];
-  const ready = score != null && !score.provisional;
   const windKt = displayWindKt(score);
+  const color = hexOf(displayVerdict(score), windToneOver(displayVerdict(score), windKt));
+  const ready = score != null && !score.provisional;
   // The gust travels with the mean the card shows, as in the map's popup.
   const gustKt = windKt != null && score?.gustKt != null
     ? scaleGustToSpot(score.gustKt, score.wind?.avgSpeedKt ?? 0, windKt, MAX_PLAUSIBLE_GUST_KT)
@@ -217,8 +217,8 @@ function CompactRow({ spots, scores }: { spots: SailingSpot[]; scores: Map<strin
     }}>
       {spots.map((spot) => {
         const score = scores.get(spot.id) ?? null;
-        const color = VERDICT_HEX[displayVerdict(score)];
         const windKt = displayWindKt(score);
+        const color = hexOf(displayVerdict(score), windToneOver(displayVerdict(score), windKt));
         const dirLabel = score && !score.provisional ? displayWindDir(score)?.label ?? null : null;
         return (
           <div key={spot.id} style={{
@@ -233,7 +233,7 @@ function CompactRow({ spots, scores }: { spots: SailingSpot[]; scores: Map<strin
             <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: color, flexShrink: 0 }} />
             <span style={{ fontSize: '12px', fontWeight: 600, color: textPrimary }}>{spot.shortName}</span>
             <span style={{ fontSize: '11px', color, fontWeight: 700 }}>
-              {windKt != null ? `${Math.round(windKt)}kt` : '—'}
+              {windKt != null ? `${Math.round(windKt)} kt` : '—'}
             </span>
             {dirLabel && <span style={{ fontSize: '10px', color: textSecondary }}>{dirLabel}</span>}
           </div>

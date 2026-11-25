@@ -1,11 +1,10 @@
 /**
- * Shared skeleton loader for consistent loading states across the app.
- * Replaces ad-hoc "Cargando..." text and empty states.
+ * What a part of the app shows while its code arrives (a fraction of a second, a tab of the side panel).
+ * Quiet hairlines in the place of the text, with no pulse: nothing has happened yet to show movement.
  *
  * Usage:
- *   <SkeletonLoader lines={3} />           — 3 shimmering lines
- *   <SkeletonLoader lines={5} title />     — title bar + 5 lines
- *   <SkeletonLoader lines={2} compact />   — smaller spacing
+ *   <SkeletonLoader lines={3} />
+ *   <SkeletonLoader lines={5} title />     wider bar at the top
  */
 
 interface SkeletonLoaderProps {
@@ -13,25 +12,14 @@ interface SkeletonLoaderProps {
   lines?: number;
   /** Show a wider title bar at top */
   title?: boolean;
-  /** Compact mode with less spacing */
-  compact?: boolean;
 }
 
-export function SkeletonLoader({ lines = 3, title = false, compact = false }: SkeletonLoaderProps) {
-  const gap = compact ? 'gap-1.5' : 'gap-2.5';
-  const lineH = compact ? 'h-2.5' : 'h-3';
-
+export function SkeletonLoader({ lines = 3, title = false }: SkeletonLoaderProps) {
   return (
-    <div className={`flex flex-col ${gap} animate-pulse py-2`} role="status" aria-label="Cargando...">
-      {title && (
-        <div className="h-4 bg-slate-700/50 rounded w-2/5 mb-1" />
-      )}
+    <div className="gc-skeleton" role="status" aria-label="Cargando">
+      {title && <i style={{ width: '40%', height: 16 }} />}
       {Array.from({ length: lines }, (_, i) => (
-        <div
-          key={i}
-          className={`${lineH} bg-slate-700/40 rounded`}
-          style={{ width: `${75 - i * 8}%` }}
-        />
+        <i key={i} style={{ width: `${75 - i * 8}%` }} />
       ))}
     </div>
   );

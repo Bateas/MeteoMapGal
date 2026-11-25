@@ -1,297 +1,150 @@
-import { memo, useMemo } from 'react';
-import { useAlertStore } from '../../store/alertStore';
+import { memo } from 'react';
 import { useUIStore } from '../../store/uiStore';
-import { NotificationControl } from './NotificationControl';
-import { WeatherIcon } from '../icons/WeatherIcons';
-import type { IconId } from '../icons/WeatherIcons';
-import type { UnifiedAlert, AlertSeverity, CompositeRisk } from '../../services/alertService';
+import { useConditionsList } from '../../hooks/useConditionsList';
+import type { AlertLevel } from '../../types/campo';
+import type { ConditionLine } from '../../services/alerts/conditionsList';
+import { linesNotSaidAbove } from '../../services/alerts/levelZero';
+import { useLevelZeroStore } from '../../store/levelZeroStore';
+import { useSpotLightningRisk } from '../../hooks/useSpotLightningRisk';
+import { namedFirst, type SpotLightningRisk } from '../../services/lightningProximityService';
+import { useSpotStore } from '../../store/spotStore';
 
-// ── Severity color palette ───────────────────────────────────
+/**
+ * The strip beside the map tools: the state of the one list of Condiciones and its gravest line.
+ * Tapping it opens the list (the drawer): there is no second list here any more.
+ */
 
-const SEVERITY_COLORS: Record<AlertSeverity, {
-  bg: string; border: string; text: string; glow: string;
-}> = {
-  critical: {
-    bg: 'rgba(239, 68, 68, 0.15)',
-    border: 'rgba(239, 68, 68, 0.5)',
-    text: '#ef4444',
-    glow: '0 0 20px rgba(239, 68, 68, 0.2)',
-  },
-  high: {
-    bg: 'rgba(249, 115, 22, 0.12)',
-    border: 'rgba(249, 115, 22, 0.4)',
-    text: '#f97316',
-    glow: '0 0 15px rgba(249, 115, 22, 0.15)',
-  },
-  moderate: {
-    bg: 'rgba(234, 179, 8, 0.10)',
-    border: 'rgba(234, 179, 8, 0.35)',
-    text: '#eab308',
-    glow: '0 0 10px rgba(234, 179, 8, 0.1)',
-  },
-  info: {
-    bg: 'rgba(59, 130, 246, 0.08)',
-    border: 'rgba(59, 130, 246, 0.25)',
-    text: '#3b82f6',
-    glow: 'none',
-  },
+const SEMAPHORE: Record<Exclude<AlertLevel, 'none'>, { tone: string; label: string }> = {
+  riesgo: { tone: 'gc-t-moderado', label: 'Aviso' },
+  alto: { tone: 'gc-t-alto', label: 'Alerta' },
+  critico: { tone: 'gc-t-critico', label: 'Peligro' },
 };
-
-const SEMAPHORE: Record<CompositeRisk['color'], {
-  bg: string; border: string; text: string; label: string; glow: string;
-}> = {
-  green: {
-    bg: 'rgba(34, 197, 94, 0.10)',
-    border: 'rgba(34, 197, 94, 0.3)',
-    text: '#22c55e',
-    label: 'OK',
-    glow: 'none',
-  },
-  yellow: {
-    bg: 'rgba(234, 179, 8, 0.10)',
-    border: 'rgba(234, 179, 8, 0.35)',
-    text: '#eab308',
-    label: 'AVISO',
-    glow: '0 0 12px rgba(234, 179, 8, 0.12)',
-  },
-  orange: {
-    bg: 'rgba(249, 115, 22, 0.12)',
-    border: 'rgba(249, 115, 22, 0.4)',
-    text: '#f97316',
-    label: 'ALERTA',
-    glow: '0 0 18px rgba(249, 115, 22, 0.18)',
-  },
-  red: {
-    bg: 'rgba(239, 68, 68, 0.15)',
-    border: 'rgba(239, 68, 68, 0.5)',
-    text: '#ef4444',
-    label: 'PELIGRO',
-    glow: '0 0 25px rgba(239, 68, 68, 0.25)',
-  },
-};
-
-// ── Alert chip (compact single alert) ────────────────────────
-
-function AlertChip({ alert }: { alert: UnifiedAlert }) {
-  const colors = SEVERITY_COLORS[alert.severity];
-
-  return (
-    <div
-      className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] shrink-0
-        ${alert.urgent ? 'animate-pulse' : ''}`}
-      style={{
-        background: colors.bg,
-        border: `1px solid ${colors.border}`,
-      }}
-      title={alert.detail}
-    >
-      <span className="text-xs leading-none"><WeatherIcon id={alert.icon as IconId} size={12} /></span>
-      <span
-        className="font-bold tracking-wide truncate max-w-[140px] md:max-w-[200px]"
-        style={{ color: colors.text }}
-        title={`${alert.title} — ${alert.detail}`}
-      >
-        {alert.title}
-      </span>
-      {/* Score hidden from UI — internal metric only */}
-    </div>
-  );
-}
-
-// ── Alert detail row (expanded view) ─────────────────────────
-
-function AlertRow({ alert }: { alert: UnifiedAlert }) {
-  const colors = SEVERITY_COLORS[alert.severity];
-
-  return (
-    <div
-      className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg
-        ${alert.urgent ? 'animate-pulse' : ''}
-        ${alert.severity === 'critical' ? 'alert-glow-critical' : alert.severity === 'high' ? 'alert-glow-amber' : ''}`}
-      style={{
-        background: colors.bg,
-        border: `1px solid ${colors.border}`,
-      }}
-    >
-      <span className="text-sm leading-none shrink-0"><WeatherIcon id={alert.icon as IconId} size={14} /></span>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span
-            className="text-[11px] font-bold tracking-wide"
-            style={{ color: colors.text }}
-          >
-            {alert.title}
-          </span>
-        </div>
-        <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
-          <span className="truncate">{alert.detail}</span>
-          {alert.confidence != null && (
-            <span
-              className="shrink-0 text-[11px] font-mono px-1 rounded"
-              style={{
-                background: alert.confidence >= 70 ? 'rgba(34,197,94,0.15)' : alert.confidence >= 40 ? 'rgba(234,179,8,0.15)' : 'rgba(239,68,68,0.15)',
-                color: alert.confidence >= 70 ? '#22c55e' : alert.confidence >= 40 ? '#eab308' : '#ef4444',
-              }}
-              title={`Confianza: ${alert.confidence}%`}
-            >
-              {alert.confidence}%
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Semaphore dot ────────────────────────────────────────────
-
-function SemaphoreDot({ risk }: { risk: CompositeRisk }) {
-  const config = SEMAPHORE[risk.color];
-
-  return (
-    <div
-      className="flex items-center gap-1.5 px-2 py-1 rounded-md cursor-pointer shrink-0"
-      style={{
-        background: config.bg,
-        border: `1px solid ${config.border}`,
-        boxShadow: config.glow,
-      }}
-    >
-      <div
-        className={`w-2.5 h-2.5 rounded-full ${
-          risk.severity === 'critical' ? 'animate-pulse' : ''
-        }`}
-        style={{ backgroundColor: config.text }}
-      />
-      <span
-        className="text-[11px] font-black tracking-[0.1em]"
-        style={{ color: config.text }}
-      >
-        {config.label}
-      </span>
-      {risk.activeCount > 0 && (
-        <span className="text-[11px] text-slate-500 font-mono">
-          {risk.activeCount}
-        </span>
-      )}
-    </div>
-  );
-}
-
-// ── Main AlertPanel ──────────────────────────────────────────
 
 export const AlertPanel = memo(function AlertPanel() {
   const isMobile = useUIStore((s) => s.isMobile);
-  const alerts = useAlertStore((s) => s.alerts);
-  const risk = useAlertStore((s) => s.risk);
-  const panelExpanded = useAlertStore((s) => s.panelExpanded);
-  const togglePanel = useAlertStore((s) => s.togglePanel);
+  const drawerOpen = useUIStore((s) => s.fieldDrawerOpen);
+  const toggleDrawer = useUIStore((s) => s.toggleFieldDrawer);
+  const list = useConditionsList();
 
-  // Separate alerts by importance
-  const { topAlerts, otherAlerts } = useMemo(() => {
-    // Drone alerts only shown in FieldDrawer Dron panel, not here
-    const visible = alerts.filter(a => a.category !== 'drone');
-    const top = visible.filter(a => a.severity !== 'info');
-    const other = visible.filter(a => a.severity === 'info');
-    return { topAlerts: top, otherAlerts: other };
-  }, [alerts]);
+  const simpleMode = useUIStore((s) => s.simpleMode);
+  const tickerKey = useLevelZeroStore((s) => s.tickerKey);
+  // Lightning near a spot is said by the safety band over the map, not by the list of Condiciones:
+  // the strip must not say «Nada activo» under that band (F35, seen with ?simstrike).
+  const lightningRisks = useSpotLightningRisk();
+  // The spot the reader looks at: the strip names the same one as the band (lightningRiskLine)
+  const activeSpotId = useSpotStore((s) => s.activeSpotId);
+  const favoriteSpotId = useSpotStore((s) => s.favoriteSpotId);
 
-  const hasAlerts = alerts.length > 0;
+  const all = [...list.now, ...list.ahead];
+  // Simple mode: one voice per fact. The strip over the map says the official warnings and its one
+  // line; this one says only what that one does not, and with nothing left it is not drawn. The dot
+  // of Condiciones still marks that there are warnings.
+  const lines = simpleMode ? linesNotSaidAbove(all, tickerKey) : all;
+  if (simpleMode && lines.length === 0 && !list.unknownShort && lightningRisks.length === 0) return null;
+  // Green would say more than we know: with nothing active the dot stays grey, and a source that does
+  // not answer is said instead.
+  const listLevel = simpleMode ? levelOfLines(lines) : list.level;
+  const lightning = lightningRiskLine(lightningRisks, activeSpotId, favoriteSpotId);
+  const level = lightning && LEVEL_RANK[lightning.level] > LEVEL_RANK[listLevel] ? lightning.level : listLevel;
+  const state = level !== 'none'
+    ? SEMAPHORE[level]
+    : list.unknownShort
+      ? { tone: 'gc-t-alto', label: list.unknownShort }
+      : { tone: '', label: lines.length > 0 ? 'Nada urgente' : 'Nada activo' };
+  // One sentence, not three cut chips that all began «Aviso amarillo de…»: the gravest line, where and
+  // until when, and how many more wait in the list. The list is already in order inside each level
+  // (MeteoGalicia before IPMA, measured before model), so the first line of the gravest tone is taken.
+  const listWorst = worstLine(lines);
+  // When the lightning sets the level, its line leads; the list's own lines count as «y N más».
+  const lightningLeads = lightning != null && level === lightning.level && LEVEL_RANK[lightning.level] > LEVEL_RANK[listLevel];
+  const worst = lightningLeads ? lightning.line : listWorst;
+  const more = worst ? lines.length - (lightningLeads ? 0 : 1) : 0;
+  const sentence = worst ? `${worst.text}${worst.sub ? `, ${worst.sub}` : ''}` : '';
+  const word = level !== 'none' ? stripWord(level, worst) : state.label;
 
   return (
-    <div className="flex flex-col items-center gap-1.5 w-full">
-      {/* Expanded panel: full alert list */}
-      {panelExpanded && hasAlerts && (
-        <div
-          className="w-full rounded-xl px-3 py-2.5 space-y-1.5"
-          style={{
-            background: 'rgba(15, 23, 42, 0.97)',
-            border: '1px solid rgba(100, 116, 139, 0.25)',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
-          }}
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase">
-              Alertas activas <span className="badge-beta ml-1">Beta</span>
-            </span>
-            {!isMobile && (
-              <span className="text-[11px] text-slate-600 font-mono">A para cerrar</span>
-            )}
-          </div>
-
-          {/* Alert rows — real dangers */}
-          {topAlerts.map((a) => (
-            <AlertRow key={a.id} alert={a} />
-          ))}
-
-          {/* Info section — informational notices, separated */}
-          {otherAlerts.length > 0 && (
-            <>
-              <div className="flex items-center gap-2 mt-1 pt-1 border-t border-slate-700/40">
-                <span className="text-[11px] font-bold text-slate-600 tracking-wider uppercase">
-                  Avisos
-                </span>
-                <span className="text-[11px] text-slate-700">{otherAlerts.length}</span>
-              </div>
-              {otherAlerts.map((a) => (
-                <AlertRow key={a.id} alert={a} />
-              ))}
-            </>
-          )}
-
-          {alerts.length === 0 && (
-            <div className="text-[11px] text-slate-600 text-center py-2">
-              Sin alertas activas
-            </div>
-          )}
-
-          {/* Notification settings */}
-          <NotificationControl />
-        </div>
-      )}
-
-      {/* Compact strip: semaphore + top alert chips (always visible) */}
-      <div
-        className={`flex items-center gap-1.5 rounded-xl px-2 py-1.5 cursor-pointer
-          ${isMobile ? 'max-w-[calc(100vw-1rem)] overflow-x-auto scroll-hint-right' : ''}`}
-        style={{
-          background: 'rgba(15, 23, 42, 0.85)',
-          border: `1px solid rgba(100, 116, 139, 0.2)`,
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)',
-        }}
-        onClick={togglePanel}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePanel(); } }}
-        tabIndex={0}
-        role="button"
-        aria-label="Ver panel de alertas"
-      >
-        <SemaphoreDot risk={risk} />
-
-        {/* Top alert chips in compact mode — fewer on mobile */}
-        {!panelExpanded && topAlerts.slice(0, isMobile ? 2 : 3).map((a) => (
-          <AlertChip key={a.id} alert={a} />
-        ))}
-
-        {/* Overflow indicator */}
-        {!panelExpanded && topAlerts.length > (isMobile ? 2 : 3) && (
-          <span className="text-[11px] text-slate-500 font-mono shrink-0">
-            +{topAlerts.length - (isMobile ? 2 : 3)}
-          </span>
-        )}
-
-        {/* No alerts = show friendly message */}
-        {!hasAlerts && (
-          <span className="text-[11px] text-slate-500 px-1">
-            {isMobile ? 'Sin alertas' : 'Sin alertas · todo en orden'}
-          </span>
-        )}
-
-        {/* Expand/collapse indicator */}
-        <span className="text-[11px] text-slate-600 ml-auto shrink-0">
-          {panelExpanded ? '▼' : '▲'}
+    <button
+      type="button"
+      className="g-theme gc-alertstrip"
+      onClick={toggleDrawer}
+      aria-expanded={drawerOpen}
+      aria-label={`${word}${worst ? `: ${sentence}` : ''}${more > 0 ? `, y ${more} más` : ''}. Ver condiciones`}
+    >
+      <span className={`gc-alertstrip-risk ${state.tone}`}>
+        <span className={`gc-dot${level === 'critico' ? ' animate-pulse' : ''}`} />
+        {/* The level in a word, always: the colour of the dot alone does not say it */}
+        {word}
+      </span>
+      {worst && (
+        <span className="gc-alertline" title={sentence}>
+          <b>{worst.text}</b>
+          {worst.sub && !isMobile && <span className="gc-alertline-sub">{worst.sub}</span>}
         </span>
-      </div>
-    </div>
+      )}
+      {more > 0 && <span className="gc-alertline-more">y {more} más</span>}
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0, marginLeft: 'auto', transform: drawerOpen ? 'rotate(180deg)' : undefined }}>
+        <path d="M18 15l-6-6-6 6" />
+      </svg>
+    </button>
   );
 });
+
+const TONE_RANK: Record<string, number> = { critico: 4, alto: 3, moderado: 2, riesgo: 1 };
+
+/**
+ * The word of the strip. «Aviso» is what MeteoGalicia calls its warnings, so the lowest level says it
+ * only for an official line; rain measured by the gauges, fog or the model say «Atención» (18-nov:
+ * «Aviso · Lluvia moderada ahora» read as an official warning). «Alerta» and «Peligro» stay.
+ */
+export function stripWord(level: Exclude<AlertLevel, 'none'>, lead: ConditionLine | null): string {
+  if (level === 'riesgo' && lead?.origin !== 'oficial') return 'Atención';
+  return SEMAPHORE[level].label;
+}
+
+/** The level of what is left to say: the word of the strip has to match the line beside it. */
+export function levelOfLines(lines: ConditionLine[]): AlertLevel {
+  const worst = worstLine(lines);
+  if (!worst || worst.tone === null) return 'none';
+  return worst.tone === 'critico' ? 'critico' : worst.tone === 'alto' ? 'alto' : 'riesgo';
+}
+
+/** The gravest line; among equals, the first of the list. */
+export function worstLine(lines: ConditionLine[]): ConditionLine | null {
+  let best: ConditionLine | null = null;
+  for (const l of lines) {
+    if (!best || (TONE_RANK[l.tone ?? ''] ?? 0) > (TONE_RANK[best.tone ?? ''] ?? 0)) best = l;
+  }
+  return best;
+}
+
+const LEVEL_RANK: Record<AlertLevel, number> = { none: 0, riesgo: 1, alto: 2, critico: 3 };
+
+/**
+ * The strip's line for strikes near a spot, danger as «Peligro», warning as «Alerta». It names the same
+ * spot as the safety band over the map (namedFirst: the reader's spot if it is among the worst, else the
+ * first of the list, which comes with the gravest and closest first). With a rule of its own it named the
+ * closest one, and two spots at the same distance read «Rayo a 6 km — Cesantes» above and «Rayos a 6 km
+ * de Lourido» below (25-nov).
+ */
+export function lightningRiskLine(
+  risks: SpotLightningRisk[],
+  activeSpotId?: string | null,
+  favoriteSpotId?: string | null,
+): { level: AlertLevel; line: ConditionLine } | null {
+  if (risks.length === 0) return null;
+  const danger = risks.filter((r) => r.level === 'peligro');
+  const pool = danger.length ? danger : risks;
+  const nearest = namedFirst(pool, activeSpotId, favoriteSpotId);
+  const others = pool.length - 1;
+  return {
+    level: danger.length ? 'critico' : 'alto',
+    line: {
+      id: 'spot-lightning',
+      icon: 'zap',
+      tone: danger.length ? 'critico' : 'alto',
+      origin: 'medido',
+      text: `Rayos a ${Math.max(1, Math.round(nearest.nearestKm))} km de ${nearest.spotName}`,
+      sub: others > 0 ? `y ${others === 1 ? 'otro spot' : `${others} spots más`}` : undefined,
+    },
+  };
+}

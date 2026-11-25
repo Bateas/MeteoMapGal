@@ -37,7 +37,7 @@ function makeRisk(overrides: Partial<SpotLightningRisk> = {}): SpotLightningRisk
 }
 
 // Local-time constructor keeps getHours() deterministic across CI timezones
-// (documented gotcha: ISO-string + setSystemTime diverges between UTC and CEST).
+// (known trap: ISO-string + setSystemTime diverges between UTC and CEST).
 const DAY = new Date(2026, 6, 21, 15, 0, 0);   // 15:00 local — outside 23-07
 const NIGHT = new Date(2026, 6, 21, 2, 30, 0); // 02:30 local — inside 23-07
 

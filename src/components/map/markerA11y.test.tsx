@@ -48,6 +48,7 @@ import { useSpotStore } from '../../store/spotStore';
 import { useUserSpotStore } from '../../store/userSpotStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { SECTORS } from '../../config/sectors';
+import { getSpotsForSector } from '../../config/spots';
 
 function useSector(id: string) {
   useSectorStore.setState({ activeSector: SECTORS.find((s) => s.id === id)! } as never);
@@ -111,7 +112,7 @@ describe('spot clusters', () => {
     h.map = { getZoom: () => 7, on: vi.fn(), off: vi.fn(), flyTo };
     render(<SpotMarkers />);
 
-    const clusters = screen.getAllByRole('button', { name: /^Grupo de \d+ spots; el peor, / });
+    const clusters = screen.getAllByRole('button', { name: /^Grupo de \d+ spots$/ });
     expect(clusters.length).toBeGreaterThan(0);
     expect(clusters[0].tabIndex).toBe(0);
     // One stop, not two: the named button is neither inside another button (the
@@ -121,6 +122,18 @@ describe('spot clusters', () => {
 
     fireEvent.keyDown(clusters[0], { key: 'Enter' });
     expect(flyTo).toHaveBeenCalledTimes(1);
+  });
+
+  it('are named for a real danger, never for the windiest spot', () => {
+    h.map = { getZoom: () => 7, on: vi.fn(), off: vi.fn(), flyTo: vi.fn() };
+    const anySpot = getSpotsForSector('rias')[0].id;
+    useSpotStore.setState({
+      scores: new Map([[anySpot, { spotId: anySpot, verdict: 'strong', hardGateKind: 'wave', hardGateTriggered: 'Oleaje 3 m > 2 m' }]]),
+    } as never);
+    render(<SpotMarkers />);
+    expect(screen.getByRole('button', { name: /^Grupo de \d+ spots; peligro por oleaje$/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /el peor/ })).toBeNull();
+    useSpotStore.setState({ scores: new Map() } as never);
   });
 });
 

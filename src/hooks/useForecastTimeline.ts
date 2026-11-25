@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
-import type { HourlyForecast, ForecastState, ForecastModel } from '../types/forecast';
+import type { HourlyForecast, ForecastState } from '../types/forecast';
 import { MAP_CENTER } from '../config/constants';
 import { useVisibilityPolling } from './useVisibilityPolling';
 import { useSectorStore } from '../store/sectorStore';
@@ -61,7 +61,6 @@ interface ForecastStore extends ForecastState {
   setLoading: (v: boolean) => void;
   setError: (e: string | null) => void;
   setFetchedAt: (d: Date) => void;
-  setActiveModel: (m: ForecastModel) => void;
 }
 
 export const useForecastStore = create<ForecastStore>((set) => ({
@@ -70,14 +69,12 @@ export const useForecastStore = create<ForecastStore>((set) => ({
   fetchedAt: null,
   isLoading: false,
   error: null,
-  activeModel: 'meteosix_wrf',
 
   setHourly: (hourly) => set({ hourly }),
   setConvectionData: (convectionData) => set({ convectionData }),
   setLoading: (isLoading) => set({ isLoading }),
   setError: (error) => set({ error }),
   setFetchedAt: (fetchedAt) => set({ fetchedAt }),
-  setActiveModel: (activeModel) => set({ activeModel, hourly: [], fetchedAt: null }),
 }));
 
 // ---------------------------------------------------------------------------
@@ -137,7 +134,7 @@ async function fetchFromOwnAPI(sectorId: string): Promise<HourlyForecast[] | nul
 }
 
 /** Fetch directly from Open-Meteo (used for specific models or as fallback) */
-async function fetchFromOpenMeteo(model: ForecastModel, lat: number, lon: number): Promise<HourlyForecast[]> {
+async function fetchFromOpenMeteo(lat: number, lon: number): Promise<HourlyForecast[]> {
   const params = [
     'temperature_2m', 'relative_humidity_2m',
     'wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m',
@@ -149,7 +146,6 @@ async function fetchFromOpenMeteo(model: ForecastModel, lat: number, lon: number
     'temperature_500hPa',
   ].join(',');
 
-  const modelParam = model !== 'best_match' ? `&models=${model}` : '';
   const url =
     `https://api.open-meteo.com/v1/forecast` +
     `?latitude=${lat}&longitude=${lon}` +
@@ -157,8 +153,7 @@ async function fetchFromOpenMeteo(model: ForecastModel, lat: number, lon: number
     `&past_hours=${PAST_HOURS}` +
     `&forecast_hours=${FORECAST_HOURS}` +
     `&wind_speed_unit=ms` +
-    `&timezone=Europe%2FMadrid` +
-    modelParam;
+    `&timezone=Europe%2FMadrid`;
 
   const res = await openMeteoFetch(url, undefined, 15_000);
   if (!res.ok) throw new Error(`Open-Meteo forecast: ${res.status}`);
@@ -202,42 +197,18 @@ export function isWrfAnswer(h: HourlyForecast[] | null): h is HourlyForecast[] {
   return withSky >= h.length * 0.5;
 }
 
-async function fetchForecastTimeline(model: ForecastModel = 'best_match', lat = 42.29, lon = -8.1, sectorId = 'embalse'): Promise<HourlyForecast[]> {
-  // MeteoSIX WRF: our server already downloads this same run for these coordinates (hourly,
-  // meteoSixFetcher.ts) and serves it merged with the convection fields. Asking MeteoGalicia from
-  // every browser repeated it up to 480 times a day per URL; they asked for prudent use. Only the
-  // WRF carries the sky state, so an answer without it means the server fell back to Open-Meteo:
-  // then, and only then, ask MeteoSIX directly.
-  if (model === 'meteosix_wrf') {
-    const own = await fetchFromOwnAPI(sectorId);
-    if (isWrfAnswer(own)) return own;
-    return fetchMeteoSixForecast(lat, lon);
-  }
-
-  // For Auto (best_match): try our API first (avoids Open-Meteo rate limits)
-  if (model === 'best_match') {
-    const ownData = await fetchFromOwnAPI(sectorId);
-    if (ownData && ownData.length > 0) return ownData;
-    // Fallback to Open-Meteo if our API fails
-  }
-
-  // For specific models or fallback: use Open-Meteo directly
-  return fetchFromOpenMeteo(model, lat, lon);
-}
-
 // ---------------------------------------------------------------------------
 // Hook: auto-polls forecast data
 // ---------------------------------------------------------------------------
 
 export function useForecastTimeline() {
-  const { setHourly, setConvectionData, setLoading, setError, setFetchedAt, activeModel } = useForecastStore(
+  const { setHourly, setConvectionData, setLoading, setError, setFetchedAt } = useForecastStore(
     useShallow((s) => ({
       setHourly: s.setHourly,
       setConvectionData: s.setConvectionData,
       setLoading: s.setLoading,
       setError: s.setError,
       setFetchedAt: s.setFetchedAt,
-      activeModel: s.activeModel,
     })),
   );
 
@@ -257,31 +228,35 @@ export function useForecastTimeline() {
     const fetchSectorId = sectorId;
     setLoading(true);
     try {
-      const data = await fetchForecastTimeline(activeModel, coords[0], coords[1], sectorId);
+      const own: HourlyForecast[] | null = await fetchFromOwnAPI(sectorId);
+      const serverAnswer = own; // the check below narrows `own` to null in its other branch
       if (sectorIdRef.current !== fetchSectorId) return; // sector changed mid-fetch — drop stale
+      // MeteoSIX WRF: our server already downloads this same run for these coordinates (hourly,
+      // meteoSixFetcher.ts). Asking MeteoGalicia from every browser repeated it up to 480 times a day per
+      // URL; they asked for prudent use. Only the WRF carries the sky state, so an answer without it means
+      // the server fell back to Open-Meteo: then, and only then, ask MeteoSIX directly.
+      const data = isWrfAnswer(own)
+        ? own
+        : await fetchMeteoSixForecast(coords[0], coords[1]).catch((err) => {
+            if (serverAnswer && serverAnswer.length > 0) return serverAnswer; // better the server's fallback than no forecast
+            throw err;
+          });
+      if (sectorIdRef.current !== fetchSectorId) return;
       setHourly(data);
       setError(null);
       setFetchedAt(new Date());
 
-      // Background: always fetch Open-Meteo for CAPE/CIN/LI/gusts/visibility (storm predictor + alerts)
-      if (activeModel !== 'best_match') {
-        fetchFromOwnAPI(sectorId)
-          .then(bg => {
-            if (sectorIdRef.current !== fetchSectorId) return;
-            if (bg && bg.length > 0) setConvectionData(bg);
-          })
-          .catch(() => {
-            // Fallback to Open-Meteo direct if ingestor unavailable
-            fetchFromOpenMeteo('best_match', coords[0], coords[1])
-              .then(bg => {
-                if (sectorIdRef.current !== fetchSectorId) return;
-                setConvectionData(bg);
-              })
-              .catch(() => { /* silent — convection data is supplementary */ });
-          });
+      // CAPE/CIN/LI, gusts and visibility for the storm predictor and the alerts: our answer carries them
+      // merged, whichever model it comes from. This used to ask for the same URL a second time.
+      if (serverAnswer && serverAnswer.length > 0) {
+        setConvectionData(serverAnswer);
       } else {
-        // When using Auto/Open-Meteo, the main data already has CAPE/CIN/LI
-        setConvectionData(data);
+        fetchFromOpenMeteo(coords[0], coords[1])
+          .then((bg) => {
+            if (sectorIdRef.current !== fetchSectorId) return;
+            setConvectionData(bg);
+          })
+          .catch(() => { /* silent — convection data is supplementary */ });
       }
     } catch (err) {
       if (sectorIdRef.current !== fetchSectorId) return; // dropped: stale sector
@@ -291,24 +266,22 @@ export function useForecastTimeline() {
     } finally {
       if (sectorIdRef.current === fetchSectorId) setLoading(false);
     }
-  }, [sectorId, activeModel, coords, setHourly, setConvectionData, setLoading, setError, setFetchedAt]);
+  }, [sectorId, coords, setHourly, setConvectionData, setLoading, setError, setFetchedAt]);
 
   // Visibility-aware polling — pauses when tab is hidden
   useVisibilityPolling(poll, POLL_INTERVAL_MS, true, 5_000); // Stagger: 5s after page load
 
-  // Force immediate re-fetch when model OR sector changes (callback ref
-  // updates alone wait for the next interval tick, which can be up to 5min
-  // away — meanwhile the user sees stale forecast for the new sector).
-  const prevModelRef = useRef(activeModel);
+  // Force immediate re-fetch when the sector changes (callback ref updates alone wait for the next interval
+  // tick, which can be up to 5 min away — meanwhile the user sees stale forecast for the new sector).
   const prevSectorRef = useRef(sectorId);
   useEffect(() => {
-    const modelChanged = prevModelRef.current !== activeModel;
-    const sectorChanged = prevSectorRef.current !== sectorId;
-    if (modelChanged || sectorChanged) {
-      prevModelRef.current = activeModel;
+    if (prevSectorRef.current !== sectorId) {
       prevSectorRef.current = sectorId;
       setHourly([]); // Clear stale data to show loading state
+      // And the convection of the old sector: Condiciones reads it when the hours are empty, so the storm
+      // risk of the Rías could be said in the Interior until the answer came, or for good if it failed.
+      setConvectionData([]);
       poll();
     }
-  }, [activeModel, sectorId, poll, setHourly]);
+  }, [sectorId, poll, setHourly, setConvectionData]);
 }

@@ -210,3 +210,49 @@ export function isBuoyFresh(
   const ageMin = (now - new Date(buoy.timestamp).getTime()) / 60_000;
   return Number.isFinite(ageMin) && ageMin <= maxAgeMin;
 }
+
+/** After this long without a reading a buoy is drawn grey with «sin dato desde» instead of fading out. */
+export const BUOY_SILENT_MIN = 180;
+/** «sin dato desde las 18:10», «desde ayer a las 18:10», or «desde el 11-nov» before that (Madrid). Null while recent. */
+export function silentLabel(timestamp: Date | string | null | undefined, now = Date.now()): string | null {
+  if (!timestamp) return 'sin dato';
+  const t = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
+  if (Number.isNaN(t.getTime()) || now - t.getTime() < BUOY_SILENT_MIN * 60_000) return null;
+  const day = (d: Date) => new Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid', day: 'numeric', month: 'numeric' }).format(d);
+  const hm = new Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(t);
+  if (day(t) === day(new Date(now))) return `sin dato desde las ${hm}`;
+  if (day(t) === day(new Date(now - 86_400_000))) return `sin dato desde ayer a las ${hm}`;
+  const dm = new Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid', day: 'numeric', month: 'short' }).format(t).replace('.', '').replace(' ', '-');
+  return `sin dato desde el ${dm}`;
+}
+
+/** Where the long label of a silent buoy goes: over it, or to the side that has no spot. */
+export type LabelSide = 'above' | 'left' | 'right';
+/** A spot marker this close can sit on the label: about its width on screen at the zoom the label appears. */
+export const LABEL_CLASH_KM = 6;
+/** South of the buoy by more than this a spot is out of the way of a label drawn over or beside it. */
+const LABEL_CLEAR_SOUTH_KM = 2;
+
+/**
+ * The side for «sin dato desde las 10:45». Map symbols are always drawn UNDER the spot markers, so a label
+ * over the Vigo tide gauge ran under the Bocana marker, 3,7 km to its north-east, and read cut (25-nov).
+ * With a spot that close and not clearly to the south, the label goes to the opposite side; otherwise it
+ * stays over the buoy, as every buoy label does.
+ */
+export function labelSideAwayFromSpots(
+  at: { lat: number; lon: number },
+  spots: readonly { lat: number; lon: number }[],
+  withinKm = LABEL_CLASH_KM,
+): LabelSide {
+  const kmPerDegLon = 111.2 * Math.cos((at.lat * Math.PI) / 180);
+  let nearest: { km: number; east: number } | null = null;
+  for (const s of spots) {
+    const north = (s.lat - at.lat) * 111.2;
+    const east = (s.lon - at.lon) * kmPerDegLon;
+    const km = Math.hypot(north, east);
+    if (km > withinKm || north < -LABEL_CLEAR_SOUTH_KM) continue;
+    if (!nearest || km < nearest.km) nearest = { km, east };
+  }
+  if (!nearest) return 'above';
+  return nearest.east >= 0 ? 'left' : 'right';
+}

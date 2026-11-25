@@ -16,11 +16,12 @@
  *
  * Phase 1 (visual): live detection, no persistence.
  * Phase 2 (DB): planned `gust_front_events` table for ML calibration —
- *               see `memory/pending-work.md`.
+ *               see the project notes (not in this repository).
  */
 import { computeBearing } from './idwInterpolation';
 import type { StormCluster } from './stormTracker';
 import { msToKnots } from './windUtils';
+import { isWindBlacklisted } from './spotScoringEngine';
 
 // ── Thresholds ────────────────────────────────────────────
 
@@ -128,6 +129,8 @@ export function detectGustFronts(
   const out: GustFrontDetection[] = [];
 
   for (const r of readings) {
+    // A broken or sheltered anemometer is set aside for every wind figure: its gust ratio says nothing either.
+    if (isWindBlacklisted(r.stationId)) continue;
     if (r.ageMin > MAX_READING_AGE_MIN) continue;
     if (r.windMs == null || r.gustMs == null) continue;
 

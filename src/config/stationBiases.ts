@@ -23,7 +23,7 @@
  *    speeds (station / buoy) diverges materially from 1.0 in some
  *    direction, that's a sheltering or channeling artifact.
  *
- * 2. Documented in CLAUDE.md gotchas: known issues from session work.
+ * 2. Documented: known issues found while running the app.
  *
  * 3. Geographic reasoning: a station's orography (mountains, valleys)
  *    inferred from its lat/lon and topographic context.
@@ -32,7 +32,7 @@
  * never invent biases without basis — that just adds noise.
  *
  * Monthly review process: re-run the buoy-vs-station SQL audit (in
- * memory/monthly-station-bias-audit.md) and update sectors here.
+ * the monthly bias audit in the project notes) and update sectors here.
  */
 
 export interface StationBias {
@@ -61,7 +61,7 @@ export interface StationBias {
   note: string;
 
   /** Source of evidence — how we know this. */
-  evidence: 'empirical-buoy' | 'empirical-neighbor' | 'documented-gotcha' | 'geographic';
+  evidence: 'empirical-buoy' | 'empirical-neighbor' | 'documented' | 'geographic';
 }
 
 /**
@@ -197,14 +197,14 @@ export const STATION_BIASES: Readonly<Record<string, StationBias>> = {
       { from: 270, to: 360, type: 'channeled' },
     ],
     note: 'Cesantes — valle Redondela canaliza todo flujo a eje NE-SW. Otras direcciones leen artefactos. Pendiente validación empírica próximo audit (boya Marín no se solapó suficiente con esta estación).',
-    evidence: 'documented-gotcha',
+    evidence: 'documented',
   },
 
   'mg_10049': {
     stationId: 'mg_10049',
     unreliableSectors: [
       // Corrubedo MG is sheltered behind dunes / coastal relief for
-      // the open ocean sector. Documented gotcha: reads 5kt when the
+      // the open ocean sector. Documented: reads 5kt when the
       // ría is at 20kt. Only valid for Corrubedo SURF spot itself
       // (0.4km away) — never used as proxy for other spots.
       // No empirical buoy data available (Corrubedo too far from
@@ -212,7 +212,7 @@ export const STATION_BIASES: Readonly<Record<string, StationBias>> = {
       { from: 220, to: 320, type: 'sheltered' },
     ],
     note: 'Corrubedo MG — apantallada por dunas/relieve costero para sector W/SW. Solo válida para spot Corrubedo Surf local.',
-    evidence: 'documented-gotcha',
+    evidence: 'documented',
   },
 
   'mg_10064': {
@@ -221,12 +221,12 @@ export const STATION_BIASES: Readonly<Record<string, StationBias>> = {
       // Empirical buoy audit:
       //   ALL directions: ratio 0.13-0.39 vs both buoys.
       //   This station is GLOBALLY unreliable for "real ría wind",
-      //   not directionally biased. Original gotcha said it was
+      //   not directionally biased. The original note said it was
       //   "accelerated for N/NE downslope" — empirically wrong:
       //   it underreads in every sector tested.
       //
       // Practical implication: the detector should NOT use Lourizán
-      // as a primary reference for any spot. CLAUDE.md gotcha is
+      // as a primary reference for any spot. The project note is
       // updated.
       { from: 0, to: 360, type: 'sheltered' },  // entire compass
     ],

@@ -99,6 +99,17 @@ export const BUOY_COORDS_MAP = new Map(
   RIAS_BUOY_STATIONS.map((s) => [s.id, { lat: s.lat, lon: s.lon }]),
 );
 
+/**
+ * Entries of the buoy feed that are a land station with an id of its own in the station list, which is how
+ * the wind blacklist knows them. Lourizán is set aside as mg_10064 for reading near calm in every direction
+ * (ratio 0.13-0.18 against the buoys) and came back on the map as buoy 4271, painting that calm.
+ */
+const BUOY_LAND_STATION: ReadonlyMap<number, string> = new Map([[4271, 'mg_10064']]);
+
+export function buoyLandStationId(stationId: number): string | null {
+  return BUOY_LAND_STATION.get(stationId) ?? null;
+}
+
 // ── Our own copy ──────────────────────────────────────────────
 
 /** A row of /api/v1/buoys/latest: the merged reading, as stored. */
@@ -178,4 +189,46 @@ export async function fetchStoredBuoys(): Promise<BuoyReading[]> {
   if (!response.ok) throw new Error(`Buoys API error: ${response.status}`);
   const data = (await response.json()) as { readings?: StoredBuoyRow[] };
   return (data.readings ?? []).map(storedRowToReading);
+}
+
+/**
+ * The buoys of the list that are missing from the latest batch: our API keeps only the last 3 h, so a
+ * buoy that went silent used to vanish from the map without a word (Ons, 17-nov 18:10: Gestión saw it in
+ * Grafana, the app said nothing). One request per missing buoy for its last reading, remembered 30 min:
+ * a silent buoy does not change. A failed request is not remembered, the next poll asks again.
+ * A buoy back in the batch is forgotten: if it goes silent again within the 30 min, the old answer would
+ * say «sin dato desde» the hour of its first silence (P3 review, 19-nov).
+ */
+const SILENT_TTL_MS = 30 * 60_000;
+const silentCache = new Map<number, { at: number; reading: BuoyReading | null }>();
+export function __clearSilentBuoyCacheForTests(): void { silentCache.clear(); }
+
+export async function fetchSilentBuoys(present: Iterable<number>, now = Date.now()): Promise<BuoyReading[]> {
+  const have = new Set(present);
+  const out: BuoyReading[] = [];
+  for (const id of have) silentCache.delete(id);
+  for (const s of RIAS_BUOY_STATIONS) {
+    if (s.enabled === false || have.has(s.id)) continue;
+    const hit = silentCache.get(s.id);
+    if (hit && now - hit.at < SILENT_TTL_MS) {
+      if (hit.reading) out.push(hit.reading);
+      continue;
+    }
+    try {
+      const response = await fetchWithRetry(`/api/v1/buoys/latest?station_id=${s.id}`, {
+        label: `Buoy ${s.id} last reading (own API)`,
+        timeout: 8_000,
+        maxRetries: 0,
+      });
+      if (!response.ok) continue;
+      const data = (await response.json()) as { readings?: StoredBuoyRow[] };
+      const row = data.readings?.[0];
+      const reading = row ? { ...storedRowToReading(row), stationName: row.station_name ?? s.name } : null;
+      silentCache.set(s.id, { at: now, reading });
+      if (reading) out.push(reading);
+    } catch {
+      // Not remembered: the next poll asks again.
+    }
+  }
+  return out;
 }

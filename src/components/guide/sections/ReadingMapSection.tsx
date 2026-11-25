@@ -1,544 +1,83 @@
-import { WeatherIcon } from '../../icons/WeatherIcons';
-import type { IconId } from '../../icons/WeatherIcons';
+/**
+ * Guide: how to read the map. Short on purpose: what you see, what appears on its own, and one real
+ * day to read a forecast against. Every line was checked against the code; a new layer or a change of
+ * shape belongs here too.
+ */
+import { VERDICT_FILL, VERDICT_LINE } from '../../../config/verdictStyles';
+import { temperatureColor } from '../../../services/windUtils';
+import { MeasuredVsForecast, WindTonesStrip } from '../guideCharts';
+import { Ico } from '../guideParts';
+
+const SIZE = 28;
+
+function Hexagon() {
+  const pts = [0, 1, 2, 3, 4, 5].map((i) => { const a = (Math.PI / 3) * i - Math.PI / 6; return `${14 + 12 * Math.cos(a)},${14 + 12 * Math.sin(a)}`; }).join(' ');
+  return <svg width={SIZE} height={SIZE} aria-hidden="true"><polygon points={pts} fill={VERDICT_FILL.sailing} stroke="var(--g-m-ring)" strokeWidth={1.5} /></svg>;
+}
+function Pentagon() {
+  const pts = [0, 1, 2, 3, 4].map((i) => { const a = ((Math.PI * 2) / 5) * i - Math.PI / 2; return `${14 + 12 * Math.cos(a)},${14 + 12 * Math.sin(a)}`; }).join(' ');
+  return <svg width={SIZE} height={SIZE} aria-hidden="true"><polygon points={pts} fill="none" stroke={VERDICT_LINE.sailing} strokeWidth={2.5} /></svg>;
+}
+function Dot() {
+  return <svg width={SIZE} height={SIZE} aria-hidden="true"><circle cx={14} cy={14} r={8} fill={temperatureColor(10)} /></svg>;
+}
+function Diamond() {
+  return <svg width={SIZE} height={SIZE} aria-hidden="true"><polygon points="14,4 24,14 14,24 4,14" fill="#0e7490" /></svg>;
+}
+function Arrow() {
+  return <svg width={SIZE} height={SIZE} aria-hidden="true"><path d="M14 24V6M7 12l7-7 7 7" fill="none" stroke="var(--g-ink)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></svg>;
+}
+
+const KEYS: [string, string][] = [
+  ['P', 'Previsión'], ['C', 'Condiciones'], ['T', 'Temperatura, en avanzado'], ['W', 'Viento, radar o nada, en avanzado'],
+  ['R', 'Refrescar'], ['G', 'Esta guía'], ['?', 'Ayuda de atajos'], ['Esc', 'Cerrar lo abierto'],
+];
 
 export function ReadingMapSection() {
   return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-white">Cómo leer el mapa</h2>
-      <p className="text-slate-400 text-sm leading-relaxed">
-        MeteoMapGal muestra muchas capas de información. Aquí te explicamos
-        cómo interpretar cada elemento visual del mapa.
-      </p>
+    <div className="g-theme gg-page">
+      <h2>Cómo leer el mapa</h2>
+      <p>Empiezas en modo simple. El botón «Avanzado», en la cabecera o en el menú «Más» del móvil, añade el botón «Ver en el mapa», las listas de spots y estaciones, y el historial.</p>
 
-      {/* Interface overview */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-bold text-white">Elementos de la interfaz</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <MiniExplainer
-            iconId="eye-off"
-            title="Modo simple / avanzado"
-            text='Botón "Simple" en la cabecera (móvil: centro de la barra inferior). Si te abruma tanta información, actívalo: esconde estaciones, flechas de viento, contadores, gráficas y rankings, dejando solo spots, previsión, boyas y avisos importantes. Vuelves al modo completo cuando quieras pulsando "Avanzado".'
-          />
-          <MiniExplainer
-            iconId="layers"
-            title="Panel lateral (izquierda)"
-            text="Panel fijo con pestañas: Estaciones (lista completa), Gráfica (series temporales), Comparar (spots lado a lado), Previsión (48h), Rankings (top por métrica) e Historial (datos almacenados). Colapsable con el botón ◀."
-          />
-          <MiniExplainer
-            iconId="gauge"
-            title="Panel desplegable (derecha)"
-            text="Botón 'Panel' en la cabecera. Abre el drawer con 3 tabs: Navegación (veredicto viento), Campo (helada, riego, fitosanitario), Meteo (alertas activas, presión, teleconexiones). Con Modo Alpha activo se añade Dron (espacio aéreo, NOTAMs)."
-          />
-          <MiniExplainer
-            iconId="wind"
-            title="Barra inferior — capas de datos"
-            text="Botones en la parte inferior del mapa para activar/desactivar capas: Viento (partículas) y Radar de precipitación. Solo una activa a la vez. Tecla W para ciclar."
-          />
-          <MiniExplainer
-            iconId="map"
-            title="Selector de mapa base"
-            text="Botón en la esquina del mapa. 6 estilos: OSM, Positron, Dark Matter, Voyager (default), IGN Topográfico, IGN Base Gris. También toggles para overlays náuticos (OpenSeaMap, IHM) e IGN (ortofotos, sombreado, curvas)."
-          />
-          <MiniExplainer
-            iconId="sailboat"
-            title="Marcadores de spot"
-            text="Hexágonos (vela) y pentágonos (surf) semi-transparentes con arco de gauge e icono de actividad. Cada spot tiene un badge con el veredicto y nudos/olas. Clic abre popup con detalles."
-          />
-          <MiniExplainer
-            iconId="wind"
-            title="Ticker de condiciones"
-            text="Banner horizontal animado con botón de pausa. Colores por categoría: verde (spots con viento), ámbar (alertas/térmicos), cyan (mareas/olas), azul (previsión)."
-          />
+      <section className="gg-section">
+        <h3>Lo que ves</h3>
+        <ul className="gg-list">
+          <li><Hexagon /><span><b>Spot de vela</b><span className="gg-muted">Color y número: el viento en nudos. El aro se llena con el viento y la muesca marca de dónde viene. Si la punta del aro va punteada en otro color, el viento está a menos de un nudo de cambiar de nivel: ese color es el nivel de al lado. Tócalo para abrir la ficha.</span></span></li>
+          <li><Pentagon /><span><b>Spot de surf (Rías)</b><span className="gg-muted">Manda la ola, calculada con un modelo: por eso va hueco y lleva «~». El aro se llena con la altura. Su color dice cómo está: gris, flat; azul, peque; verde, surf ok; ámbar, clásico; lila, grande.</span></span></li>
+          <li><Dot /><span><b>Estación</b><span className="gg-muted">El centro es su temperatura: más azul cuanto más frío. En avanzado, el borde y las siglas dicen de qué red es. De lejos se agrupan en un círculo con cuántas hay, teñido por la temperatura de esa zona.</span></span></li>
+          <li><Diamond /><span><b>Boya (Rías)</b><span className="gg-muted">El centro es la temperatura del agua. Encima, la altura de la ola si la mide.</span></span></li>
+          <li><Arrow /><span><b>Flecha</b><span className="gg-muted">Apunta hacia donde va el viento: hacia arriba es viento del sur. Su color es la intensidad, de menos a más: la misma escala de los spots, que pasado Fuerte sigue en rojo desde 22 kt, magenta desde 34 (temporal), violeta desde 48 y violeta casi negro desde 56. La cifra y la racha de la ficha de estación van con los mismos colores.<WindTonesStrip /></span></span></li>
+        </ul>
+      </section>
+
+      <section className="gg-section">
+        <h3>Lo que sale solo</h3>
+        <ul className="gg-list">
+          <li><Ico id="zap" tone="storm" /><span><b>Rayos</b><span className="gg-muted gg-ages">
+            <span><i className="gg-swatch" style={{ background: '#fbbf24' }} />Amarillo, menos de 15 min</span>
+            <span><i className="gg-swatch" style={{ background: '#f97316' }} />Naranja, menos de 1 h</span>
+            <span><i className="gg-swatch" style={{ background: '#ef4444' }} />Rojo, menos de 6 h</span>
+            <span><i className="gg-swatch" style={{ background: '#6b7280' }} />Gris, más antiguos</span>
+          </span></span></li>
+          <li><Ico id="cloud-rain" tone="rain" /><span><b>Lluvia ahora</b><span className="gg-muted">Dónde llueve y hacia dónde va. El radar dibuja la zona y los pluviómetros confirman. La flecha de cada mancha llega hasta donde estaría en media hora; si viene hacia aquí, lleva en la punta la hora aproximada de llegada. El pluviómetro que late está midiendo lluvia ahora. Con tiempo seco no aparece.</span></span></li>
+          <li><Ico id="fog" tone="fog" /><span><b>Niebla</b><span className="gg-muted">Se pinta con varias señales o con una medida oficial, nunca por una sola cámara.</span></span></li>
+          <li><Ico id="flame" tone="fire" /><span><b>Incendios</b><span className="gg-muted">Lo que detectan los satélites y, cuando ya está consolidado, el incendio con su concello y sus hectáreas. Rojo si el satélite está seguro, naranja si menos; con aro morado, lo encendió un rayo.</span></span></li>
+          <li><Ico id="alert-triangle" tone="danger" /><span><b>Aviso arriba del mapa</b><span className="gg-muted">Rojo o morado, para lo más grave. Que no salga no significa que no haya peligro.</span></span></li>
+        </ul>
+      </section>
+
+      <section className="gg-section">
+        <MeasuredVsForecast />
+      </section>
+
+      <details className="gg-more">
+        <summary>Saber más</summary>
+        <p><b className="gg-ink">Lo que enciendes tú.</b> En avanzado, el botón «Ver en el mapa» enciende viento, radar, temperatura y webcams; en las Rías también oleaje (modelo) y carta náutica. En simple, de eso solo queda el botón «Temperatura». El botón «Mapa» cambia el mapa base: Auto, Calles, Topo o Foto.</p>
+        <p><b className="gg-ink">Atajos de teclado</b></p>
+        <div className="gg-keys">
+          {KEYS.map(([k, d]) => <span key={k} className="gg-small"><kbd>{k}</kbd>{d}</span>)}
         </div>
-      </div>
-
-      {/* Station markers */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-bold text-white">Marcadores de estación</h3>
-        <p className="text-xs text-slate-400">Círculos con la letra de la fuente (A, MG, MC, WU, NT, SX) y anillo de color. El círculo cambia de color según temperatura. Las boyas son diamantes con "B".</p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <ExplainerCard
-            title="Estación de viento"
-            svg={
-              <svg viewBox="0 0 60 60" className="w-12 h-12">
-                {/* Source ring */}
-                <circle cx="30" cy="30" r="16" fill="none" stroke="#8b5cf6" strokeWidth="1.5" opacity="0.6" />
-                {/* Temperature circle */}
-                <circle cx="30" cy="30" r="13" fill="#22c55e" opacity="0.75" />
-                {/* Source letter */}
-                <text x="30" y="35" textAnchor="middle" className="text-[11px] fill-white font-bold">MG</text>
-              </svg>
-            }
-            description="Círculo con letra de fuente (A, MG, MC, WU, NT, SX) + anillo de color de la red. Color = temperatura. Flechas afiladas alrededor = viento."
-          />
-          <ExplainerCard
-            title="Solo temperatura"
-            svg={
-              <svg viewBox="0 0 60 60" className="w-12 h-12">
-                <circle cx="30" cy="30" r="6" fill="#f59e0b" opacity="0.6" />
-                <text x="30" y="48" textAnchor="middle" className="text-[11px] fill-amber-500">22°C</text>
-              </svg>
-            }
-            description="Punto pequeño. Estaciones sin anemómetro. Contribuyen al gradiente térmico."
-          />
-          <ExplainerCard
-            title="Boya marina (Rías)"
-            svg={
-              <svg viewBox="0 0 60 60" className="w-12 h-12">
-                {/* Diamond shape */}
-                <polygon points="30,14 44,30 30,46 16,30" fill="#0e7490" stroke="#06b6d4" strokeWidth="2" opacity="0.75" />
-                {/* B letter */}
-                <text x="30" y="35" textAnchor="middle" className="text-[11px] fill-white font-bold">B</text>
-              </svg>
-            }
-            description={'Diamante con "B" central. Color = temperatura del agua. Muestra oleaje encima. Clic para popup con todos los datos. Solo Rías Baixas.'}
-          />
-        </div>
-      </div>
-
-      {/* Color scale */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-bold text-white">Colores de velocidad</h3>
-        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800">
-          <svg viewBox="0 0 400 50" className="w-full">
-            <defs>
-              <linearGradient id="windColorScale" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#64748b" />
-                <stop offset="25%" stopColor="#38bdf8" />
-                <stop offset="40%" stopColor="#22c55e" />
-                <stop offset="55%" stopColor="#84cc16" />
-                <stop offset="70%" stopColor="#eab308" />
-                <stop offset="85%" stopColor="#f97316" />
-                <stop offset="100%" stopColor="#ef4444" />
-              </linearGradient>
-            </defs>
-            <rect x="20" y="5" width="360" height="16" rx="8" fill="url(#windColorScale)" />
-            {[
-              { x: 20, label: '0' },
-              { x: 110, label: '6' }, { x: 170, label: '9' },
-              { x: 230, label: '13' }, { x: 290, label: '17' },
-              { x: 380, label: '23+' },
-            ].map((t) => (
-              <text key={t.label} x={t.x} y={38} textAnchor="middle" className="text-[11px] fill-slate-500 font-mono">{t.label} kt</text>
-            ))}
-          </svg>
-        </div>
-      </div>
-
-      {/* Standalone map buttons */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-bold text-white">Botones del mapa</h3>
-        <p className="text-[11px] text-slate-400 leading-relaxed">
-          Además de las capas, el mapa tiene botones independientes que activan
-          funciones sin interferir entre sí.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <MiniExplainer
-            iconId="thermometer"
-            title="Temperatura (T)"
-            text="Pulsa T para mostrar/ocultar el gradiente térmico: círculos con la temperatura de cada estación y líneas que conectan estaciones altas y bajas, mostrando la diferencia ΔT."
-          />
-          <MiniExplainer
-            iconId="zap"
-            title="Rayos / Tormentas"
-            text="Impactos de rayos en tiempo real (cada 2 min). Amarillo=reciente (<15 min), naranja=1h, rojo=antiguo, gris=>6h. Ver seccion 'Seguimiento de tormentas' mas abajo."
-          />
-        </div>
-      </div>
-
-      {/* Layer overlays */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-bold text-white">Capas interactivas (tecla W)</h3>
-        <p className="text-[11px] text-slate-400 leading-relaxed">
-          Cinco capas mutuamente excluyentes. Pulsa W para ciclar entre las 4 primeras.
-        </p>
-        <div className="space-y-2">
-          <LayerCard
-            iconId="wind"
-            name="Partículas de viento"
-            shortcut="W ×1"
-            description="Animación de 250 partículas mostrando el flujo del viento interpolado (IDW). Brillo pulsante en rachas fuertes (≥15kt). Sigue las líneas de flujo para ver la dirección."
-            color="#22c55e"
-          />
-          <LayerCard
-            iconId="droplets"
-            name="Heatmap de humedad"
-            shortcut="W ×2"
-            description="Mapa de calor de humedad interpolada. Verde=seco, azul=medio, púrpura=húmedo, rojo=saturado. Identifica zonas favorables para térmicos."
-            color="#3b82f6"
-          />
-          <LayerCard
-            iconId="radar"
-            name="Radar de precipitación"
-            shortcut="W ×4"
-            description="RainViewer: radar animado (2h de historial). Colores indican intensidad: azul=débil, verde=moderada, amarillo=fuerte, rojo=intensa, magenta=granizo."
-            color="#06b6d4"
-          />
-          </div>
-      </div>
-
-      {/* Automatic overlays */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-bold text-white">Capas automaticas (se activan solas)</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <MiniExplainer
-            iconId="cloud"
-            title="Niebla (terreno DEM)"
-            text="Cuando se detecta niebla (temperatura cercana al punto de rocío), se rellena el terreno bajo con una capa semitransparente. Interior: valles <185m (niebla de fondo de valle). Rías: costa <35m (niebla marina / bruma costera). Basado en el modelo digital del terreno."
-          />
-          <MiniExplainer
-            iconId="cloud-rain"
-            title="Lluvia ahora"
-            text="Cuando llueve, el mapa pinta dónde, con qué intensidad y hacia dónde va. El radar dibuja la zona y los pluviómetros confirman que llega al suelo: el eco débil que desmienten no se pinta. La flecha de cada mancha llega hasta donde estaría en media hora. Con tiempo seco no aparece. Se puede ocultar por hoy desde su botón en la barra inferior."
-          />
-          <MiniExplainer
-            iconId="thermometer"
-            title="Previsión WRF 1 km"
-            text="El modelo WRF de 1 km de MeteoGalicia. El panel de previsión lo lee a nivel de sector; la ficha de cada spot consulta la celda de ese spot."
-          />
-        </div>
-      </div>
-
-      {/* Other overlays */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-bold text-white">Otros indicadores del mapa</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <MiniExplainer
-            iconId="cloud"
-            title="Sombra de tormenta"
-            text="Caida brusca de radiacion solar en estaciones cercanas + rayos cercanos + anomalia de viento = tormenta acercandose incluso antes de ver los rayos."
-          />
-          <MiniExplainer
-            iconId="sun"
-            title="Radiación solar"
-            text="W/m² en estaciones equipadas (WU, MeteoGalicia). Caída brusca indica paso de nube o tormenta."
-          />
-          <MiniExplainer
-            iconId="tag"
-            title="Alertas térmicas"
-            text="Badges sobre zonas del embalse indicando estado del viento térmico. Incluyen propagación detectada."
-          />
-          <MiniExplainer
-            iconId="sailboat"
-            title="Banner Go/No-Go"
-            text="Indicador en el mapa: verde (GO 6-20kt), ámbar (viento flojo o fuerte), rojo (calma o >25kt)."
-          />
-          <MiniExplainer
-            iconId="drone"
-            title="Espacio aéreo UAS"
-            text="Zonas restringidas ENAIRE (ZGUAS + NOTAMs) visibles al abrir el tab Dron (Modo Alpha). Clic en zona → flyTo en mapa."
-          />
-          <MiniExplainer
-            iconId="info"
-            title="Estado de fuentes"
-            text="Badge en la cabecera indicando cuántas fuentes están activas. Ámbar = alguna fuente retrasada."
-          />
-          <MiniExplainer
-            iconId="download"
-            title="Exportar CSV"
-            text="Botón en menú de estación → exporta lecturas históricas a CSV. Compatible con Excel/LibreOffice."
-          />
-          <MiniExplainer
-            iconId="thermometer"
-            title="Presión y punto de rocío"
-            text="Datos de 5 fuentes (AEMET, MG, MC, WU, Netatmo). Spread T−Td para predicción de niebla."
-          />
-          <MiniExplainer
-            iconId="anchor"
-            title="Boyas marinas (Rías)"
-            text={'Marcadores en forma de diamante con "B" central. Color = temperatura del agua. Muestran altura de ola encima. Clic abre popup con oleaje, viento, T agua/aire, presión, corrientes y salinidad. Solo Rías Baixas.'}
-          />
-          <MiniExplainer
-            iconId="anchor"
-            title="Mareas (Rías)"
-            text="Panel de mareas IHM con curva SVG, tabla 48h y selector de puerto. Solo visible en sector Rías Baixas."
-          />
-          <MiniExplainer
-            iconId="gauge"
-            title="Perfil atmosférico (Interior)"
-            text="Evaluación de estabilidad: BLH, CAPE, CIN, LI. Barra vertical SVG con indicadores. Solo sector Interior."
-          />
-          <MiniExplainer
-            iconId="sailboat"
-            title="Spots de navegación"
-            text="Clic en el hexágono del spot para ver popup con veredicto, viento (kt), oleaje, T agua, patrón detectado y resumen. Score 0-100 por zona. El arco exterior indica la intensidad del viento. En móvil: panel inferior deslizable."
-          />
-          <MiniExplainer
-            iconId="wind"
-            title="Estadísticas de viento"
-            text="Wind stats por estación: velocidad media, racha máx, dirección dominante. Calculadas sobre lecturas acumuladas."
-          />
-          <MiniExplainer
-            iconId="database"
-            title="Historial meteorológico"
-            text="Pestaña Historial en el sidebar: gráfica temporal con selector de estación por nombre, métrica (T, viento, HR, presión), rango (24h/7d/30d) y estadísticas. Ver sección dedicada en la guía."
-          />
-          <MiniExplainer
-            iconId="alert-triangle"
-            title="Banner PELIGRO"
-            text="Banner rojo superior cuando hay alertas críticas (≥85 score). Sonido sutil tipo 'wind chime'. Clic abre panel de alertas. Ambos sectores."
-          />
-          <MiniExplainer
-            iconId="gauge"
-            title="Tendencia barométrica"
-            text="Detección por consenso de bajadas/subidas rápidas de presión en 3h. Alertas automáticas para aproximación de frentes."
-          />
-          <MiniExplainer
-            iconId="map-pin"
-            title="Batimetría (Rías)"
-            text="Overlay EMODnet con contornos de profundidad. Toggle independiente de capas de viento. Solo Rías Baixas."
-          />
-          <MiniExplainer
-            iconId="thermometer"
-            title="SST — Temperatura del mar (Rías)"
-            text="Overlay CMEMS/Copernicus Marine con mosaico WMTS de temperatura superficial del mar. Escala azul-rojo (10-22°C). Toggle independiente. Solo Rías Baixas."
-          />
-          <MiniExplainer
-            iconId="map"
-            title="Selector de mapa base"
-            text="6 estilos de mapa: OSM, Positron (claro), Dark Matter (oscuro), Voyager, IGN Topográfico e IGN Base Gris. Selector en esquina del mapa, sin claves API."
-          />
-          <MiniExplainer
-            iconId="anchor"
-            title="Señalización marítima — OpenSeaMap (Rías)"
-            text="Overlay con balizas, faros y señales marítimas del catálogo OpenSeaMap. Toggle en selector de mapa. Solo Rías Baixas."
-          />
-          <MiniExplainer
-            iconId="compass"
-            title="Carta náutica IHM (Rías)"
-            text="Overlay WMS de cartas electrónicas oficiales del Instituto Hidrográfico de la Marina. Toggle en selector de mapa. Solo Rías Baixas."
-          />
-          <MiniExplainer
-            iconId="layers"
-            title="Overlays IGN"
-            text="Tres capas opcionales del IGN: ortofotos PNOA (vista aérea), sombreado MDT (relieve 3D) y curvas de nivel. Toggle en selector de mapa. Ambos sectores."
-          />
-          <MiniExplainer
-            iconId="camera"
-            title="Webcams en spots"
-            text="Algunos spots incluyen imagen o enlace a webcam en vivo directamente en el popup del spot. Permite verificar condiciones reales antes de navegar."
-          />
-          <MiniExplainer
-            iconId="wind"
-            title="Ticker de condiciones"
-            text="Banner animado en la cabecera con resumen en tiempo real: veredictos de spots, racha máxima, oleaje, rango de temperaturas. Se desplaza automáticamente."
-          />
-          <MiniExplainer
-            iconId="database"
-            title="Rankings de estaciones"
-            text="Pestaña Rankings: top estaciones por viento, temperatura, humedad y presión en tiempo real. Actualización automática."
-          />
-          <MiniExplainer
-            iconId="wind"
-            title="Factor de racha"
-            text="Ratio racha/viento sostenido (×N.N) en popup de estaciones. Valores altos (>2.0) indican turbulencia e inestabilidad del flujo."
-          />
-          <MiniExplainer
-            iconId="thermometer"
-            title="Índice de calor"
-            text="Sensación térmica real cuando T>27°C y HR>40% (fórmula NWS). Se muestra en el popup del spot con código de color: amarillo >27°C, naranja >32°C, rojo >35°C."
-          />
-          <MiniExplainer
-            iconId="map-pin"
-            title="Spot favorito ★"
-            text="Marca tu spot preferido con ★ en el popup. Se muestra primero en el ticker y en selectores. Persiste entre sesiones (localStorage)."
-          />
-          <MiniExplainer
-            iconId="alert-triangle"
-            title="Alertas por Telegram"
-            text="MeteoMapGal envía alertas moderadas, altas y críticas a un bot de Telegram en tiempo real. Silencio nocturno 23:00-07:00 (solo pasan críticas)."
-          />
-          <MiniExplainer
-            iconId="gauge"
-            title="Estación SkyX"
-            text="Estación personal portátil con GPS. Se auto-descubre en el sector correspondiente. Mueves la estación → MeteoMapGal la detecta automáticamente."
-          />
-        </div>
-      </div>
-
-      {/* ── Storm tracking section ── */}
-      <div className="space-y-4">
-        <h3 className="text-sm font-bold text-white flex items-center gap-2">
-          <WeatherIcon id="zap" size={16} />
-          Seguimiento de tormentas
-        </h3>
-        <p className="text-[11px] text-slate-400 leading-relaxed">
-          MeteoMapGal detecta, agrupa y rastrea nucleos tormentosos en tiempo real. Toda la informacion
-          aparece directamente en el mapa sin necesidad de abrir menus.
-        </p>
-
-        {/* Visual legend */}
-        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-3">
-          <p className="text-xs font-bold text-purple-400">Elementos en el mapa</p>
-          <div className="space-y-2">
-            <div className="flex items-start gap-2">
-              <div className="w-3 h-3 mt-0.5 rounded-full shrink-0" style={{ background: '#fef08a', boxShadow: '0 0 6px #fbbf24' }} />
-              <p className="text-[11px] text-slate-300"><strong className="text-yellow-300">Punto amarillo brillante</strong> — Rayo reciente ({'<'}15 min). Cuanto mas grande, mas reciente.</p>
-            </div>
-            <div className="flex items-start gap-2">
-              <div className="w-3 h-3 mt-0.5 rounded-full shrink-0" style={{ background: '#f97316' }} />
-              <p className="text-[11px] text-slate-300"><strong className="text-orange-400">Punto naranja</strong> — Rayo de hace 15-60 min.</p>
-            </div>
-            <div className="flex items-start gap-2">
-              <div className="w-3 h-3 mt-0.5 rounded-full shrink-0" style={{ background: '#dc2626' }} />
-              <p className="text-[11px] text-slate-300"><strong className="text-red-400">Punto rojo</strong> — Rayo antiguo (1-6h). Donde hubo actividad reciente.</p>
-            </div>
-            <div className="flex items-start gap-2">
-              <div className="w-3 h-3 mt-0.5 rounded-full shrink-0" style={{ background: '#9ca3af' }} />
-              <p className="text-[11px] text-slate-300"><strong className="text-slate-400">Punto gris</strong> — Rayo de hace 6-24h. Referencia historica: muestra por donde paso la tormenta. Desaparecen tras 24h.</p>
-            </div>
-            <div className="flex items-start gap-2">
-              <div className="w-4 h-3 mt-0.5 rounded shrink-0" style={{ background: 'rgba(147,51,234,0.3)', border: '1px dashed rgba(147,51,234,0.6)' }} />
-              <p className="text-[11px] text-slate-300"><strong className="text-purple-400">Poligono violeta</strong> — Nucleo tormentoso (cluster). Agrupa rayos cercanos en una zona activa.</p>
-            </div>
-            <div className="flex items-start gap-2">
-              <div className="w-4 h-0.5 mt-1.5 shrink-0" style={{ background: '#f97316' }} />
-              <p className="text-[11px] text-slate-300"><strong className="text-orange-400">Flecha naranja</strong> — Direccion y velocidad del nucleo. Longitud proporcional a la velocidad.</p>
-            </div>
-            <div className="flex items-start gap-2">
-              <div className="w-4 mt-1.5 shrink-0 border-t border-dashed" style={{ borderColor: '#f97316' }} />
-              <p className="text-[11px] text-slate-300"><strong className="text-orange-400">Linea punteada</strong> — Proyeccion futura (5-30 min). Donde estara el nucleo si mantiene velocidad y direccion.</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Labels explanation */}
-        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-3">
-          <p className="text-xs font-bold text-amber-400">Etiquetas en cada cluster</p>
-          <div className="bg-slate-800/60 rounded-lg p-3 font-mono text-xs leading-relaxed text-center" style={{ color: '#fbbf24' }}>
-            12 rayos<br/>
-            {'→'} 45 km/h SW<br/>
-            32 km
-          </div>
-          <div className="space-y-1.5 text-[11px] text-slate-400">
-            <p><strong className="text-slate-200">Rayos</strong> — Numero de impactos en este nucleo (ultima hora).</p>
-            <p><strong className="text-slate-200">Velocidad + direccion</strong> — A donde se mueve el nucleo (SW = hacia el suroeste). Solo aparece si se detecta movimiento consistente en 2+ ciclos.</p>
-            <p><strong className="text-slate-200">Sin minutos de llegada</strong> — La app no dice en cuántos minutos llega una tormenta: comprobado con las tormentas guardadas, esa cifra fallaba casi siempre. La flecha indica hacia dónde se ha movido el núcleo, no dónde estará.</p>
-            <p><strong className="text-slate-200">Distancia (km)</strong> — Distancia desde el centro del cluster hasta el centro de tu sector. Asi sabes de un vistazo lo lejos que esta.</p>
-          </div>
-        </div>
-
-        {/* What the lightning chip says */}
-        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-3">
-          <p className="text-xs font-bold text-purple-400">Indicador de rayos: solo lo medido</p>
-          <p className="text-[11px] text-slate-400 leading-relaxed">
-            El indicador <strong className="text-purple-300">RAYOS</strong> de la barra inferior dice lo que ha medido la
-            red de rayos alrededor del centro de tu sector en los últimos 30 minutos:{' '}
-            <strong className="text-slate-200">a qué distancia cayó el más cercano, cuántos han caído y hace cuánto fue el último</strong>.
-          </p>
-          <div className="border-t border-slate-700/40 pt-2 space-y-1 text-[11px]">
-            <p className="text-slate-400"><strong className="text-red-300">PELIGRO</strong> — 2 rayos o más a menos de 10 km, o uno con otros 3 a menos de 25 km. Fuera del agua y a cubierto.</p>
-            <p className="text-slate-400"><strong className="text-amber-300">AVISO</strong> — 3 rayos o más a menos de 25 km, o uno a menos de 10 km. No te alejes de la orilla.</p>
-            <p className="text-slate-400"><strong className="text-purple-300">55 km</strong> (una distancia) — Hay rayos en la región, a menos de 80 km. Es un dato, no un aviso.</p>
-            <p className="text-slate-400"><strong className="text-slate-300">RAYOS</strong> en gris — Ningún rayo a menos de 80 km en 30 minutos.</p>
-          </div>
-          <p className="text-[11px] text-slate-500 leading-relaxed">
-            Ya no se enseña un porcentaje de tormenta ni los minutos de llegada. Los comparamos con los rayos que
-            cayeron después durante una temporada entera y no se cumplían: con «30-44 %» había tormenta en el punto
-            1 de cada 7 veces. Los rayos llegan a la app con unos 5 minutos de retraso.
-          </p>
-        </div>
-
-        {/* Safety tips */}
-        <div className="bg-red-950/30 rounded-xl p-4 border border-red-900/40 space-y-2">
-          <p className="text-xs font-bold text-red-400">Seguridad en el agua</p>
-          <div className="space-y-1 text-[11px] text-slate-300">
-            <p>Los rayos son el mayor peligro para deportes acuaticos. Si ves actividad electrica:</p>
-            <p className="text-red-300 font-medium">{'<'} 5 km — Sal del agua INMEDIATAMENTE. Busca refugio solido.</p>
-            <p className="text-amber-300 font-medium">5-25 km — Prepara para salir. No te alejes de la orilla.</p>
-            <p className="text-slate-400">25-80 km — Vigila la evolucion. Ten plan de salida preparado.</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Keyboard shortcuts summary */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-bold text-white">Atajos de teclado</h3>
-        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {[
-              { key: 'P', desc: 'Prevision fullscreen' },
-              { key: 'C', desc: 'Panel Campo' },
-              { key: 'R', desc: 'Refrescar datos' },
-              { key: 'T', desc: 'Gradiente temp.' },
-              { key: 'A', desc: 'Panel alertas' },
-              { key: 'W', desc: 'Ciclar capas' },
-              { key: 'B', desc: 'Numeros grandes' },
-              { key: 'G', desc: 'Esta guia' },
-              { key: '?', desc: 'Ayuda atajos' },
-            ].map((s) => (
-              <div key={s.key} className="flex items-center gap-2">
-                <kbd className="inline-flex items-center justify-center w-7 h-7 rounded bg-slate-800 border border-slate-700 text-[11px] font-mono font-bold text-slate-300">
-                  {s.key}
-                </kbd>
-                <span className="text-[11px] text-slate-500">{s.desc}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ExplainerCard({
-  title,
-  svg,
-  description,
-}: {
-  title: string;
-  svg: React.ReactNode;
-  description: string;
-}) {
-  return (
-    <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800 flex items-start gap-3">
-      <div className="shrink-0">{svg}</div>
-      <div>
-        <h4 className="text-xs font-bold text-slate-300">{title}</h4>
-        <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">{description}</p>
-      </div>
-    </div>
-  );
-}
-
-function LayerCard({
-  iconId,
-  name,
-  shortcut,
-  description,
-  color,
-}: {
-  iconId: IconId;
-  name: string;
-  shortcut: string;
-  description: string;
-  color: string;
-}) {
-  return (
-    <div
-      className="flex items-start gap-3 p-3 rounded-lg border"
-      style={{ borderColor: `${color}20`, background: `${color}08` }}
-    >
-      <span className="text-xl shrink-0" style={{ color }}><WeatherIcon id={iconId} size={20} /></span>
-      <div className="flex-1">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold" style={{ color }}>{name}</span>
-          <kbd className="text-[11px] px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-400 font-mono">{shortcut}</kbd>
-        </div>
-        <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">{description}</p>
-      </div>
-    </div>
-  );
-}
-
-function MiniExplainer({ iconId, title, text }: { iconId: IconId; title: string; text: string }) {
-  return (
-    <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800">
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-sm"><WeatherIcon id={iconId} size={14} /></span>
-        <span className="text-[11px] font-bold text-slate-300">{title}</span>
-      </div>
-      <p className="text-[11px] text-slate-500 leading-relaxed">{text}</p>
+      </details>
     </div>
   );
 }

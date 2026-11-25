@@ -80,7 +80,7 @@ export type IconId =
 /** Sailboat — simplified side view, stroke-based */
 function SailboatIcon({ size = 24, className }: { size?: number; className?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
       strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
       <path d="M12 2L12 20" />
       <path d="M12 4L19 15H12" />
@@ -93,7 +93,7 @@ function SailboatIcon({ size = 24, className }: { size?: number; className?: str
 /** Drone — quadcopter top view */
 function DroneIcon({ size = 24, className }: { size?: number; className?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
       strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
       <circle cx="12" cy="12" r="2" />
       <line x1="10" y1="10" x2="6" y2="6" />
@@ -111,7 +111,7 @@ function DroneIcon({ size = 24, className }: { size?: number; className?: string
 /** Fog — horizontal dashed lines */
 function FogIcon({ size = 24, className }: { size?: number; className?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
       strokeWidth="1.75" strokeLinecap="round" className={className}>
       <path d="M4 8h16" />
       <path d="M6 12h12" opacity="0.7" />
@@ -126,7 +126,7 @@ function FogIcon({ size = 24, className }: { size?: number; className?: string }
 /** Hail — cloud with dots falling */
 function HailIcon({ size = 24, className }: { size?: number; className?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
       strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
       <path d="M20 16.2A4.5 4.5 0 0017.5 8h-1.2A7 7 0 104 14.9" />
       <circle cx="8" cy="18" r="1" fill="currentColor" stroke="none" />
@@ -141,7 +141,7 @@ function HailIcon({ size = 24, className }: { size?: number; className?: string 
 /** Thermal wind — wavy upward arrows */
 function ThermalWindIcon({ size = 24, className }: { size?: number; className?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
       strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
       <path d="M8 20C8 20 6 16 6 12C6 8 8 4 8 4" />
       <path d="M8 4L5 7" />
@@ -156,7 +156,7 @@ function ThermalWindIcon({ size = 24, className }: { size?: number; className?: 
 /** Mountain — simple peak */
 function MountainIcon({ size = 24, className }: { size?: number; className?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
       strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
       <path d="M2 20L8.5 8L12 14L15.5 8L22 20H2Z" />
       <path d="M8.5 8L10 10.5L12 14" />
@@ -167,7 +167,7 @@ function MountainIcon({ size = 24, className }: { size?: number; className?: str
 /** Beach — wave + shore line */
 function BeachIcon({ size = 24, className }: { size?: number; className?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
       strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
       <path d="M17 20L21 12H14L17 4" />
       <path d="M2 16C4 14 6 14 8 16C10 18 12 18 14 16C16 14 18 14 20 16" />
@@ -179,7 +179,7 @@ function BeachIcon({ size = 24, className }: { size?: number; className?: string
 /** Sleep/ZZZ — for calm conditions */
 function SleepIcon({ size = 24, className }: { size?: number; className?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
       strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className}>
       <path d="M15 4H20L15 10H20" />
       <path d="M9 10H13L9 15H13" />

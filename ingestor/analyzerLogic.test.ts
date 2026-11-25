@@ -441,7 +441,7 @@ describe('inferCastreloDirection', () => {
 // ── scoreSpot — Cesantes canalization override (TIER 1 P0) ────────
 //
 // These integration tests exercise the connection between the ingestor analyzer
-// and the frontend cesantesCanalizationDetector. Pre-S136+3+1 the analyzer used
+// and the frontend cesantesCanalizationDetector. Before, the analyzer used
 // raw wind consensus only → Cesantes always read 5-10kt (sheltered behind Monte
 // Costa da Vela) → Telegram alerts never fired even on classic SW canalization
 // days. Now: if predictCesantesCanalization is active + confidence ≥70 + delta

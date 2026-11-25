@@ -77,3 +77,30 @@ export function fetchSpotForecast(
 
   return attempt;
 }
+
+/** What the card does with the place of its wind chart («Lo que viene»). */
+export type WindChartPlace = 'chart' | 'wait' | 'none';
+
+/**
+ * Whether the card draws the chart of measured and coming wind, keeps its place while it is on its way, or
+ * leaves nothing. The chart needs the spot's forecast and a firm wind figure, and both land a moment after the
+ * card opens: without the place kept, the sheet of a phone peeked at its head and grew a second later (25-nov).
+ * No place is kept for what will not come: a failed forecast, or a spot scored with no wind at all.
+ */
+export function windChartPlace(o: {
+  isSurf: boolean;
+  /** The figure the card shows (null while it is withheld or there is none). */
+  windKt: number | null;
+  /** Still to be scored, or scored provisionally: the figure is on its way. */
+  scorePending: boolean;
+  forecastHours: number;
+  loading: boolean;
+  failed: boolean;
+}): WindChartPlace {
+  if (o.isSurf) return 'none';
+  if (o.windKt != null && o.forecastHours > 0) return 'chart';
+  if (o.failed) return 'none';
+  const forecastComing = o.forecastHours > 0 || o.loading;
+  const figureComing = o.windKt != null || o.scorePending;
+  return forecastComing && figureComing ? 'wait' : 'none';
+}

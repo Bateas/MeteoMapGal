@@ -52,11 +52,11 @@ export interface SurfVerdictResult {
 // old PEQUE line called Corrubedo «ideal para iniciarse» while its own card
 // says «Solo intermedio-avanzado».
 const LEVELS: SurfVerdictResult[] = [
-  { level: 0, label: 'FLAT',    color: '#94a3b8', text: '#94a3b8', lightText: '#475569', bg: 'rgba(100,116,139,0.15)', summary: 'Mar plano — sin olas para surf' },
-  { level: 1, label: 'PEQUE',   color: '#22d3ee', text: '#67e8f9', lightText: '#155e75', bg: 'rgba(34,211,238,0.12)',  summary: 'Olas pequeñas' },
-  { level: 2, label: 'SURF OK', color: '#3b82f6', text: '#93c5fd', lightText: '#1d4ed8', bg: 'rgba(59,130,246,0.12)',  summary: 'Olas surfeables' },
-  { level: 3, label: 'CLÁSICO', color: '#22c55e', text: '#4ade80', lightText: '#166534', bg: 'rgba(34,197,94,0.12)',   summary: 'Día clásico — olas limpias y consistentes' },
-  { level: 4, label: 'GRANDE',  color: '#f97316', text: '#fdba74', lightText: '#9a3412', bg: 'rgba(249,115,22,0.12)',  summary: 'Mar grande — solo con experiencia' },
+  { level: 0, label: 'FLAT',    color: '#a3aca7', text: '#a3aca7', lightText: '#4f5b64', bg: 'rgba(100,116,139,0.15)', summary: 'Mar plano — sin olas para surf' },
+  { level: 1, label: 'PEQUE',   color: '#62a8f5', text: '#62a8f5', lightText: '#1f5fa8', bg: 'rgba(34,211,238,0.12)',  summary: 'Olas pequeñas' },
+  { level: 2, label: 'SURF OK', color: '#37bd78', text: '#37bd78', lightText: '#0b7145', bg: 'rgba(59,130,246,0.12)',  summary: 'Olas surfeables' },
+  { level: 3, label: 'CLÁSICO', color: '#f5b82e', text: '#f5b82e', lightText: '#855a00', bg: 'rgba(34,197,94,0.12)',   summary: 'Día clásico — olas limpias y consistentes' },
+  { level: 4, label: 'GRANDE',  color: '#ff8a3d', text: '#ff8a3d', lightText: '#a84a0a', bg: 'rgba(249,115,22,0.12)',  summary: 'Mar grande — solo con experiencia' },
 ];
 
 /**

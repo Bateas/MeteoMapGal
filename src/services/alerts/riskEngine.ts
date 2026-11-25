@@ -3,7 +3,7 @@
  *
  * The composite risk index uses weighted-max: the highest (score x weight)
  * determines overall risk. Weights amplify dangerous categories (storm x3.0)
- * and suppress low-impact ones (drone x0.5).
+ * over low-impact ones (thermal x1.0).
  */
 
 import type { AlertSeverity, CompositeRisk, UnifiedAlert } from './types';
@@ -37,7 +37,7 @@ export function colorFromSeverity(severity: AlertSeverity): 'green' | 'yellow' |
  *
  * Uses weighted-max: the highest (score x weight) determines overall risk.
  * Weights amplify dangerous categories (storm x3.0) and suppress low-impact
- * ones (drone x0.5). The final score is normalized by dividing by the
+ * ones (thermal x1.0). The final score is normalized by dividing by the
  * HIGHEST weight among active alerts, so the weight hierarchy is preserved.
  */
 /** Severity rank for comparison (higher = more severe) */

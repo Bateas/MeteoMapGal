@@ -1,310 +1,79 @@
 /**
- * Guide section: Vientos de las Rías Baixas — coastal wind patterns.
- * Equivalent to ThermalCastreloSection but for Rías sector.
- * Scalable pattern: each zone gets its own section with local knowledge.
+ * Guide: the winds of the Rías. Each spot's own wind is in its card (windPatterns in spots.ts); this
+ * page gives the general picture.
  */
-import { WeatherIcon } from '../../icons/WeatherIcons';
+import { AFTERNOON_REDONDELA, TypicalAfternoon } from '../guideCharts';
+import { Def, type Tone } from '../guideParts';
 import type { IconId } from '../../icons/WeatherIcons';
+
+const WINDS: [string, string, string, IconId, Tone][] = [
+  ['Nortada (NW)', 'Verano, 12 a 20 kt', 'El viento del verano gallego, constante en los spots de fuera. Trae agua fría y puede traer niebla en las bocas.', 'wind', 'sea'],
+  ['Virazón (SW)', 'Primavera a otoño, tardes, 8 a 15 kt', 'Brisa de mar que entra cuando el sol calienta la tierra. Mejor en días claros y sin norte.', 'sun', 'wind'],
+  ['Suroeste de frente', 'Otoño e invierno, fuerte', 'Temporales con lluvia y mar grande fuera. Dentro de las rías se nota menos el mar, no el viento.', 'alert-triangle', 'danger'],
+  ['Terral (E/NE)', 'Mañanas, 5 a 10 kt', 'Tras una noche fría y despejada, el aire baja de tierra a la ría. Se para cuando el sol calienta, hacia las 11 h.', 'moon', 'air'],
+];
+
+const ZONES: [string, string, IconId, Tone][] = [
+  ['Fuera (Cíes, Lanzada)', 'Mar abierto: mar de fondo y nortada directa.', 'anchor', 'sea'],
+  ['Media ría (Centro Ría, Lourido)', 'Algo de abrigo del mar de fondo. La brisa entra bien, con ola corta de viento.', 'sailboat', 'wind'],
+  ['Interior (Cesantes, Bocana)', 'Sin mar de fondo. Brisa de tarde y norte racheado por Rande.', 'map-pin', 'field'],
+];
+
+const WATCH: [string, string, IconId, Tone][] = [
+  ['Afloramiento', 'Con norte sostenido, el agua de arriba se va mar adentro y sube agua fría del fondo.', 'thermometer', 'cold'],
+  ['Niebla de mar', 'Aire cálido sobre agua fría: niebla densa en las bocas, a menudo con la ría interior despejada.', 'fog', 'fog'],
+  ['Mar cruzado', 'El viento cambia y las olas viejas siguen. Mar confuso, sobre todo fuera y con mar de fondo.', 'waves', 'danger'],
+  ['Corrientes de marea', 'En los estrechos como Rande son fuertes. Con viento en contra levantan mar corto. Mira la marea antes de salir.', 'anchor', 'sea'],
+];
+
+const SEASONS: [string, string][] = [
+  ['Primavera', 'Virazón y días variables.'],
+  ['Verano', 'Nortada estable y brisas de tarde. La mejor época.'],
+  ['Otoño', 'Suroeste de frente y terral por la mañana. Días sueltos.'],
+  ['Invierno', 'Temporales del suroeste y días de norte.'],
+];
 
 export function RiasBaixasSection() {
   return (
-    <div className="space-y-8">
-      <div className="space-y-2">
-        <h2 className="text-3xl font-extrabold text-white tracking-tight">Vientos de las Rías Baixas</h2>
-        <p className="text-slate-400 text-sm leading-relaxed">
-          Patrones de viento costero, cómo funcionan las rías y qué esperar en cada spot según la época del año.
-        </p>
-      </div>
+    <div className="g-theme gg-page">
+      <h2>Vientos de las Rías</h2>
+      <p>Las rías son embudos: canalizan el viento y lo cambian. Una estación a 2 km puede marcar otra cosa, y por eso cada spot cruza varias.</p>
 
-      {/* ── 1. Patrones principales ── */}
-      <div className="space-y-3">
-        <h3 className="text-lg font-bold text-white flex items-center gap-2">
-          <WeatherIcon id="wind" size={18} className="text-cyan-400" />
-          Tres vientos, tres personalidades
-        </h3>
-        <div className="space-y-2">
-          <PatternCard
-            name="Nortada (NW)"
-            direction="295°–330°"
-            season="Verano (Jun–Sep)"
-            speed="12–20 kt"
-            color="#3b82f6"
-            description="El viento dominante del verano gallego. Asociado al anticiclón de las Azores. Constante, predecible, ideal para navegar en spots exteriores (Cíes-Ría). Produce afloramiento (agua fría) y puede generar niebla en las bocas."
-          />
-          <PatternCard
-            name="Virazón / Térmica (SW/WSW)"
-            direction="200°–250°"
-            season="Primavera–Otoño (tardes)"
-            speed="10–18 kt"
-            color="#22c55e"
-            description="Brisa de mar que entra por las tardes cuando el sol calienta la tierra. Similar al térmico de valle pero más suave. Funciona mejor en días claros con diferencia tierra-mar."
-          />
-          <PatternCard
-            name="Suroeste atlántico (SW)"
-            direction="200°–240°"
-            season="Otoño–Invierno"
-            speed="15–30+ kt"
-            color="#ef4444"
-            description="Temporales atlánticos con frentes de lluvia. Olas de 2-4m en zonas exteriores. Solo para expertos con equipo adecuado. Las rías interiores (Cesantes, Bocana) quedan más protegidas."
-          />
-        </div>
-      </div>
+      <section className="gg-section">
+        <TypicalAfternoon data={AFTERNOON_REDONDELA} title="En agosto, la brisa sube por la tarde: máximo hacia las 17 h" />
+      </section>
 
-      {/* ── 2. El ciclo diario ── */}
-      <div className="space-y-3">
-        <h3 className="text-lg font-bold text-white flex items-center gap-2">
-          <WeatherIcon id="clock" size={18} className="text-amber-400" />
-          Ciclo diario típico (verano)
-        </h3>
-        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800">
-          <div className="space-y-2">
-            <CycleRow hours="00–07h" icon="moon" label="Terral (E/NE)" desc="Aire frío drena de tierra al mar por las rías. Más fuerte en el eje central (Rande). 2-8 kt." color="#64748b" />
-            <CycleRow hours="07–11h" icon="sun" label="Calma transitoria" desc="El terral se debilita. El sol empieza a calentar la tierra. Transición." color="#f59e0b" />
-            <CycleRow hours="11–14h" icon="wind" label="Entrada de brisa" desc="Rotación a W/SW. La brisa de mar empieza a entrar por las bocas de las rías." color="#22c55e" />
-            <CycleRow hours="14–18h" icon="sailboat" label="Pico de viento" desc="Brisa establecida. Mejor momento para navegar. 10-18 kt en spots favorables." color="#3b82f6" />
-            <CycleRow hours="18–21h" icon="cloud-sun" label="Caída gradual" desc="El viento baja al perder calentamiento solar. Últimos ratos navegables." color="#8b5cf6" />
-          </div>
-        </div>
-      </div>
+      <section className="gg-section">
+        <h3>Los cuatro vientos</h3>
+        <dl className="gg-defs">
+          {WINDS.map(([name, when, text, id, tone]) => (
+            <Def key={name} id={id} tone={tone} name={name}>{text}<span className="gg-muted gg-small gg-block">{when}</span></Def>
+          ))}
+        </dl>
+      </section>
 
-      {/* ── 3. El efecto ría ── */}
-      <div className="space-y-3">
-        <h3 className="text-lg font-bold text-white flex items-center gap-2">
-          <WeatherIcon id="waves" size={18} className="text-teal-400" />
-          El efecto ría: canalización y protección
-        </h3>
-        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 text-xs text-slate-400 space-y-3 leading-relaxed">
-          <p>
-            Las rías son <strong className="text-slate-300">estuarios en forma de embudo</strong> que
-            modifican el viento de formas muy diferentes según dónde estés:
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <ZoneCard
-              title="Exterior (Cíes, Ons)"
-              icon="anchor"
-              traits={['Exposición oceánica total', 'Olas de fondo (swell)', 'Nortada directa 12-20kt', 'Mar cruzado posible']}
-              color="#ef4444"
-              level="Avanzado"
-            />
-            <ZoneCard
-              title="Media ría (C. Ría, Lourido)"
-              icon="sailboat"
-              traits={['Protección parcial del swell', 'Virazón SW bien canalizada', 'Olas cortas de viento local', 'Condiciones versátiles']}
-              color="#f59e0b"
-              level="Intermedio"
-            />
-            <ZoneCard
-              title="Interior (Cesantes, Bocana)"
-              icon="map-pin"
-              traits={['Agua plana, sin swell', 'Térmica WSW de tarde', 'N canalizado por Rande', 'Ideal para empezar']}
-              color="#22c55e"
-              level="Principiante"
-            />
-          </div>
-        </div>
-      </div>
+      <section className="gg-section">
+        <h3>Según dónde estés</h3>
+        <dl className="gg-defs">
+          {ZONES.map(([name, text, id, tone]) => <Def key={name} id={id} tone={tone} name={name}>{text}</Def>)}
+        </dl>
+      </section>
 
-      {/* ── 4. Fenómenos costeros ── */}
-      <div className="space-y-3">
-        <h3 className="text-lg font-bold text-white flex items-center gap-2">
-          <WeatherIcon id="alert-triangle" size={18} className="text-red-400" />
-          Fenómenos a tener en cuenta
-        </h3>
-        <div className="space-y-2">
-          <PhenomenonCard
-            icon="thermometer"
-            title="Afloramiento (upwelling)"
-            desc="Viento N/NW sostenido ≥12kt durante 6+ horas empuja el agua superficial mar adentro. Sube agua fría del fondo (caída de 3-5°C). Típico de julio-agosto. MeteoMapGal lo detecta y alerta."
-            color="#06b6d4"
-          />
-          <PhenomenonCard
-            icon="cloud"
-            title="Niebla de advección"
-            desc="Tras un episodio de afloramiento, si llega aire cálido del S/SW sobre el agua fría → niebla densa en las bocas. Las rías interiores suelen estar despejadas. Más frecuente al atardecer."
-            color="#8b5cf6"
-          />
-          <PhenomenonCard
-            icon="waves"
-            title="Mar cruzado (cross-sea)"
-            desc="Cuando el viento cambia de dirección pero el oleaje antiguo persiste → olas cruzadas, mar confuso. Peligroso en spots exteriores con swell oceánico (periodo ≥8s). MeteoMapGal alerta cuando la divergencia supera 45°."
-            color="#ef4444"
-          />
-          <PhenomenonCard
-            icon="anchor"
-            title="Corrientes de marea"
-            desc="En estrechos (Rande, bocanas) las corrientes de marea pueden alcanzar 2+ nudos. Combinadas con viento en contra crean mar corto e incómodo. Consulta las mareas antes de salir."
-            color="#0ea5e9"
-          />
-        </div>
-      </div>
+      <section className="gg-section">
+        <h3>A tener en cuenta</h3>
+        <dl className="gg-defs">
+          {WATCH.map(([name, text, id, tone]) => <Def key={name} id={id} tone={tone} name={name}>{text}</Def>)}
+        </dl>
+      </section>
 
-      {/* ── 5. Estacionalidad ── */}
-      <div className="space-y-3">
-        <h3 className="text-lg font-bold text-white flex items-center gap-2">
-          <WeatherIcon id="sun" size={18} className="text-amber-400" />
-          ¿Cuándo es mejor?
-        </h3>
-        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800">
-          <div className="space-y-1.5">
-            <SeasonRow season="Primavera (Mar–May)" pattern="Virazón SW + días variables" quality="Irregular" dotColor="bg-amber-400" />
-            <SeasonRow season="Verano (Jun–Sep)" pattern="Nortada NW estable + térmicas SW" quality="Mejor época" dotColor="bg-emerald-400" />
-            <SeasonRow season="Otoño (Oct–Nov)" pattern="SW frontal + terral matutino" quality="Días sueltos" dotColor="bg-amber-400" />
-            <SeasonRow season="Invierno (Dic–Feb)" pattern="Temporales SW, días de N" quality="Solo expertos" dotColor="bg-red-400" />
-          </div>
-        </div>
-      </div>
-
-      {/* ── 6. Surf en las Rías ── */}
-      <div className="space-y-3">
-        <h3 className="text-lg font-bold text-white flex items-center gap-2">
-          <WeatherIcon id="waves" size={18} className="text-cyan-400" />
-          Surf en las R&#237;as Baixas
-        </h3>
-        <div className="bg-slate-900/50 rounded-xl p-4 border border-cyan-800/20 text-xs text-slate-400 space-y-3 leading-relaxed">
-          <p>
-            Las R&#237;as Baixas tienen playas de surf con personalidades muy diferentes,
-            desde beach breaks protegidos hasta rompientes potentes de parque natural.
-          </p>
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              <span className="text-cyan-400 font-bold shrink-0 w-20">Patos</span>
-              <span>Beach break + reef en Nigr&#225;n. Protegida por las C&#237;es (factor 0.45). Mejor con swell NW &gt;1m, marea media-alta, offshore S/SSW.</span>
-            </div>
-            <div className="flex gap-2">
-              <span className="text-cyan-400 font-bold shrink-0 w-20">Lanzada</span>
-              <span>2.4km de playa W abierta. La m&#225;s consistente de Galicia. Funciona con SW/W/WNW. Offshore NE/E por las ma&#241;anas.</span>
-            </div>
-            <div className="flex gap-2">
-              <span className="text-cyan-400 font-bold shrink-0 w-20">Corrubedo</span>
-              <span>Parque natural de dunas, playa NW. Olas potentes, corrientes fuertes. Solo intermedio-avanzado. Offshore SE/S.</span>
-            </div>
-          </div>
-          <p>
-            <strong className="text-cyan-300">Correcci&#243;n costera:</strong> los modelos de oleaje global sobreestiman para costas semi-protegidas.
-            MeteoMapGal ajusta autom&#225;ticamente por playa (factor de exposici&#243;n) y por direcci&#243;n del swell respecto a la orientaci&#243;n de la playa.
-          </p>
-        </div>
-      </div>
-
-      {/* ── 7. Patrón bocana/terral ── */}
-      <div className="space-y-3">
-        <h3 className="text-lg font-bold text-white flex items-center gap-2">
-          <WeatherIcon id="compass" size={18} className="text-emerald-400" />
-          Patr&#243;n bocana (terral matutino)
-        </h3>
-        <div className="bg-slate-900/50 rounded-xl p-4 border border-emerald-800/20 text-xs text-slate-400 space-y-3 leading-relaxed">
-          <p>
-            Entre las 6 y las 11 de la ma&#241;ana, el aire fr&#237;o de tierra drena hacia la r&#237;a generando un
-            <strong className="text-emerald-300"> terral E/NE</strong> de 5-17kt. Las boyas lo detectan mientras
-            las estaciones de tierra a&#250;n marcan calma — por eso es invisible para apps convencionales.
-          </p>
-          <p>
-            La boya de Rande detecta este patr&#243;n con un &#916;T &gt;2&#176;C (agua m&#225;s fr&#237;a que el aire nocturno).
-            MeteoMapGal lo identifica autom&#225;ticamente y lo muestra como predictor de buenas condiciones matutinas.
-          </p>
-          <p className="text-slate-500 italic">
-            Mejor en: noches despejadas y fr&#237;as seguidas de ma&#241;ana soleada. Se para cuando el sol calienta (~11h).
-          </p>
-        </div>
-      </div>
-
-      {/* ── Nota ── */}
-      <div className="bg-blue-900/10 rounded-lg p-3 border border-blue-700/20">
-        <p className="text-[11px] text-blue-400/70">
-          <WeatherIcon id="info" size={12} className="inline mr-1" />
-          Las rías canalizan y modifican el viento — una estación a 2km de distancia puede marcar
-          condiciones muy diferentes. Por eso MeteoMapGal cruza datos de múltiples estaciones cercanas
-          a cada spot, ponderando por calidad de fuente, distancia y frescura del dato.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-/* ─── Sub-components ─── */
-
-function PatternCard({ name, direction, season, speed, color, description }: {
-  name: string; direction: string; season: string; speed: string; color: string; description: string;
-}) {
-  return (
-    <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800" style={{ borderColor: `${color}25` }}>
-      <div className="flex items-center gap-3 mb-2">
-        <div className="w-3 h-3 rounded-full shrink-0" style={{ background: color }} />
-        <span className="text-sm font-bold" style={{ color }}>{name}</span>
-        <span className="text-[11px] text-slate-500 font-mono ml-auto">{direction}</span>
-      </div>
-      <div className="flex gap-4 mb-2">
-        <span className="text-[11px] text-slate-500"><strong className="text-slate-400">{season}</strong></span>
-        <span className="text-[11px] text-slate-500"><strong className="text-slate-400">{speed}</strong></span>
-      </div>
-      <p className="text-[11px] text-slate-500 leading-relaxed">{description}</p>
-    </div>
-  );
-}
-
-function CycleRow({ hours, icon, label, desc, color }: {
-  hours: string; icon: IconId; label: string; desc: string; color: string;
-}) {
-  return (
-    <div className="flex items-start gap-3 py-1.5">
-      <span className="text-xs font-mono text-slate-500 w-14 shrink-0">{hours}</span>
-      <span style={{ color }}><WeatherIcon id={icon} size={14} /></span>
-      <div>
-        <span className="text-[11px] font-bold" style={{ color }}>{label}</span>
-        <p className="text-[11px] text-slate-500 mt-0.5">{desc}</p>
-      </div>
-    </div>
-  );
-}
-
-function ZoneCard({ title, icon, traits, color, level }: {
-  title: string; icon: IconId; traits: string[]; color: string; level: string;
-}) {
-  return (
-    <div className="bg-slate-800/30 rounded-lg p-3 border border-slate-700/50">
-      <div className="flex items-center gap-1.5 mb-2">
-        <WeatherIcon id={icon} size={13} />
-        <span className="text-[11px] font-bold text-slate-300">{title}</span>
-      </div>
-      <ul className="space-y-1 mb-2">
-        {traits.map((t) => (
-          <li key={t} className="text-[11px] text-slate-500 flex items-start gap-1">
-            <span style={{ color }}>•</span> {t}
-          </li>
-        ))}
-      </ul>
-      <span className="text-[11px] font-bold px-1.5 py-0.5 rounded" style={{ color, background: `${color}15` }}>
-        {level}
-      </span>
-    </div>
-  );
-}
-
-function PhenomenonCard({ icon, title, desc, color }: {
-  icon: IconId; title: string; desc: string; color: string;
-}) {
-  return (
-    <div className="flex items-start gap-3 p-3 rounded-lg bg-slate-900/50 border border-slate-800">
-      <span className="shrink-0 mt-0.5" style={{ color }}><WeatherIcon id={icon} size={16} /></span>
-      <div>
-        <span className="text-xs font-bold" style={{ color }}>{title}</span>
-        <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">{desc}</p>
-      </div>
-    </div>
-  );
-}
-
-function SeasonRow({ season, pattern, quality, dotColor }: {
-  season: string; pattern: string; quality: string; dotColor: string;
-}) {
-  return (
-    <div className="flex items-center gap-3 py-1">
-      <span className="text-[11px] font-bold text-slate-300 w-36 shrink-0">{season}</span>
-      <span className="text-[11px] text-slate-500 flex-1">{pattern}</span>
-      <span className="text-[11px] font-bold shrink-0 flex items-center gap-1">
-        <span className={`inline-block w-2 h-2 rounded-full ${dotColor}`} />
-        {quality}
-      </span>
+      <details className="gg-more">
+        <summary>Saber más</summary>
+        <p><b className="gg-ink">Por épocas</b></p>
+        <dl className="gg-defs gg-defs-tight">
+          {SEASONS.map(([name, text]) => <div key={name}><dt>{name}</dt><dd>{text}</dd></div>)}
+        </dl>
+        <p className="gg-gap"><b className="gg-ink">Terral en la Bocana.</b> Entre las 6 y las 11 h, las boyas lo notan mientras las estaciones de tierra casi no marcan nada. La app lo nombra si el agua de Rande está al menos 1,5 °C más caliente que el aire. Con una boya que sople de tierra lo da por detectado; sin ella, «probable». La cifra sigue siendo la medida: el terral no le suma viento.</p>
+      </details>
     </div>
   );
 }

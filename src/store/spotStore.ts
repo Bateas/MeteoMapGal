@@ -20,6 +20,14 @@ import type { UpperAirLevel } from '../services/synopticRegime';
  *  labelled "2h" and must not splice yesterday onto today. Matches MAX_HISTORY
  *  (24 points at five-minute intervals) from the other end. */
 export const WIND_HISTORY_MAX_AGE_MS = 2 * 60 * 60 * 1000;
+/** About two hours at five-minute intervals. */
+export const WIND_HISTORY_MAX_POINTS = 24;
+/**
+ * One point per five minutes, whatever the scoring cadence. With «one per minute» and scoring every 30 s,
+ * a point went in every 90 s, the 24 covered 36 min and the trend (last 45 min against the 75 before) never
+ * had a «before»: «sube/baja» could not appear (P3 review, 19-nov). A few seconds of slack for the timers.
+ */
+export const WIND_HISTORY_STEP_MS = 5 * 60_000 - 10_000;
 
 export interface SpotWindSnapshot {
   ts: number;
@@ -67,6 +75,8 @@ interface SpotActions {
   selectSpot: (spotId: string) => void;
   toggleFavorite: (spotId: string) => void;
   setScores: (scores: Map<string, SpotScore>) => void;
+  /** Adds figures the server stored before this visit, so the trend does not start from nothing. */
+  seedWindHistory: (points: Map<string, SpotWindSnapshot[]>) => void;
   setSailingWindows: (windows: Map<string, SpotWindowResult>) => void;
   setSectorForecast: (forecast: HourlyForecast[]) => void;
   setThermalPrecursors: (precursors: Map<string, ThermalPrecursorResult>) => void;
@@ -123,20 +133,32 @@ export const useSpotStore = create<SpotState & SpotActions>()(
 
         setScores: (scores) => {
           const now = Date.now();
-          const MAX_HISTORY = 24; // ~2h at 5min intervals
           const prev = useSpotStore.getState().windHistory;
           const next = new Map(prev);
           for (const [spotId, sc] of scores) {
             if (sc.wind) {
               const arr = next.get(spotId) ?? [];
-              // Avoid duplicate if scored within 60s of last entry
-              if (arr.length === 0 || now - arr[arr.length - 1].ts > 60_000) {
-                const updated = [...arr, { ts: now, kt: sc.wind.avgSpeedKt }];
-                next.set(spotId, updated.length > MAX_HISTORY ? updated.slice(-MAX_HISTORY) : updated);
+              if (arr.length === 0 || now - arr[arr.length - 1].ts >= WIND_HISTORY_STEP_MS) {
+                const updated = [...arr, { ts: now, kt: sc.effectiveWindKt ?? sc.wind.avgSpeedKt }];
+                next.set(spotId, updated.length > WIND_HISTORY_MAX_POINTS ? updated.slice(-WIND_HISTORY_MAX_POINTS) : updated);
               }
             }
           }
           set({ scores, lastScored: now, windHistory: next }, undefined, 'setScores');
+        },
+
+        seedWindHistory: (seed) => {
+          const cutoff = Date.now() - WIND_HISTORY_MAX_AGE_MS;
+          const next = new Map(useSpotStore.getState().windHistory);
+          for (const [spotId, points] of seed) {
+            const own = next.get(spotId) ?? [];
+            // What this visit scored wins: it is what the card has been showing
+            const firstOwn = own.length > 0 ? own[0].ts : Infinity;
+            const older = points.filter((p) => p.ts > cutoff && p.ts < firstOwn - 60_000);
+            const merged = [...older].sort((a, b) => a.ts - b.ts).concat(own);
+            if (merged.length > 0) next.set(spotId, merged.slice(-WIND_HISTORY_MAX_POINTS));
+          }
+          set({ windHistory: next }, undefined, 'seedWindHistory');
         },
 
         setSailingWindows: (sailingWindows) =>

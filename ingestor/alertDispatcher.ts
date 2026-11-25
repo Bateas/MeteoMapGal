@@ -358,7 +358,7 @@ function postOps(type: string, title: string, msg: string, key: string): Promise
   return postWebhook({ type, category: 'ops', detail: msg, title, message: msg, text: msg, severity: 'moderate' }, key);
 }
 
-// ── Magic Window alerts (T2-2 S136+3+3) ───────────────
+// ── Magic Window alerts ─────────────────────────────
 
 /** Magic window alerts are RARE by design — 6h cooldown prevents spam
  *  during sustained windows where score oscillates around threshold. */

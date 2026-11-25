@@ -238,3 +238,20 @@ describe('assessRainNowcast — what the rain layer measured (21-oct)', () => {
     expect(r.summary).toBe('Lluvia en ~20 min (radar)');
   });
 });
+
+describe('spokenStationName: a private station is never said by its code', () => {
+  it('a network code becomes what the station is and how far it stands', async () => {
+    const { spokenStationName } = await import('./rainNowcastService');
+    expect(spokenStationName('nt_713c00', 'Netatmo 713c00', 2.4)).toBe('estación particular a 2 km');
+    expect(spokenStationName('wu_IVIGO123', 'IVIGO123', 0.4)).toBe('estación particular cercana');
+    expect(spokenStationName('mc_ESGAL3600000036940A', 'ESGAL3600000036940A')).toBe('estación particular cercana');
+    expect(spokenStationName('nt_713c00', '', 6)).toBe('estación particular a 6 km');
+  });
+
+  it('a station with a name of its own keeps it', async () => {
+    const { spokenStationName } = await import('./rainNowcastService');
+    expect(spokenStationName('mg_10155', 'Ourense-Estacións', 2)).toBe('Ourense-Estacións');
+    expect(spokenStationName('nt_2b3acc', 'O Viso', 3)).toBe('O Viso');
+    expect(spokenStationName('wu_IBARBA26', 'Barbadás', 5)).toBe('Barbadás');
+  });
+});

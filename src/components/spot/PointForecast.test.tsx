@@ -119,11 +119,11 @@ describe('PointForecast', () => {
     expect(screen.queryByText(/de al lado/)).toBeNull();
   });
 
-  it('says there are none only once the list has arrived', async () => {
+  it('says nothing about warnings when there are none: an absence is not news (18-nov)', async () => {
     vi.mocked(fetchMeteoSixForecast).mockResolvedValue([rainyHour] as never);
     render(<PointForecast pointId="p" lat={42.2} lon={-8.2} zones={zones} />);
-    expect(screen.queryByText(/Sin avisos/)).toBeNull();
-    await waitFor(() => expect(screen.getByText('Sin avisos oficiales en Zona A.')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/4,9 mm en 1 h/)).toBeTruthy());
+    expect(screen.queryByText(/avisos oficiales/i)).toBeNull();
   });
 
   it('claims nothing about warnings when the list fails', async () => {

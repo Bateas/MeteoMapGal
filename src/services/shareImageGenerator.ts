@@ -1,7 +1,7 @@
 /**
  * Share image generator — renders a 1200x630 PNG card for social sharing.
  *
- * T3-5 (S136+3+4). User-facing feature: tap Compartir on a spot popup
+ * User-facing feature: tap Compartir on a spot popup
  * generates a polished image with verdict, wind, marine extras and
  * MeteoMapGal branding. Goal: WhatsApp / Telegram / X friendly.
  *
@@ -19,7 +19,7 @@
 
 import type { SpotScore, SpotVerdict } from './spotScoringEngine';
 import type { SailingSpot } from '../config/spots';
-import { VERDICT_HEX, displayVerdict, displayWindKt, isDirVariable, verdictLabel, gateWaveText, gateWaveWhere, verdictDoubtText } from '../config/verdictStyles';
+import { hexOf, windToneOver, displayVerdict, displayWindKt, isDirVariable, verdictLabel, gateWaveText, gateWaveWhere, verdictDoubtText, isGusty, GUSTY_LABEL } from '../config/verdictStyles';
 
 // ── Data shape ──────────────────────────────────────────────
 
@@ -38,8 +38,10 @@ export interface ShareCardData {
   waterTempC: number | null;
   waveSummary: string | null;
   summary: string | null;
-  /** «entre Navegable y Buen día» when the wind sits on a verdict line. */
+  /** «entre Navegable y Bueno» when the wind sits on a verdict line. */
   doubt?: string | null;
+  /** A light mean with strong gusts: the card says «racheado» beside the verdict. */
+  gusty?: boolean;
   /** Spot closed by the sea: «3,0 m» and where it was measured; the card then leads with the sea. */
   seaText?: string | null;
   seaWhere?: string | null;
@@ -79,8 +81,8 @@ export function buildShareData(
   // checking twice.
   const verdict = displayVerdict(score);
   const label = verdictLabel(score);
-  const verdictColor = VERDICT_HEX[verdict] ?? '#94a3b8';
   const windKt = displayWindKt(score);
+  const verdictColor = hexOf(verdict, windToneOver(verdict, windKt)) ?? '#94a3b8';
   const dir = isDirVariable(score.wind) ? 'variable' : degToCardinal(score.windDirDeg);
   // gustKt lives on SpotScore, not on the wind consensus — `wind.maxGustKt`
   // does not exist and silently read undefined, so the card never showed one.
@@ -102,6 +104,7 @@ export function buildShareData(
     waveSummary: extras.waveSummary ?? null,
     summary: score.summary ?? null,
     doubt: verdictDoubtText(score),
+    gusty: isGusty(score),
     seaText: gateWaveText(score),
     seaWhere: gateWaveWhere(score),
     generatedAt: new Date(),
@@ -125,6 +128,12 @@ function fitText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number):
     else hi = mid - 1;
   }
   return text.slice(0, lo) + ellipsis;
+}
+
+/** What the card writes beside the verdict: «entre Calma y Flojo, racheado», one of the two, or null. */
+export function pillAside(data: Pick<ShareCardData, 'doubt' | 'gusty'>): string | null {
+  const bits = [data.doubt, data.gusty ? GUSTY_LABEL : null].filter(Boolean);
+  return bits.length > 0 ? bits.join(', ') : null;
 }
 
 export function renderShareCanvas(canvas: HTMLCanvasElement, data: ShareCardData): void {
@@ -174,11 +183,13 @@ export function renderShareCanvas(canvas: HTMLCanvasElement, data: ShareCardData
   ctx.fillStyle = data.verdictColor;
   ctx.textBaseline = 'middle';
   ctx.fillText(verdictText, PAD + 24, 242);
-  // The wind on a verdict line: both levels named beside the pill, in the quiet tone.
-  if (data.doubt) {
+  // Beside the pill, in the quiet tone: both levels when the wind sits on a verdict line, and the
+  // word for a light mean with strong gusts.
+  const aside = pillAside(data);
+  if (aside) {
     ctx.font = '500 32px "DM Sans", system-ui, sans-serif';
     ctx.fillStyle = '#94a3b8';
-    ctx.fillText(fitText(ctx, data.doubt, CARD_W - PAD * 2 - verdictW - 24), PAD + verdictW + 24, 242);
+    ctx.fillText(fitText(ctx, aside, CARD_W - PAD * 2 - verdictW - 24), PAD + verdictW + 24, 242);
   }
 
   ctx.textBaseline = 'alphabetic';
@@ -329,16 +340,16 @@ export function buildShareUrl(data: Pick<ShareCardData, 'sectorId' | 'spotId'>):
 
 export function buildShareText(data: ShareCardData): string {
   // Line 1: spot — verdict · wind · waves
-  const line1Bits: string[] = [`${data.spotName} — ${data.verdictLabel}`];
+  const line1Bits: string[] = [`${data.spotName} — ${data.verdictLabel}${data.gusty ? `, ${GUSTY_LABEL}` : ''}`];
   if (data.seaText) {
     line1Bits.push(`${data.seaText} ${data.seaWhere ?? ''}`.trim());
-    if (data.windKt != null) line1Bits.push(`viento ${data.windKt}kt`);
+    if (data.windKt != null) line1Bits.push(`viento ${data.windKt} kt`);
   } else if (data.windKt != null) {
-    line1Bits.push(`${data.windKt}kt${data.windDirCardinal ? ' ' + data.windDirCardinal : ''}`);
+    line1Bits.push(`${data.windKt} kt${data.windDirCardinal ? ' ' + data.windDirCardinal : ''}`);
     if (data.doubt) line1Bits.push(data.doubt);
   }
   if (data.gustKt != null && data.windKt != null && data.gustKt >= data.windKt + 5) {
-    line1Bits.push(`rachas ${data.gustKt}kt`);
+    line1Bits.push(`rachas ${data.gustKt} kt`);
   }
   if (data.waveSummary) line1Bits.push(`olas ${data.waveSummary}`);
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SIM_PARAMS, activeSimParams, isSimulationActive, urlWithoutSimulation } from './simulation';
+import { SIM_PARAMS, activeSimParams, isSimulationActive, urlWithoutSimulation, withSimulation } from './simulation';
 
 // Node modules through a string variable, as in repoGuards.test.ts: the app tsconfig carries
 // no Node types (a static 'node:fs' import fails tsc -b), and the test always runs under Node.
@@ -25,6 +25,18 @@ describe('simulation parameters', () => {
     expect(urlWithoutSimulation('https://example.org/?sector=rias&simstrike=cesantes&spot=cesantes#guia'))
       .toBe('https://example.org/?sector=rias&spot=cesantes#guia');
     expect(urlWithoutSimulation('https://example.org/?simfog=a,b&simrain=1')).toBe('https://example.org/');
+  });
+
+  it('the address a card writes keeps the simulation of the page it opened on', () => {
+    expect(withSimulation('/?sector=rias&spot=cesantes', '?simorange=1')).toBe('/?sector=rias&spot=cesantes&simorange=1');
+    expect(withSimulation('/?sector=rias&spot=cesantes', '?simstrike=cesantes&simrain=1&otra=x'))
+      .toBe('/?sector=rias&spot=cesantes&simstrike=cesantes&simrain=1');
+    expect(isSimulationActive(withSimulation('/?sector=rias&spot=vao', '?simwait=vao').split('/')[1])).toBe(true);
+  });
+
+  it('and adds nothing to it on a normal page', () => {
+    expect(withSimulation('/?sector=rias&spot=cesantes', '')).toBe('/?sector=rias&spot=cesantes');
+    expect(withSimulation('/?sector=rias&spot=cesantes', '?sector=embalse&debug=1')).toBe('/?sector=rias&spot=cesantes');
   });
 
   it('every ?sim* read anywhere in src is in the list', () => {

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { NormalizedReading, NormalizedStation } from '../types/station';
 import { assembleMosaic, lonLatToPx, type RadarMosaic } from './radarDecode';
 import {
-  RAIN_GAUGE_BLACKLIST, announcingTracks, approachingCells, leadingEdge, rainTrajectories, classifyGauges, drawableCells, echoWorthFollowing, findRainCells, formatEta,
+  RAIN_GAUGE_BLACKLIST, MIN_TRAJECTORY_KM2, announcingTracks, approachingCells, leadingEdge, rainTrajectories, classifyGauges, drawableCells, echoWorthFollowing, findRainCells, formatEta,
   gaugeIntensity, groundTruth, rainArrivalAt, renderRain, roundEta,
 } from './rainNowService';
 import type { CellTrack } from './radarTracking';
@@ -317,6 +317,15 @@ describe('rainTrajectories: where each patch on the map is heading', () => {
   it('returns nothing without tracks', () => {
     expect(rainTrajectories(cells, null, drawn, flow, BASE)).toEqual([]);
   });
+
+  it('a small patch gets no arrow of its own (18-nov: only big patches or the one coming)', () => {
+    const small = mosaicWith([{ ...east(-20), r: 2.5, dbz: 30 }]);
+    const sc = findRainCells(small).cells;
+    expect(sc.length).toBe(1);
+    expect(sc[0].areaKm2).toBeLessThan(MIN_TRAJECTORY_KM2);
+    expect(rainTrajectories(sc, tracksFor(sc, track('moving', 40, 90)), new Set(sc.map((c) => c.id)), flow, BASE)).toEqual([]);
+    expect(cells.every((c) => c.areaKm2 >= MIN_TRAJECTORY_KM2)).toBe(true);
+  });
 });
 
 describe('leadingEdge: where an arrow starts', () => {
@@ -334,6 +343,25 @@ describe('leadingEdge: where an arrow starts', () => {
     const [ex] = lonLatToPx(m, toEast.lon, toEast.lat);
     expect(ex - cx).toBeGreaterThan(6);
     expect(ex - cx).toBeLessThanOrEqual(10.5);
+  });
+
+  it('lands on a pixel of the patch even when the line through its centre crosses a hole (18-nov)', () => {
+    // Two bars, rows 0-2 and 10-12, joined by nothing on the line through their centre (row 6)
+    const [ox, oy] = lonLatToPx(m, c.lon, c.lat).map(Math.floor);
+    const bars: number[] = [];
+    for (const row of [0, 1, 2, 10, 11, 12]) for (let col = 0; col < 20; col++) bars.push((oy + row) * m.w + ox + col);
+    const [cLon, cLat] = [c.lon, c.lat];
+    const centre = { x: ox + 10, y: oy + 6 };
+    const lonLat = (x: number, y: number) => {
+      // inverse of lonLatToPx by search on the two axes (the mosaic is a plain grid)
+      const [x0, y0] = lonLatToPx(m, cLon, cLat);
+      const [x1] = lonLatToPx(m, cLon + 0.01, cLat);
+      const [, y1] = lonLatToPx(m, cLon, cLat + 0.01);
+      return { lon: cLon + ((x - x0) / (x1 - x0)) * 0.01, lat: cLat + ((y - y0) / (y1 - y0)) * 0.01 };
+    };
+    const at = lonLatToPx(m, ...((p) => [p.lon, p.lat] as [number, number])(leadingEdge(m, bars, lonLat(centre.x, centre.y).lon, lonLat(centre.x, centre.y).lat, 90)));
+    const idx = Math.floor(at[1]) * m.w + Math.floor(at[0]);
+    expect(bars).toContain(idx);
   });
 
   it('follows the heading', () => {

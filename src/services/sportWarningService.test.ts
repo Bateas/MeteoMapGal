@@ -85,7 +85,7 @@ describe('buildSportWarningNotice — orange with both values', () => {
     expect(notice!.level).toBe(2);
     expect(notice!.comparison).toBe('below');
     expect(notice!.exceeded).toEqual([]);
-    expect(notice!.headline).toBe('Aviso naranja por oleaje');
+    expect(notice!.headline).toBe('Aviso naranja por oleaje · umbral del deporte');
     expect(notice!.thresholdText).toContain(`${SPORT_WAVE_LIMIT_M} m`);
     expect(notice!.thresholdText).toContain(`${SPORT_WIND_LIMIT_KT} kt`);
     // Spanish decimal comma, both magnitudes present.
@@ -107,7 +107,7 @@ describe('buildSportWarningNotice — orange with both values', () => {
 
   it('flags both magnitudes when wind also exceeds the limit', () => {
     const notice = build([warning('Vento', 2)], 4.5, 52);
-    expect(notice!.headline).toBe('Aviso naranja por viento');
+    expect(notice!.headline).toBe('Aviso naranja por viento · umbral del deporte');
     expect(notice!.exceeded).toEqual(['ola', 'viento']);
     expect(notice!.statusText).toBe('Por encima del umbral deportivo: ola y viento.');
   });

@@ -135,6 +135,37 @@ describe('formatWindSafetyMessage', () => {
     // Informs, never authorises
     expect(`${message} ${aviso.message}`).not.toMatch(/puedes|permitido|apto|v[ií]a libre|sal a navegar/i);
   });
+
+  it('with every reading fresh the message still says «Medido ahora» and adds nothing', () => {
+    const a = rias([station('Ons', 42.38, -8.93, 24, 36), station('Cabo Udra', 42.34, -8.83, 22, 37)]);
+    const { message } = formatWindSafetyMessage(a, NOW);
+    expect(message).toContain('Medido ahora:');
+    expect(message).toContain('Ons: rachas 36 kt (media 24)\n');
+    expect(message).not.toContain(', a las ');
+    expect(message).not.toContain(', ahora');
+    expect(formatWindSafetyMessage(a).message).toBe(message);
+  });
+
+  it('24-nov: a gust of 10:50 in the alert of 12:14 carries its hour, and the heading no longer says «ahora»', () => {
+    const at = (h: number, m: number) => new Date(Date.UTC(2026, 10, 24, h - 1, m)); // local = UTC+1 in November
+    const now = at(12, 14).getTime();
+    const spots: SafetySpot[] = [...SPOTS, { id: 'castineiras', name: 'Castiñeiras', lat: 42.528255, lon: -9.001197, sector: 'rias' }];
+    const a = assessStrongWind(spots, [
+      station('Sálvora-Pazo', 42.4714, -9.0059, 26, 41, { time: at(10, 50) }),
+      station('Ons', 42.38, -8.93, 22, 39, { station_id: 'mg_10126', time: at(12, 0) }),
+    ], [], now).find((x) => x.sector === 'rias')!;
+    expect(a.level).toBe('aviso'); // the old reading still counts as a source
+    const { message } = formatWindSafetyMessage(a, now);
+    expect(message).toContain('\nMedido:\n');
+    expect(message).not.toContain('Medido ahora');
+    expect(message).toContain('Sálvora-Pazo: rachas 41 kt (media 26), a las 10:50');
+    expect(message).toContain('Ons: rachas 39 kt (media 22), ahora');
+  });
+
+  it('a reading without a time is never given an hour', () => {
+    const a = rias([station('Ons', 42.38, -8.93, 24, 36, { time: undefined }), station('Cabo Udra', 42.34, -8.83, 22, 37, { time: undefined })]);
+    expect(formatWindSafetyMessage(a, NOW + 60 * 60_000).message).toContain('Medido ahora:');
+  });
 });
 
 describe('assessStrongWind — names the most exposed spots first (first live alert, 29-sep)', () => {

@@ -32,7 +32,7 @@ export interface GuideSection {
 }
 
 export const GUIDE_SECTIONS: GuideSection[] = [
-  { id: 'intro', label: 'Introducción' },
+  { id: 'intro', label: 'En 1 minuto' },
   { id: 'datos', label: 'Qué datos recogemos' },
   { id: 'reading', label: 'Cómo leer el mapa' },
   { id: 'spots', label: 'Spots de navegación' },

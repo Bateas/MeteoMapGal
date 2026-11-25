@@ -108,9 +108,10 @@ export function useSpotLightningRisk(): SpotLightningRisk[] {
     if (simSpotId) {
       const target = spots.find((s) => s.id === simSpotId);
       if (target) {
-        return assessSpotLightningRisk(
-          spots, buildSimulatedStrikes(target.lat, target.lon, Date.now()),
-        );
+        // The made-up storm sits north of the spot asked for and may be as close to a neighbour
+        // (Cesantes and Lourido, both at 6 km): the demo names the spot it was asked about.
+        const risks = assessSpotLightningRisk(spots, buildSimulatedStrikes(target.lat, target.lon, Date.now()));
+        return [...risks.filter((r) => r.spotId === target.id), ...risks.filter((r) => r.spotId !== target.id)];
       }
     }
 

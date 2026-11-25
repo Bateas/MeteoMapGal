@@ -95,6 +95,10 @@ describe('detectGustFronts — positive detection', () => {
 // ── Negative cases ───────────────────────────────────────
 
 describe('detectGustFronts — rejects', () => {
+  it('a station set aside for bad wind', () => {
+    expect(detectGustFronts([reading({ stationId: 'mg_10064' })], [cluster()])).toHaveLength(0);
+  });
+
   it('rejects when ratio is normal (<1.4)', () => {
     // Wind 22.7 kt, gust 28 kt → ratio 1.23
     const r = reading({ gustMs: 14.4 });

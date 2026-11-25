@@ -18,7 +18,6 @@ import { useLightningStore } from './useLightningData';
 import { useForecastStore } from './useForecastTimeline';
 import { scoreAllSpots, markProvisionalUntilBuoys, type SpotThermalContext } from '../services/spotScoringEngine';
 import { computeThermalPrecursors, withRegimeVeto } from '../services/thermalPrecursorService';
-import { checkSpotAlerts, resetSpotAlerts } from '../services/spotAlertService';
 import { getSpotsForSector } from '../config/spots';
 import { isCoastalSector } from '../config/sectors';
 import { msToKnots, degToCardinal8 } from '../services/windUtils';
@@ -91,9 +90,8 @@ export function useSpotScoring() {
   // Declared before the scoring effect so it runs first.
   useEffect(() => { lastScoredRef.current = 0; }, [upperWind]);
 
-  // Reset spot alert state and force immediate scoring on sector switch
+  // Force immediate scoring on sector switch
   useEffect(() => {
-    resetSpotAlerts();
     lastScoredRef.current = 0;
   }, [sectorId]);
 
@@ -163,10 +161,6 @@ export function useSpotScoring() {
       setScores(buoysPending ? markProvisionalUntilBuoys(scores, spots) : scores);
       lastScoredRef.current = Date.now();
       scoredBuoysPendingRef.current = buoysPending;
-
-      // Proactive Telegram alerts when spots transition to good conditions
-      const sectorName = useSectorStore.getState().activeSector.name;
-      checkSpotAlerts(scores, sectorName);
 
       // ── Thermal precursors — compute for all thermalDetection spots ──
       const thermalSpots = spots.filter(s => s.thermalDetection);

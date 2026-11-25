@@ -5,23 +5,32 @@ import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import { useUIStore } from '../../store/uiStore';
 import { useBuoyStore } from '../../store/buoyStore';
 import { extractWindData, extractBuoyWindData, buildWindGrid, lookupWindGrid, BUOY_FIELD_WEIGHT } from '../../services/idwInterpolation';
-import type { WindGrid, StationExposureMap } from '../../services/idwInterpolation';
+import type { WindGrid, StationExposureMap, StationWindData } from '../../services/idwInterpolation';
 import { freeStreamDirection } from '../../services/spotScoringEngine';
 import { fetchStationExposure } from '../../api/stationExposureClient';
 import { windSpeedColor } from '../../services/windUtils';
+import { pageIsIdle } from '../../services/idleAnimations';
+import { mapIsDark } from '../../hooks/useMapInk';
 
 // ── Configuration ──────────────────────────────────────────
 
 const PARTICLE_COUNT_DESKTOP = 250; // was 400 — fewer particles, less project() calls
 const PARTICLE_COUNT_MOBILE = 100; // was 150
-const FADE_ALPHA = 0.94;
+const FADE_ALPHA = 0.86;
 const PARTICLE_MAX_AGE = 100;
 // Base speed calibrated for zoom ~10 (Galician scale ~50km viewport).
 // Scaled down at higher zooms to prevent particles from racing across screen.
 const SPEED_SCALE_BASE = 0.0006;
 const SPEED_SCALE_REF_ZOOM = 10;
-const LINE_WIDTH_BASE = 1.8;
-const LINE_WIDTH_MAX = 3.5;
+const LINE_WIDTH = 1.8;
+/**
+ * Every particle moves at the speed of 8 kt and leaves the same short trail: they show where the wind goes, the
+ * colour says how much (18-nov, chosen by eye against a speed that grew with the wind). Before, a station with 25 kt
+ * among calm ones threw long, thick, glowing streaks four times faster than the rest: a comet, not a field.
+ */
+const SCREEN_SPEED_MS = 4.1;
+/** Under this the air is still: the particle stays where it is. */
+const STILL_MS = 0.3;
 
 // ── Particle type ──────────────────────────────────────────
 
@@ -54,8 +63,11 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
   const isActive = activeLayer === 'wind-particles';
   const particleCount = isMobile ? PARTICLE_COUNT_MOBILE : PARTICLE_COUNT_DESKTOP;
 
-  // Build wind data when stations/readings/buoys change — merges weather stations + marine buoys
-  const windDataRef = useRef(extractWindData(stations, readings));
+  // Build wind data when stations/readings/buoys change — merges weather stations + marine buoys.
+  // hasWind restarts the animation loop: saved on, the layer mounts before the readings arrive, the
+  // first frame found nothing to draw and the loop ended for good until the user toggled it.
+  const windDataRef = useRef<StationWindData[]>([]);
+  const [hasWind, setHasWind] = useState(false);
   const windGridRef = useRef<WindGrid | null>(null);
   const gridBoundsRef = useRef<string>('');
   const mapMovingRef = useRef(false);
@@ -79,6 +91,7 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
     windDataRef.current = [...stationWind, ...buoyWind];
     // Invalidate grid — will be rebuilt on next frame with current viewport
     windGridRef.current = null;
+    setHasWind(windDataRef.current.length > 0);
   }, [stations, readings, buoys, exposure]);
 
   // Spawn a particle at random position within map bounds
@@ -109,8 +122,13 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
 
   // Animation loop
   useEffect(() => {
-    if (!isActive) {
+    if (!isActive || !hasWind) {
       cancelAnimationFrame(animFrameRef.current);
+      // A sector switch empties the readings: the other sector's trails must not stay frozen on screen.
+      const c = canvasRef.current;
+      if (c) c.getContext('2d')?.clearRect(0, 0, c.width, c.height);
+      const t = trailCanvasRef.current;
+      if (t) t.getContext('2d')?.clearRect(0, 0, t.width, t.height);
       return;
     }
 
@@ -143,17 +161,17 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
 
     // Throttle particle animation to ~30fps (33ms gate). 250 particles × ~10
     // ops/particle/frame at 60fps was the dominant CPU cost when wind layer
-    // was active (S136+3 audit hallazgo #1). Visual perception of fluid
+    // was active. Visual perception of fluid
     // motion is preserved above ~24fps; 30fps cuts the cost ~50% with no
     // perceptible quality loss.
     const FRAME_GATE_MS = 33;
     let lastAnimateAt = 0;
 
     const animate = () => {
-      // Tab hidden → skip the particle work entirely (save battery). The browser
-      // already throttles rAF to ~1fps when backgrounded, but this also avoids the
-      // heavy per-frame draw. Cheap reschedule keeps the loop alive for return.
-      if (document.hidden) {
+      // Tab hidden, or nobody touching it for 10 min → skip the particle work entirely.
+      // The browser already throttles rAF to ~1fps when backgrounded, but this also avoids
+      // the heavy per-frame draw. Cheap reschedule keeps the loop alive for return.
+      if (document.hidden || pageIsIdle()) {
         animFrameRef.current = requestAnimationFrame(animate);
         return;
       }
@@ -185,11 +203,8 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
       }
 
       const windData = windDataRef.current;
-      if (windData.length === 0) {
-        // Bug audit #2: don't reschedule rAF when there's no data. Wait for
-        // the effect's data dep to re-trigger the loop when wind arrives.
-        return;
-      }
+      // No data, no frames. hasWind brings the loop back when the wind arrives.
+      if (windData.length === 0) return;
 
       // Fade trails on trail canvas
       trailCtx.globalCompositeOperation = 'destination-in';
@@ -229,33 +244,20 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
       const zoomFactor = Math.pow(2, SPEED_SCALE_REF_ZOOM - map.getZoom());
       const speedScale = SPEED_SCALE_BASE * zoomFactor;
 
-      // Pitch-aware projection strategy:
-      // - Low pitch (<15°): fast linear interpolation from 4 corner projections (O(1) per particle)
-      // - High pitch: fall back to map.project() (expensive but correct perspective)
-      const pitch = map.getPitch();
-      const useFastProj = pitch < 15;
-
-      let projX: (lon: number) => number;
-      let projY: (lat: number) => number;
-
-      if (useFastProj) {
-        const nw = map.project([cachedBounds.w, cachedBounds.n]);
-        const se = map.project([cachedBounds.e, cachedBounds.s]);
-        const lonRange = cachedBounds.e - cachedBounds.w;
-        const latRange = cachedBounds.n - cachedBounds.s;
-        projX = (lon: number) => ((lon - cachedBounds.w) / lonRange) * (se.x - nw.x) + nw.x;
-        projY = (lat: number) => ((cachedBounds.n - lat) / latRange) * (se.y - nw.y) + nw.y;
-      } else {
-        // High pitch: use map.project() but with reduced particle count for perf
-        projX = () => 0; // placeholder — we use projectPt below
-        projY = () => 0;
-      }
+      // The map is always flat (maxPitch 0): linear interpolation from two corners, O(1) per particle.
+      const nw = map.project([cachedBounds.w, cachedBounds.n]);
+      const se = map.project([cachedBounds.e, cachedBounds.s]);
+      const lonRange = cachedBounds.e - cachedBounds.w;
+      const latRange = cachedBounds.n - cachedBounds.s;
+      const projX = (lon: number) => ((lon - cachedBounds.w) / lonRange) * (se.x - nw.x) + nw.x;
+      const projY = (lat: number) => ((cachedBounds.n - lat) / latRange) * (se.y - nw.y) + nw.y;
 
       // Update particles and draw directly (no intermediate array)
       const particles = particlesRef.current;
       trailCtx.lineCap = 'round';
 
       // Group by color for fewer ctx state changes
+      const onDarkMap = mapIsDark();
       const colorBuckets = new Map<string, { px: number; py: number; cx: number; cy: number; alpha: number; lw: number }[]>();
 
       for (let i = 0; i < particles.length; i++) {
@@ -264,8 +266,9 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
 
         const prevLon = p.lon;
         const prevLat = p.lat;
-        p.lon += wind.vx * speedScale;
-        p.lat += wind.vy * speedScale;
+        const k = wind.speed > STILL_MS ? SCREEN_SPEED_MS / wind.speed : 0;
+        p.lon += wind.vx * k * speedScale;
+        p.lat += wind.vy * k * speedScale;
         p.age++;
 
         if (
@@ -277,19 +280,10 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
           continue;
         }
 
-        // ── PERF: Projection (fast linear or map.project for pitched view) ──
-        let px: number, py: number, cx: number, cy: number;
-        if (useFastProj) {
-          px = projX(prevLon) * dpr;
-          py = projY(prevLat) * dpr;
-          cx = projX(p.lon) * dpr;
-          cy = projY(p.lat) * dpr;
-        } else {
-          const prev = map.project([prevLon, prevLat]);
-          const curr = map.project([p.lon, p.lat]);
-          px = prev.x * dpr; py = prev.y * dpr;
-          cx = curr.x * dpr; cy = curr.y * dpr;
-        }
+        const px = projX(prevLon) * dpr;
+        const py = projY(prevLat) * dpr;
+        const cx = projX(p.lon) * dpr;
+        const cy = projY(p.lat) * dpr;
 
         // Skip off-viewport
         if (cx < -50 || cx > w + 50 || cy < -50 || cy > h + 50) {
@@ -298,12 +292,11 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
         }
 
         const ageFade = 1 - p.age / p.maxAge;
-        const speedFactor = Math.min(wind.speed / 8, 1);
-        const color = windSpeedColor(wind.speed);
+        const color = windSpeedColor(wind.speed, onDarkMap);
         const seg = {
           px, py, cx, cy,
           alpha: Math.max(ageFade * 0.95, 0.25),
-          lw: (LINE_WIDTH_BASE + speedFactor * (LINE_WIDTH_MAX - LINE_WIDTH_BASE)) * dpr,
+          lw: LINE_WIDTH * dpr,
         };
 
         let bucket = colorBuckets.get(color);
@@ -312,20 +305,8 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
       }
 
       // ── PERF: Draw batched by color (1 beginPath/stroke per color, not per particle) ──
-      // Strong wind colors get a pulsing glow (shadowBlur)
-      const gustGlowColors = new Set(['#f97316', '#ef4444']); // orange-500, red-500 (>=15kt)
-      const glowPulse = Math.sin(Date.now() / 400) * 3 + 5; // oscillates 2-8px
-
       for (const [color, segs] of colorBuckets) {
-        const isGust = gustGlowColors.has(color);
         trailCtx.strokeStyle = color;
-        if (isGust) {
-          trailCtx.shadowColor = color;
-          trailCtx.shadowBlur = glowPulse * dpr;
-        } else {
-          trailCtx.shadowColor = 'transparent';
-          trailCtx.shadowBlur = 0;
-        }
         trailCtx.beginPath();
         for (const seg of segs) {
           trailCtx.lineWidth = seg.lw;
@@ -335,8 +316,6 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
         }
         trailCtx.stroke();
       }
-      // Reset shadow
-      trailCtx.shadowBlur = 0;
 
       // Composite trail canvas onto main canvas
       ctx.clearRect(0, 0, w, h);
@@ -383,7 +362,7 @@ export const WindParticleOverlay = memo(function WindParticleOverlay({ mapRef }:
       map.off('moveend', handleMoveEnd);
       resizeObs.disconnect();
     };
-  }, [isActive, opacity, mapRef, isMobile, spawnParticle]);
+  }, [isActive, hasWind, opacity, mapRef, isMobile, spawnParticle]);
 
   if (!isActive) return null;
 

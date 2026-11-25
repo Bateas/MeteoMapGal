@@ -471,6 +471,9 @@ export function echoWorthFollowing(m: RadarMosaic, centre: { lon: number; lat: n
 
 /** Trajectory arrows drawn at most, the patches nearest the sector first. */
 export const MAX_TRAJECTORIES = 6;
+/** A patch smaller than this gets no arrow of its own (18-nov: arrows only on big patches or on the
+ *  one coming to the sector); a shower of a few km² says its direction badly and clutters the map. */
+export const MIN_TRAJECTORY_KM2 = 40;
 
 export interface RainTrajectory {
   cellId: number;
@@ -500,7 +503,7 @@ export function rainTrajectories(
   if (!tracks) return [];
   const out: (RainTrajectory & { dist: number })[] = [];
   for (const c of cells) {
-    if (!drawn.has(c.id) || skip.has(c.id)) continue;
+    if (!drawn.has(c.id) || skip.has(c.id) || c.areaKm2 < MIN_TRAJECTORY_KM2) continue;
     const t = tracks.get(c.id);
     if (!t || t.kind === 'static') continue;
     const own = carries(t);
@@ -525,12 +528,17 @@ export function leadingEdge(m: RadarMosaic, pixels: number[], lon: number, lat: 
   const [cx, cy] = lonLatToPx(m, lon, lat);
   const r = (toDeg * Math.PI) / 180;
   const ux = Math.sin(r), uy = -Math.cos(r);            // y grows southwards
-  const along = pixels.map((p) => {
-    const x = p % m.w;
-    return (x + 0.5 - cx) * ux + ((p - x) / m.w + 0.5 - cy) * uy;
-  }).sort((a, b) => a - b);
-  const front = along[Math.floor(0.95 * (along.length - 1))];
-  const [eLon, eLat] = pxToLonLat(m, cx + ux * front, cy + uy * front);
+  const pts = pixels.map((p) => {
+    const x = p % m.w, y = (p - x) / m.w;
+    const dx = x + 0.5 - cx, dy = y + 0.5 - cy;
+    return { x: x + 0.5, y: y + 0.5, along: dx * ux + dy * uy, across: Math.abs(dx * uy - dy * ux) };
+  });
+  const sorted = pts.map((q) => q.along).sort((a, b) => a - b);
+  const front = sorted[Math.floor(0.95 * (sorted.length - 1))];
+  // A pixel of the patch itself at the front, the one closest to the line through the centre: on that
+  // line a band or a ring can have a hole, and the arrow then started on dry ground (18-nov).
+  const best = pts.filter((q) => q.along >= front).reduce((a, b) => (b.across < a.across ? b : a));
+  const [eLon, eLat] = pxToLonLat(m, best.x, best.y);
   return { lon: eLon, lat: eLat };
 }
 
@@ -557,4 +565,72 @@ export function renderRain(m: RadarMosaic, labels: Int32Array, drawable: Set<num
     out[i * 4] = c[0]; out[i * 4 + 1] = c[1]; out[i * 4 + 2] = c[2]; out[i * 4 + 3] = c[3];
   }
   return out;
+}
+
+/**
+ * An EARLIER radar frame painted for the loop of the last half hour, with the same tones. The
+ * patches drawn today were chosen on the newest frame (gauges, size, track); an earlier frame has no
+ * labels of its own, so its echo is painted only where it lies within `reachPx` of a patch drawn
+ * now: the distance that rain could have covered since. Fixed echoes and patches the gauges denied,
+ * which are not drawn now, do not come back in the past frames. Different size = nothing.
+ */
+export function renderPastRain(
+  past: RadarMosaic, now: RadarMosaic, labels: Int32Array, drawable: Set<number>, reachPx: number,
+): Uint8ClampedArray<ArrayBuffer> {
+  const { w, h } = now;
+  const out = new Uint8ClampedArray(w * h * 4);
+  if (past.w !== w || past.h !== h || drawable.size === 0) return out;
+  const r = Math.max(0, Math.round(reachPx));
+  // Square reach in two passes with running counts: rows, then columns.
+  const rowHit = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    let count = 0;
+    const base = y * w;
+    for (let x = 0; x <= Math.min(r, w - 1); x++) if (now.dbz[base + x] >= RAIN_CELL_DBZ && drawable.has(labels[base + x])) count++;
+    for (let x = 0; x < w; x++) {
+      if (count > 0) rowHit[base + x] = 1;
+      const enter = x + r + 1, leave = x - r;
+      if (enter < w && now.dbz[base + enter] >= RAIN_CELL_DBZ && drawable.has(labels[base + enter])) count++;
+      if (leave >= 0 && now.dbz[base + leave] >= RAIN_CELL_DBZ && drawable.has(labels[base + leave])) count--;
+    }
+  }
+  for (let x = 0; x < w; x++) {
+    let count = 0;
+    for (let y = 0; y <= Math.min(r, h - 1); y++) count += rowHit[y * w + x];
+    for (let y = 0; y < h; y++) {
+      const i = y * w + x;
+      if (count > 0 && past.dbz[i] >= RAIN_CELL_DBZ) {
+        const c = TONES[toneFor(past.dbz[i])];
+        out[i * 4] = c[0]; out[i * 4 + 1] = c[1]; out[i * 4 + 2] = c[2]; out[i * 4 + 3] = c[3];
+      }
+      const enter = y + r + 1, leave = y - r;
+      if (enter < h) count += rowHit[enter * w + x];
+      if (leave >= 0) count -= rowHit[leave * w + x];
+    }
+  }
+  return out;
+}
+
+/** How old a gauge's last reading may be to say «it is measuring rain now». MeteoGalicia's 10-min
+ *  readings reach us 15 to 27 min old (seen 11-nov): with 20 the mark went on and off every cycle. */
+export const WET_NOW_MAX_AGE_MIN = 30;
+
+/**
+ * Is this gauge measuring rain NOW, not only in the last half hour? What it means is «its LAST
+ * reading carries rain», since no network gives us the last ten minutes on time.
+ *  - interval gauge: the newest reading, at most WET_NOW_MAX_AGE_MIN old, has rain;
+ *  - day counter: it grew between its last two readings (the last one recent, the two at most
+ *    half an hour apart);
+ *  - rolling-hour gauge (Netatmo): it cannot tell when within its hour it rained, so never.
+ */
+export function gaugeWetNow(id: string, samples: { t: number; mm: number }[], nowMs: number): boolean {
+  const kind = precipKindFor(id);
+  const last = samples[samples.length - 1];
+  if (!last || nowMs < last.t || nowMs - last.t > WET_NOW_MAX_AGE_MIN * 60_000) return false;
+  if (kind === 'interval') return last.mm > 0;
+  if (kind === 'dayTotal') {
+    const prev = samples[samples.length - 2];
+    return !!prev && last.t - prev.t <= 30 * 60_000 && last.mm > prev.mm;
+  }
+  return false;
 }

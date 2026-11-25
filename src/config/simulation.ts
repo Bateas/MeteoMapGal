@@ -33,3 +33,19 @@ export function urlWithoutSimulation(href: string): string {
   for (const name of SIM_PARAMS) url.searchParams.delete(name);
   return url.toString();
 }
+
+/**
+ * A relative address of the app with the simulation parameters of the current page added. A card writes
+ * its own address into the bar while it is open (a spot's link): without them the page stopped being a
+ * simulation the moment a card opened, and the demo warning inside that card went away (25-nov).
+ */
+export function withSimulation(path: string, search: string = currentSearch()): string {
+  const here = new URLSearchParams(search);
+  const names = SIM_PARAMS.filter((name) => here.has(name));
+  if (names.length === 0) return path;
+  const [base, hash = ''] = path.split('#');
+  const [pathname, query = ''] = base.split('?');
+  const out = new URLSearchParams(query);
+  for (const name of names) out.set(name, here.get(name) ?? '');
+  return `${pathname}?${out.toString()}${hash ? `#${hash}` : ''}`;
+}

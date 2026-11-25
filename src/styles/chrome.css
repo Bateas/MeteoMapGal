@@ -1,0 +1,511 @@
+/*
+ * V3 chrome: the menus and buttons around the map (header, tabs, bottom bar, map tools, dialogs).
+ * Same paper-and-ink rules as the forecast panel and the guide. A selected control is filled with
+ * ink; colour is only for a state (alert level, rain). Plain classes, not Tailwind spacing: the
+ * unlayered reset in index.css zeroes the padding and margin utilities.
+ * Touch targets are 44 px on a phone and 40 px on a desktop.
+ */
+
+/* Only from this width up (text of a button that keeps its icon, data that does not fit) */
+.gc-lg, .gc-xl { display: none !important; }
+@media (min-width: 1024px) { .gc-lg { display: inline-flex !important; } }
+@media (min-width: 1360px) { .gc-xl { display: inline-flex !important; } }
+
+/* ── Buttons ── */
+.gc-btn { min-height: 40px; padding: 0 12px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; flex-shrink: 0; border: 1px solid var(--g-hair); border-radius: 4px; background: transparent; color: var(--g-ink); font: 600 14px/1.15 var(--g-font); white-space: nowrap; cursor: pointer; }
+.gc-btn:hover { background: color-mix(in srgb, var(--g-ink) 8%, transparent); }
+.gc-btn:active { background: color-mix(in srgb, var(--g-ink) 14%, transparent); }
+.gc-btn:focus-visible, .gc-tool:focus-visible, .gc-seg button:focus-visible, .gc-tab:focus-visible, .gc-navitem:focus-visible, .gc-option:focus-visible, .gc-railbtn:focus-visible { outline: 2px solid var(--g-ink); outline-offset: -2px; }
+/* On a control filled with ink the ink ring would not show: it takes the paper colour there. */
+.gc-btn[aria-expanded="true"]:focus-visible, .gc-btn[aria-pressed="true"]:focus-visible, .gc-btn--primary:focus-visible, .gc-seg button[aria-pressed="true"]:focus-visible { outline-color: var(--g-bg); }
+.gc-btn:disabled { opacity: .5; cursor: not-allowed; }
+.gc-btn[aria-expanded="true"], .gc-btn[aria-pressed="true"] { background: var(--g-ink); border-color: var(--g-ink); color: var(--g-bg); }
+.gc-btn--plain { border-color: transparent; }
+.gc-btn--icon { width: 40px; padding: 0; }
+.gc-btn--primary { background: var(--g-ink); border-color: var(--g-ink); color: var(--g-bg); }
+.gc-btn--primary:hover { background: color-mix(in srgb, var(--g-ink) 86%, var(--g-bg)); }
+.gc-btn--grow { flex: 1; }
+@media (max-width: 767px) {
+  .gc-btn { min-height: 44px; }
+  .gc-btn--icon { width: 44px; }
+}
+
+/* A level dot: never the only sign, the name of the state goes next to it or in the label */
+.gc-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; background: var(--tone, var(--g-muted)); }
+.gc-t-riesgo { --tone: var(--g-l-riesgo); } .gc-t-moderado { --tone: var(--g-l-moderado); } .gc-t-alto { --tone: var(--g-l-alto); } .gc-t-critico { --tone: var(--g-l-critico); } .gc-t-ok { --tone: var(--g-s-navegable); }
+
+/* ── Header ── */
+.gc-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; padding: calc(6px + env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) 6px max(12px, env(safe-area-inset-left, 0px)); border-bottom: 2px solid var(--g-rule); }
+.gc-header-group { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.gc-brand { font: 800 18px/1 var(--g-font); letter-spacing: -.015em; white-space: nowrap; margin: 0; }
+.gc-version { font: 500 12px/1 var(--g-narrow); color: var(--g-muted); white-space: nowrap; }
+.gc-meta { display: inline-flex; align-items: center; gap: 6px; font: 500 13px/1 var(--g-narrow); color: var(--g-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gc-meta b { color: var(--g-ink); font-weight: 700; }
+.gc-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 9px; border: 1px solid var(--g-hair); border-radius: 4px; font: 600 13px/1 var(--g-font); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.gc-chip small { color: var(--g-muted); font-size: 12px; font-weight: 500; }
+@media (max-width: 767px) {
+  .gc-header { gap: 6px; padding-left: max(8px, env(safe-area-inset-left, 0px)); padding-right: max(8px, env(safe-area-inset-right, 0px)); }
+  .gc-header-group { gap: 4px; }
+  .gc-brand { font: 800 15px/1 var(--g-narrow); letter-spacing: 0; }
+}
+
+/* Age of the data, next to its refresh button */
+.gc-age { font: 500 13px/1 var(--g-narrow); color: var(--g-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.gc-age[data-state="cached"] { color: var(--g-ink); font-weight: 700; }
+@media (max-width: 359px) { .gc-age { display: none; } }
+
+/* Thin line that says simple mode is on, and takes you out of it */
+
+/* ── Two or more choices side by side (zone, type of comment) ── */
+.gc-seg { display: inline-flex; flex-shrink: 0; border: 1px solid var(--g-rule); border-radius: 4px; overflow: hidden; }
+.gc-seg button { min-height: 40px; padding: 0 12px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 0; background: transparent; color: var(--g-ink); font: 700 14px/1 var(--g-font); white-space: nowrap; cursor: pointer; }
+.gc-seg button + button { border-left: 1px solid var(--g-hair); }
+.gc-seg button:hover { background: color-mix(in srgb, var(--g-ink) 8%, transparent); }
+.gc-seg button[aria-pressed="true"] { background: var(--g-ink); color: var(--g-bg); }
+@media (max-width: 767px) {
+  .gc-seg button { min-height: 42px; padding: 0 9px; font-size: 13px; }
+}
+
+/* ── Side panel: tabs and footer ── */
+.gc-aside { display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid var(--g-hair); }
+.gc-tabs { display: flex; flex-wrap: wrap; gap: 0 2px; flex-shrink: 0; padding: 2px 8px 0; border-bottom: 2px solid var(--g-rule); }
+.gc-tab { min-height: 40px; padding: 0 8px; display: inline-flex; align-items: center; border: 0; border-bottom: 3px solid transparent; margin-bottom: -2px; background: transparent; color: var(--g-muted); font: 600 14px/1 var(--g-font); white-space: nowrap; cursor: pointer; }
+.gc-tab:hover { color: var(--g-ink); }
+.gc-tab[aria-selected="true"] { color: var(--g-ink); font-weight: 800; border-bottom-color: var(--g-ink); }
+.gc-panelfoot { display: flex; align-items: center; gap: 6px; flex-shrink: 0; padding: 8px 12px; border-top: 1px solid var(--g-hair); }
+.gc-select { flex: 1; min-width: 0; min-height: 40px; padding: 0 8px; border: 1px solid var(--g-hair); border-radius: 4px; background: var(--g-bg); color: var(--g-ink); font: 500 14px var(--g-font); }
+.gc-select:focus-visible { outline: 2px solid var(--g-ink); outline-offset: 1px; }
+.gc-forecastbar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+
+/* Collapsed panel: one column of icons with their names */
+.gc-rail { display: flex; flex-direction: column; align-items: center; gap: 2px; height: 100%; padding: 6px 0; }
+.gc-railbtn { width: 60px; min-height: 48px; padding: 5px 2px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: 0; border-radius: 4px; background: transparent; color: var(--g-muted); font: 600 12px/1 var(--g-narrow); text-decoration: none; cursor: pointer; }
+.gc-railbtn:hover { color: var(--g-ink); background: color-mix(in srgb, var(--g-ink) 8%, transparent); }
+.gc-railbtn--icon { min-height: 40px; }
+/* Simple mode: the forecast leads, in ink, on the rail and on the phone bar */
+.gc-railbtn--lead, .gc-railbtn--lead:hover { background: var(--g-ink); color: var(--g-bg); font-weight: 800; }
+.gc-railbtn--lead:focus-visible { outline-color: var(--g-ink); outline-offset: 2px; }
+.gc-collapse { flex-shrink: 0; min-height: 32px; display: flex; align-items: center; justify-content: flex-end; padding: 0 8px; gap: 6px; border: 0; border-bottom: 1px solid var(--g-hair); background: transparent; color: var(--g-muted); font: 500 13px var(--g-font); cursor: pointer; }
+.gc-collapse:hover { color: var(--g-ink); }
+.gc-collapse:focus-visible { outline: 2px solid var(--g-ink); outline-offset: -2px; }
+
+/* ── Phone: bottom bar and its menu ── */
+.gc-bottomnav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 40; display: flex; align-items: stretch; border-top: 2px solid var(--g-rule); padding-bottom: env(safe-area-inset-bottom, 0px); }
+.gc-navitem { flex: 1; min-width: 0; min-height: 48px; padding: 5px 0 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 0; background: transparent; color: var(--g-muted); font: 600 12px/1 var(--g-font); cursor: pointer; }
+.gc-navitem[aria-current="page"], .gc-navitem[aria-expanded="true"] { color: var(--g-ink); font-weight: 800; box-shadow: inset 0 3px 0 var(--g-ink); }
+.gc-navitem--lead { color: var(--g-ink); font-weight: 800; }
+.gc-navitem--lead > span:first-child { padding: 3px 14px; border-radius: 999px; background: var(--g-ink); color: var(--g-bg); }
+@media (max-width: 359px) { .gc-navitem { font-family: var(--g-narrow); font-size: 13px; } }
+.gc-menu { overscroll-behavior: contain; position: fixed; z-index: 45; right: 8px; width: min(260px, calc(100vw - 16px)); max-height: calc(100dvh - 130px); overflow-y: auto; padding: 4px; border: 1px solid var(--g-hair); border-top: 2px solid var(--g-rule); border-radius: 4px; box-shadow: var(--g-shadow-lg); }
+.gc-menu-label { padding: 8px 10px 4px; font: 600 13px/1 var(--g-font); color: var(--g-muted); }
+.gc-menu-rule { height: 1px; margin: 4px 6px; background: var(--g-hair); }
+
+/* One line of a menu or a list of options */
+.gc-option { width: 100%; min-height: 44px; padding: 6px 10px; display: flex; align-items: center; gap: 10px; border: 0; border-radius: 3px; background: transparent; color: var(--g-ink); font: 500 15px/1.2 var(--g-font); text-align: left; text-decoration: none; cursor: pointer; }
+.gc-option:hover { background: color-mix(in srgb, var(--g-ink) 8%, transparent); }
+.gc-option[aria-checked="true"] { font-weight: 800; }
+.gc-option-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.gc-option-sub { font: 400 13px/1.25 var(--g-font); color: var(--g-muted); }
+.gc-option .gc-swatch { width: 22px; height: 22px; flex-shrink: 0; border: 1px solid var(--g-rule); border-radius: 3px; }
+@media (min-width: 768px) {
+  .gc-option { min-height: 40px; font-size: 14px; }
+}
+
+/* On and off (map overlays, notifications) */
+.gc-switch { position: relative; width: 32px; height: 18px; flex-shrink: 0; border: 1px solid var(--g-rule); border-radius: 9px; background: transparent; }
+.gc-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--g-muted); transition: transform .12s ease-out; }
+[aria-checked="true"] > .gc-switch { background: var(--g-ink); border-color: var(--g-ink); }
+[aria-checked="true"] > .gc-switch::after { background: var(--g-bg); transform: translateX(14px); }
+@media (prefers-reduced-motion: reduce) { .gc-switch::after { transition: none; } }
+
+/* ── Tools floating over the map ── */
+.gc-tool { min-height: 40px; min-width: 40px; padding: 0 10px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex-shrink: 0; border: 1px solid var(--g-hair); border-radius: 4px; background: var(--g-bg); color: var(--g-ink); font: 600 13px/1 var(--g-font); white-space: nowrap; box-shadow: var(--g-shadow); cursor: pointer; }
+.gc-tool:hover { background: color-mix(in srgb, var(--g-ink) 12%, var(--g-bg)); }
+.gc-tool[aria-pressed="true"], .gc-tool[aria-expanded="true"] { background: var(--g-ink); border-color: var(--g-ink); color: var(--g-bg); }
+.gc-tool[data-state="rain"] { background: var(--g-rain); border-color: var(--g-rain); color: #ffffff; }
+/* The layers menu opens upward from its button. On a phone the toolbar scrolls sideways and would clip it. */
+.gc-layers { position: relative; flex-shrink: 0; }
+.gc-layers-menu { position: absolute; z-index: 50; bottom: calc(100% + 6px); left: 0; width: 300px; padding: 4px; max-height: 70vh; overflow-y: auto; }
+@media (max-width: 767px) {
+  .gc-layers-menu { position: fixed; left: 8px; right: 8px; bottom: calc(112px + env(safe-area-inset-bottom, 0px)); width: auto; max-height: 60dvh; }
+}
+.gc-tool small { font: 500 12px/1 var(--g-narrow); opacity: .85; }
+.gc-tool-count { position: absolute; top: -5px; right: -5px; min-width: 16px; height: 16px; padding: 0 3px; border-radius: 8px; background: var(--g-ink); color: var(--g-bg); font: 700 12px/16px var(--g-font); text-align: center; }
+.gc-toolpanel { display: flex; flex-direction: column; gap: 8px; width: 288px; max-width: calc(100vw - 32px); padding: 10px 12px; border-bottom: 1px solid var(--g-hair); font: 400 13px/1.35 var(--g-font); }
+.gc-toolpanel-row { display: flex; align-items: center; gap: 8px; color: var(--g-muted); }
+.gc-toolpanel input[type="range"] { flex: 1; min-width: 0; height: 24px; accent-color: var(--g-ink); cursor: pointer; }
+.gc-num { font: 600 13px var(--g-narrow); font-variant-numeric: tabular-nums; }
+.gc-scale { display: flex; gap: 2px; }
+.gc-scale > span { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; font: 500 12px/1 var(--g-narrow); color: var(--g-muted); }
+.gc-scale i { display: block; width: 100%; height: 8px; border-radius: 1px; }
+.gc-note-strong { font-weight: 700; color: var(--g-ink); }
+.gc-note { color: var(--g-muted); }
+@media (max-width: 767px) {
+  .gc-tool { min-height: 44px; min-width: 44px; }
+}
+
+@media (max-width: 767px) {
+}
+
+/* Alert strip beside the tools, and the list it opens. Without room beside the tools (a narrow map)
+   the strip takes a row of its own under them: squeezed, it showed half a word («Nad») and nothing else. */
+.gc-maptools-alerts { min-width: min(240px, 100%); }
+.gc-alertstrip { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; overflow: hidden; min-height: 40px; padding: 0 10px; border: 1px solid var(--g-hair); border-radius: 4px; box-shadow: var(--g-shadow); font: 600 13px/1 var(--g-font); cursor: pointer; }
+.gc-alertstrip:hover { background: color-mix(in srgb, var(--g-ink) 8%, var(--g-bg)); }
+.gc-alertstrip:focus-visible { outline: 2px solid var(--g-ink); outline-offset: -2px; }
+.gc-alertstrip-risk { display: inline-flex; align-items: center; gap: 6px; font-weight: 800; flex-shrink: 0; }
+.gc-alertline { display: inline-flex; align-items: baseline; gap: 8px; min-width: 0; flex: 0 1 auto; overflow: hidden; white-space: nowrap; color: var(--g-ink); }
+.gc-alertline b { font-weight: 700; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.gc-alertline-sub { flex: 0 10 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--g-muted); font-weight: 500; }
+.gc-alertline-more { flex-shrink: 0; color: var(--g-muted); font-weight: 600; white-space: nowrap; }
+.gc-formrow { display: flex; align-items: center; gap: 10px; min-height: 40px; font: 500 14px var(--g-font); }
+.gc-formrow > span:first-child { flex: 1; min-width: 0; }
+.gc-formrow input[type="range"] { flex: 1; min-width: 0; height: 24px; accent-color: var(--g-ink); }
+
+/* The conditions ticker and official warnings, right under the header */
+.gc-ticker { height: 30px; flex-shrink: 0; display: flex; overflow: hidden; position: relative; border-bottom: 1px solid var(--g-hair); }
+.gc-official { display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-bottom: 1px solid var(--g-hair); font: 500 14px/1.25 var(--g-font); }
+.gc-official b { font-weight: 700; }
+/* Warnings not known (MeteoGalicia down): the same place, no colour of level, never silence */
+.gc-official--unknown b { font-weight: 600; color: var(--g-muted); }
+/* Simple mode: the warnings left to Condiciones, said on the last one shown */
+.gc-official-more { flex-shrink: 0; color: var(--g-muted); font-size: 13px; white-space: nowrap; }
+.gc-official span:last-child { color: var(--g-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.gc-official-level { flex-shrink: 0; padding: 3px 6px; border-radius: 2px; font: 800 13px/1 var(--g-font); }
+/* Phone: when and where on a line of their own, the whole width, instead of cut after two words */
+@media (max-width: 767px) { .gc-official { flex-wrap: wrap; row-gap: 2px; } .gc-official b { flex: 1; min-width: 0; } .gc-official span:last-child { flex-basis: 100%; } }
+.gc-official-level[data-level="1"] { background: #facc15; color: #1a1204; }
+.gc-official-level[data-level="2"] { background: #f97316; color: #1a0c02; }
+.gc-official-level[data-level="3"] { background: #c8102e; color: #ffffff; }
+
+/* Safety notices over the map: a solid band, readable on any base map and in the sun.
+   Red only for PELIGRO, amber for a warning, purple for an imminent storm. */
+.gc-band { display: flex; align-items: center; gap: 10px; max-width: min(640px, calc(100vw - 16px)); padding: 8px 14px; border: 0; border-radius: 4px; box-shadow: var(--g-shadow-lg); font: 500 13px/1.25 var(--g-font); text-align: left; cursor: pointer; }
+.gc-band:focus-visible { outline: 3px solid var(--g-ink); outline-offset: 2px; }
+.gc-band > span:nth-child(2) { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.gc-band b { font: 800 15px/1.15 var(--g-font); }
+.gc-band--danger { background: #c8102e; color: #ffffff; }
+.gc-band--storm { background: #6d28d9; color: #ffffff; }
+.gc-band--warn { background: #f59e0b; color: #1a1204; }
+
+/* One column at the top of the map, so one notice never covers another */
+/* The warnings strip floats over the top of the map (AppShell); everything anchored to the map's top
+   moves down by its measured height, --ticker-h (0 when it shows nothing). */
+.gc-mapticker { position: absolute; top: 0; left: 0; right: 0; z-index: 38; }
+.maplibregl-ctrl-top-left, .maplibregl-ctrl-top-right { top: var(--ticker-h, 0px); }
+.gc-mapstack { position: absolute; z-index: 36; top: calc(12px + var(--ticker-h, 0px)); left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0 190px; pointer-events: none; }
+/* A card at the top left: the notices start to its right, so a danger is never read from its middle */
+:has(> .gc-mapstack):has(.gf-dock) > .gc-mapstack { padding-left: 384px; padding-right: 170px; }
+/* Narrow map: the notices keep what the tools at the top right leave, with or without a card (which then
+   sits at the bottom) */
+[data-narrow] > .gc-mapstack, [data-narrow]:has(.gf-dock) > .gc-mapstack { padding: 0 170px 0 12px; }
+
+/* Line of information under the header (sources down, favourable window) */
+.gc-notice { display: flex; align-items: center; gap: 8px; flex-shrink: 0; min-height: 30px; padding: 2px 4px 2px 10px; border-bottom: 1px solid var(--g-hair); font: 500 13px/1.25 var(--g-font); }
+.gc-notice b { font-weight: 700; }
+.gc-notice-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gc-notice .gc-note { margin-left: 6px; }
+.gc-notice .gc-btn--icon { min-height: 28px; width: 28px; }
+
+/* Summary of a spot over the map, on a phone and in the inland sector */
+.gc-pill { pointer-events: auto; display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 12px; border: 1px solid var(--g-rule); border-radius: 4px; box-shadow: var(--g-shadow); font: 600 13px/1 var(--g-font); white-space: nowrap; }
+.gc-pill b { font-weight: 800; }
+button.gc-pill { cursor: pointer; }
+.gc-pill-ico { display: flex; flex-shrink: 0; }
+
+/* A part of the app that failed, with its retry */
+.gc-failed { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; height: 100%; min-height: 120px; padding: 20px; text-align: center; }
+.gc-failed b { font: 700 15px/1.25 var(--g-font); }
+
+/* Hint that floats over the map while a tool is waiting for a tap */
+.gc-hint { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--g-rule); border-radius: 4px; box-shadow: var(--g-shadow); font: 600 14px/1.25 var(--g-font); }
+
+/* ── Panels that open from a control ── */
+.gc-popover { border: 1px solid var(--g-hair); border-top: 2px solid var(--g-rule); border-radius: 4px; box-shadow: var(--g-shadow-lg); }
+.gc-popover-body { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; font: 400 13px/1.4 var(--g-font); }
+.gc-popover-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font: 800 14px/1.2 var(--g-font); }
+.gc-popover-head .gc-btn { min-height: 32px; width: 32px; }
+.gc-popover p { margin: 0; }
+.gc-popover a { color: inherit; text-underline-offset: 2px; }
+.gc-popover-section { display: flex; flex-direction: column; gap: 4px; padding-top: 8px; border-top: 1px solid var(--g-hair); }
+.gc-swatchline { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--g-muted); }
+.gc-swatchline span { display: inline-flex; align-items: center; gap: 5px; }
+.gc-swatchline i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; }
+.gc-linkbtn { align-self: flex-start; padding: 2px 0; border: 0; background: transparent; color: var(--g-muted); font: 500 13px var(--g-font); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.gc-linkbtn:hover { color: var(--g-ink); }
+.gc-status-row { display: grid; grid-template-columns: 1fr auto auto; align-items: baseline; gap: 2px 10px; padding: 5px 0; border-top: 1px solid var(--g-hair); }
+.gc-status-row:first-child { border-top: 0; }
+.gc-status-row b { font-weight: 600; }
+.gc-status-row span { color: var(--g-muted); font: 500 13px var(--g-narrow); font-variant-numeric: tabular-nums; }
+.gc-status-row [data-state="bad"], .gc-status-row [data-state="old"] { color: var(--g-ink); font-weight: 700; }
+
+/* ── Cards in a corner (new version, install) and toasts ── */
+.gc-card { pointer-events: auto; display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--g-hair); border-top: 2px solid var(--g-rule); border-radius: 4px; box-shadow: var(--g-shadow-lg); }
+.gc-card-title { font: 800 15px/1.2 var(--g-font); margin: 0; }
+.gc-card-text { font: 400 13px/1.35 var(--g-font); color: var(--g-muted); margin: 0; }
+.gc-card-row { display: flex; gap: 8px; }
+.gc-card-head { display: flex; align-items: flex-start; gap: 10px; }
+.gc-card-head > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.gc-card .gc-btn { min-height: 40px; }
+.gc-card .gc-btn--icon { min-height: 32px; width: 32px; }
+@media (max-width: 767px) {
+  .gc-card .gc-btn { min-height: 44px; }
+  .gc-card .gc-btn--icon { min-height: 44px; width: 44px; }
+  .gc-popover-head .gc-btn { min-height: 44px; width: 44px; }
+  .gc-seg button { min-height: 44px; }
+}
+.gc-toast { pointer-events: auto; display: flex; align-items: flex-start; gap: 8px; padding: 8px 8px 8px 10px; border: 1px solid var(--g-rule); border-radius: 4px; box-shadow: var(--g-shadow-lg); font: 500 14px/1.3 var(--g-font); }
+.gc-toast > span:first-child { display: flex; flex-shrink: 0; margin-top: 2px; color: var(--tone, var(--g-ink)); }
+.gc-toast > span:nth-child(2) { flex: 1; min-width: 0; }
+.gc-toast .gc-btn--icon { min-height: 26px; width: 26px; }
+@media (max-width: 767px) {
+  .gc-notice .gc-btn--icon, .gc-toast .gc-btn--icon { min-height: 44px; width: 44px; }
+  button.gc-pill, .gc-alertstrip, .gc-select { min-height: 44px; }
+}
+
+/* ── Dialogs ── */
+.gc-scrim { position: fixed; inset: 0; background: rgb(0 0 0 / .62); }
+.gc-dialog { position: relative; width: 100%; max-width: 420px; display: flex; flex-direction: column; border: 1px solid var(--g-hair); border-top: 2px solid var(--g-rule); border-radius: 4px; box-shadow: var(--g-shadow-lg); }
+.gc-dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 10px 10px 16px; border-bottom: 1px solid var(--g-hair); }
+.gc-dialog-head h2, .gc-dialog-head h3 { font: 800 18px/1.2 var(--g-font); margin: 0; }
+.gc-dialog-body { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; }
+.gc-dialog-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--g-hair); }
+.gc-field { width: 100%; padding: 9px 10px; border: 1px solid var(--g-rule); border-radius: 3px; background: transparent; color: var(--g-ink); font: 400 15px/1.35 var(--g-font); resize: none; }
+.gc-field::placeholder { color: var(--g-muted); }
+.gc-field:focus-visible { outline: 2px solid var(--g-ink); outline-offset: 1px; }
+.gc-small { font: 400 13px/1.35 var(--g-font); color: var(--g-muted); margin: 0; }
+.gc-kbdlist { display: flex; flex-direction: column; gap: 8px; list-style: none; padding: 0; margin: 0; font: 400 14px/1.3 var(--g-font); }
+.gc-kbdlist li { display: flex; align-items: center; gap: 10px; }
+.gc-kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 28px; padding: 0 6px; border: 1px solid var(--g-rule); border-radius: 3px; font: 700 13px var(--g-font); flex-shrink: 0; }
+
+/* ── Welcome tour ── */
+.gc-tourcard { width: min(400px, calc(100vw - 24px)); display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid var(--g-hair); border-top: 2px solid var(--g-rule); border-radius: 4px; box-shadow: var(--g-shadow-lg); }
+.gc-tourcard h3 { font: 800 19px/1.15 var(--g-font); margin: 0; }
+.gc-tourcard p { margin: 0; font: 400 15px/1.45 var(--g-font); }
+.gc-tourcard .gc-tourtip { font-size: 14px; color: var(--g-muted); }
+.gc-tourfoot { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.gc-tourcount { font: 500 13px var(--g-narrow); color: var(--g-muted); font-variant-numeric: tabular-nums; }
+.gc-tourbtns { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+
+/* ── Panel de condiciones: only its head and tabs for now ── */
+/* It lives inside the map's .map-dark-scope, which keeps the old slate colours dark. Until its sections
+   move to V3, in the light theme they get back the light values of index.css, or their pale text sits on paper. */
+[data-theme="light"] .gc-lightscope {
+  --color-slate-950: #ffffff; --color-slate-900: #f8fafc; --color-slate-800: #f1f5f9; --color-slate-700: #e2e8f0;
+  --color-slate-600: #cbd5e1; --color-slate-500: #94a3b8; --color-slate-400: #64748b; --color-slate-300: #475569;
+  --color-slate-200: #334155; --color-slate-100: #1e293b; --color-slate-50: #0f172a;
+  --color-surface-card: #f8fafc; --color-surface-elevated: #f1f5f9; --color-surface-overlay: rgba(255, 255, 255, 0.85);
+  --color-tooltip-bg: #ffffff; --color-tooltip-border: #e2e8f0;
+  --color-white: #1e293b;
+  --color-amber-300: oklch(55.5% 0.163 48.998); --color-amber-200: oklch(47.3% 0.137 46.201);
+}
+.gc-drawerhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-shrink: 0; padding: 8px 8px 8px 14px; border-bottom: 2px solid var(--g-rule); }
+.gc-drawerhead h2 { display: inline-flex; align-items: center; gap: 8px; font: 800 18px/1.1 var(--g-font); margin: 0; }
+.gc-handle { display: flex; justify-content: center; padding: 8px 0 4px; }
+.gc-handle i { display: block; width: 40px; height: 4px; border-radius: 2px; background: var(--g-rule); }
+
+/* ── The map's own zoom buttons ── */
+.maplibregl-ctrl-group { background: var(--g-bg); border: 1px solid var(--g-hair); border-radius: 4px; box-shadow: var(--g-shadow) !important; }
+.maplibregl-ctrl-group button + button { border-top: 1px solid var(--g-hair); }
+/* The credits are links inside a line of text: underlined, or only their colour tells them apart (axe, 18-nov) */
+.maplibregl-ctrl-attrib a { text-decoration: underline; text-underline-offset: 2px; }
+.maplibregl-ctrl-group button:hover { background-color: color-mix(in srgb, var(--g-ink) 12%, var(--g-bg)) !important; }
+:root:not([data-theme="light"]) .maplibregl-ctrl-group button span { filter: invert(.9); }
+
+/* ── Controls of the map layers: radar player, wave panel, chart notice ── */
+/* Desktop: bottom right, one above the other: the map opens with the rías on the left, so there they cover
+   land and not spots, and the alert strip ends before them. Phone: that stretch of the screen is taken
+   (toolbar, strip, notices, the layers menu), so they hang under the top-of-map column, like the measuring hint. */
+.gc-mapbar { position: absolute; z-index: 30; right: 8px; bottom: 44px; pointer-events: auto; }
+.gc-mapbar--player { display: flex; align-items: center; gap: 8px; padding: 2px 12px 2px 2px; font: 500 13px/1 var(--g-font); white-space: nowrap; }
+.gc-mapbar--player input[type="range"] { width: 148px; height: 24px; accent-color: var(--g-ink); cursor: pointer; }
+.gc-wavepanel { display: flex; flex-direction: column; gap: 4px; width: 320px; max-width: calc(100vw - 16px); padding: 8px 12px 10px; font: 400 13px/1.3 var(--g-font); }
+.gc-wavepanel input[type="range"] { width: 100%; height: 24px; accent-color: var(--g-ink); cursor: pointer; }
+.gc-wavepanel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.gc-wavepanel b { font-weight: 800; }
+.gc-wavepanel-ticks { display: flex; justify-content: space-between; color: var(--g-muted); font: 500 13px/1 var(--g-narrow); font-variant-numeric: tabular-nums; }
+.gc-wavepanel-rule { height: 1px; margin: 4px 0; background: var(--g-hair); }
+.gc-wavepanel-bar { display: block; height: 10px; border-radius: 1px; }
+.gc-wavepanel--side { position: absolute; z-index: 30; left: 4px; top: 38%; transform: translateY(-50%); width: 72px; padding: 8px 4px; align-items: center; text-align: center; pointer-events: auto; font-variant-numeric: tabular-nums; }
+.gc-wavepanel--side input[type="range"] { width: 44px; height: 88px; }
+.gc-wavepanel--side .gc-wavepanel-bar { width: 12px; height: 56px; }
+.maplibregl-map:has(.gc-wavepanel) .gc-mapbar--player { bottom: 204px; }
+/* A and B of the measuring tool */
+.gc-pointname { padding: 1px 5px; border: 1px solid var(--g-hair); border-radius: 3px; font: 700 13px/1.2 var(--g-font); }
+/* The figure of the measuring tool goes over the spots. Only here: index.css fixes the order of every map marker with !important, an inline zIndex does nothing */
+.maplibregl-marker:has(.gc-measure-label) { z-index: 30 !important; }
+/* Discreet: bottom left, above the tools */
+.gc-mapnote { position: absolute; z-index: 30; left: 8px; bottom: 56px; max-width: 280px; pointer-events: none; font-weight: 500; font-size: 13px; }
+[data-narrow] .gc-mapnote { bottom: auto; top: 64px; }
+@media (max-width: 767px) {
+  .gc-mapbar { position: fixed; left: 50%; right: auto; transform: translateX(-50%); bottom: auto; top: calc(var(--map-top, 4rem) + var(--ticker-h, 0px) + var(--map-stack-h, 0px) + 0.875rem); }
+  .gc-mapbar--player input[type="range"] { width: 112px; }
+  .gc-mapbar--player .gc-btn--icon { width: 44px; min-height: 44px; }
+  .gc-wavepanel { width: calc(100vw - 96px); }
+  .gc-wavepanel--side { width: 72px; }
+  .maplibregl-map:has(.gc-wavepanel) .gc-mapbar--player { bottom: auto; }
+  .maplibregl-map:has(.gc-wavepanel--note) .gc-mapbar--player { top: calc(var(--map-top, 4rem) + var(--ticker-h, 0px) + var(--map-stack-h, 0px) + 7rem); }
+  .gc-mapnote { position: fixed; left: 8px; right: 56px; bottom: auto; max-width: none; top: calc(var(--map-top, 4rem) + var(--ticker-h, 0px) + var(--map-stack-h, 0px) + 0.875rem); }
+  .maplibregl-map:has(.gc-mapbar) .gc-mapnote { top: calc(var(--map-top, 4rem) + var(--ticker-h, 0px) + var(--map-stack-h, 0px) + 4.5rem); }
+  .maplibregl-map:has(.gc-wavepanel--note) .gc-mapnote { top: calc(var(--map-top, 4rem) + var(--ticker-h, 0px) + var(--map-stack-h, 0px) + 7rem); }
+}
+
+/* ── Loading screen ── */
+/* Its picture lives in index.html, so it exists before this file arrives. This is only what moves. */
+.gc-boot--app { transition: opacity var(--g-t-slow) var(--g-ease); }
+.gc-boot--app[data-leaving] { opacity: 0; pointer-events: none; }
+.gc-boot--app .gc-boot-bar i { transition: transform var(--g-t-slow) var(--g-ease); }
+/* The map's canvas is transparent until its tiles arrive: paper, not the navy of the page behind it */
+.maplibregl-map { background: var(--g-bg); }
+
+/* ── Welcome tour: the spotlight ── */
+/* The dimming is the shadow of the spotlight, so the target does not have to be lifted over anything
+   (the bottom bar, with its own stacking, could not be). Nothing on the page is touched. */
+.gc-tour { background: transparent; animation: gc-in-fade var(--g-t) var(--g-ease); }
+.gc-tourcard--sheet { position: fixed; left: 12px; right: 12px; bottom: calc(60px + env(safe-area-inset-bottom, 0px)); width: auto; max-height: calc(100dvh - 140px); overflow-y: auto; }
+.gc-tourtext { display: flex; flex-direction: column; gap: 12px; animation: gc-in-fade var(--g-t) var(--g-ease); }
+.gc-tourcard .gc-seg { align-self: flex-start; }
+.gc-tourcard .gc-seg button { min-height: 44px; }
+/* Welcome assistant (18-nov): centred on a desktop, a sheet on a phone; answers are full-width rows that stay pressed. */
+.gc-tourcard--center { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); max-height: calc(100dvh - 48px); overflow-y: auto; }
+.gc-welcome .gc-tourcard--sheet { top: auto; }
+.gc-welcome-opts { display: flex; flex-direction: column; gap: 6px; }
+.gc-welcome-opts--list { max-height: min(46dvh, 360px); overflow-y: auto; overscroll-behavior: contain; padding-right: 2px; }
+.gc-welcome-opt { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 8px 12px; border: 1px solid var(--g-hair); border-radius: 4px; background: transparent; color: var(--g-ink); text-align: left; cursor: pointer; font: 400 15px/1.25 var(--g-font); }
+.gc-welcome-opt > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.gc-welcome-opt b { font-weight: 700; }
+.gc-welcome-opt small { font-size: 13px; color: var(--g-muted); }
+.gc-welcome-opt:hover { background: color-mix(in srgb, var(--g-ink) 6%, transparent); }
+.gc-welcome-opt[aria-pressed="true"] { border: 2px solid var(--g-ink); padding: 7px 11px; background: color-mix(in srgb, var(--g-ink) 9%, transparent); }
+.gc-welcome-opt:focus-visible { outline: 2px solid var(--g-ink); outline-offset: 2px; }
+
+/* ── Movement ──
+   Curve and durations: v3tokens.css. Reduced motion: once, at the top of index.css.
+   Only what the user has just opened, and what tells where it came from. Nothing loops. */
+@keyframes gc-in-fade { from { opacity: 0; } }
+@keyframes gc-in-rise { from { opacity: 0; translate: 0 6px; } }
+@keyframes gc-in-fall { from { opacity: 0; translate: 0 -4px; } }
+@keyframes gc-in-side { from { opacity: 0; translate: 10px 0; } }
+
+.gc-fade-in, .gc-scrim { animation: gc-in-fade var(--g-t) var(--g-ease); }
+/* Menus, popovers and dialogs. Not the bars that stay on while a layer is on (.gc-mapbar, .gc-wavepanel). */
+.gc-menu, .gc-layers-menu, .gc-popover:not(.gc-mapbar, .gc-wavepanel), .gc-dialog, .gc-card { animation: gc-in-rise var(--g-t) var(--g-ease); }
+/* What a fold reveals. The text below moves at once: animating a height would reflow it on every frame. */
+.gc-condline-detail, .gc-condfold-body, .gc-hours, .g-fold[open] > :not(summary) { animation: gc-in-fall var(--g-t-fast) var(--g-ease); }
+.gc-toast.animate-slide-up { animation-duration: var(--g-t-slow); animation-timing-function: var(--g-ease); }
+
+/* Side panel, desktop. Only the width moves, and the contents keep theirs and are uncovered, not squeezed:
+   the text does not rewrap on every frame. */
+.gc-aside--dock { flex-shrink: 0; transition: width var(--g-t-slow) var(--g-ease); }
+.gc-aside--dock > :not(.gc-rail) { min-width: 319px; }
+.gc-aside--dock > .gc-rail { width: 67px; align-self: flex-start; }
+/* Side panel, phone */
+.gc-aside.animate-slide-in-left { animation-timing-function: var(--g-ease); }
+/* Condiciones: over the map, so it can slide without moving the map. Selected by its name to stay out of FieldDrawer. */
+[role="dialog"][aria-label="Condiciones"] { animation: gc-in-side var(--g-t) var(--g-ease); }
+@media (max-width: 767px) {
+  [role="dialog"][aria-label="Condiciones"] { animation-name: gc-in-rise; }
+}
+
+/* What a tab shows while its code arrives */
+.gc-skeleton { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+.gc-skeleton i { display: block; height: 12px; border-radius: 2px; background: var(--g-hair); }
+
+/* ── Side panel: lists, rows and history (lot 4) ──
+   Ficha = what is going on in this one; panel = where do I go, several at once, looking back. So a row carries
+   only what helps to choose. Words in ink, colour only on a shape. 13 px at least, 40 px on a desktop, 44 on a phone.
+   The figure of a row loses ink as the data ages, always above 4.5:1 and with the age written beside it. */
+:root { --gc-ink-gone: #8a928e; }
+:root[data-theme="light"] { --gc-ink-gone: #6a7075; }
+
+.gc-panelbody { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 8px 10px 14px; }
+.gc-panelhead { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-shrink: 0; padding: calc(2px + env(safe-area-inset-top, 0px)) 2px 2px 14px; border-bottom: 2px solid var(--g-rule); }
+.gc-panelhead h2 { margin: 0; font: 800 18px/1.1 var(--g-font); }
+/* On a phone the panel ends above the bottom bar, or the bar covers its last rows */
+.gc-aside--sheet { bottom: calc(50px + env(safe-area-inset-bottom, 0px)); }
+
+.gc-listwrap { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+/* The rows' offsetParent (useFlipReorder) */
+.gc-list { position: relative; list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--g-hair); }
+.gc-listrow { display: flex; align-items: stretch; background: var(--g-bg); border-bottom: 1px solid var(--g-hair); }
+.gc-listrow[data-current] { box-shadow: inset 3px 0 0 var(--g-ink); }
+.gc-listrow[data-current] .gc-rowname { font-weight: 800; }
+.gc-rowbtn { flex: 1; min-width: 0; min-height: 40px; padding: 6px 6px 6px 8px; display: flex; align-items: center; gap: 8px; border: 0; background: transparent; color: var(--g-ink); font: 500 14px/1.2 var(--g-font); text-align: left; cursor: pointer; }
+.gc-rowbtn:hover { background: color-mix(in srgb, var(--g-ink) 8%, transparent); }
+.gc-rowbtn:focus-visible, .gc-rowstar:focus-visible, .gc-foldbtn:focus-visible { outline: 2px solid var(--g-ink); outline-offset: -2px; }
+.gc-rowshape { flex-shrink: 0; }
+.gc-rowarrow { flex-shrink: 0; width: 16px; display: flex; justify-content: center; }
+.gc-rowmain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.gc-rowname { font: 600 14px/1.2 var(--g-font); overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.gc-rowsub { display: flex; flex-wrap: wrap; align-items: center; gap: 1px 8px; font: 400 13px/1.25 var(--g-font); color: var(--g-muted); }
+.gc-rowsub b { font-weight: 700; color: var(--g-ink); }
+.gc-rowsub:empty { display: none; }
+.gc-rowwarn { display: flex; align-items: flex-start; gap: 4px; font: 400 13px/1.25 var(--g-font); }
+.gc-rowwarn svg { flex-shrink: 0; margin-top: 1px; color: var(--g-danger-text); }
+.gc-rowfig { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; text-align: right; font-variant-numeric: tabular-nums; }
+.gc-rowfig b { font: 700 16px/1.15 var(--g-narrow); white-space: nowrap; }
+.gc-rowfig small { font: 400 13px/1.2 var(--g-font); color: var(--g-muted); white-space: nowrap; }
+.gc-rowfig--water { min-width: 34px; }
+.gc-rowtemp { flex-shrink: 0; width: 34px; text-align: right; font: 600 15px/1.15 var(--g-narrow); font-variant-numeric: tabular-nums; }
+[data-age="old"] > .gc-rowbtn .gc-rowfig b, [data-age="old"] > .gc-rowbtn .gc-rowtemp { color: var(--g-muted); font-weight: 600; }
+[data-age="gone"] > .gc-rowbtn .gc-rowfig b, [data-age="gone"] > .gc-rowbtn .gc-rowtemp { color: var(--gc-ink-gone); font-weight: 500; }
+.gc-rowstar { flex-shrink: 0; width: 40px; display: flex; align-items: center; justify-content: center; border: 0; background: transparent; color: var(--g-muted); cursor: pointer; }
+.gc-rowstar:hover { color: var(--g-ink); background: color-mix(in srgb, var(--g-ink) 8%, transparent); }
+.gc-rowbtn--metric { justify-content: space-between; }
+.gc-rowbtn--metric .gc-rowname { flex-shrink: 0; }
+.gc-rowval { min-width: 0; font: 500 13px/1.25 var(--g-font); color: var(--g-muted); text-align: right; font-variant-numeric: tabular-nums; }
+
+/* A choice that fills the width of the panel: order of the list, period of the history */
+.gc-seg--fill { display: flex; }
+.gc-seg--fill button { flex: 1 1 auto; min-height: 40px; padding: 0 6px; font-size: 13px; }
+
+.gc-foldbtn { width: 100%; min-height: 40px; padding: 4px 6px 4px 8px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--g-hair); border-radius: 4px; background: transparent; color: var(--g-ink); font: 600 14px/1.2 var(--g-font); text-align: left; cursor: pointer; }
+/* Who publishes the buoys: inline links, with the taller hit area in their own padding so the text keeps its lines */
+.gc-credit { display: block; padding-block: 12px 14px; }
+.gc-credit a { padding-block: 15px; }
+.gc-collapse { min-height: 40px; }
+.gc-foldbtn:hover { background: color-mix(in srgb, var(--g-ink) 8%, transparent); }
+.gc-foldbtn-name { flex: 1; min-width: 0; }
+.gc-foldbtn small { font: 500 13px/1 var(--g-narrow); color: var(--g-muted); font-variant-numeric: tabular-nums; }
+
+/* The mark on the map of the row under the pointer: not a control, and it never loops */
+.gc-maphover { display: block; width: 64px; height: 64px; border-radius: 50%; border: 3px solid #ffffff; box-shadow: 0 0 0 2px #121416, inset 0 0 0 1px #121416; pointer-events: none; animation: gc-in-fade var(--g-t-fast) var(--g-ease); }
+
+/* Historial */
+.gc-hist { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.gc-hist .gc-select { flex: none; width: 100%; }
+.gc-histbody { display: flex; flex-direction: column; gap: 10px; min-height: 120px; }
+.gc-histline { margin: 0; font: 400 15px/1.35 var(--g-font); }
+.gc-histline b { font-weight: 700; }
+.gc-histempty { display: flex; flex-direction: column; gap: 4px; }
+.gc-histdates { display: flex; gap: 8px; }
+.gc-histdates label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; font: 500 13px/1.2 var(--g-font); color: var(--g-muted); }
+.gc-histdates .gc-field { min-height: 40px; padding: 4px 6px; font-size: 14px; color: var(--g-ink); }
+:root[data-theme="light"] .gc-histdates .gc-field { color-scheme: light; }
+:root:not([data-theme="light"]) .gc-histdates .gc-field { color-scheme: dark; }
+.gc-histcompare { display: flex; flex-direction: column; gap: 6px; padding-top: 4px; }
+.gc-histcompare .gc-btn { justify-content: flex-start; padding: 0 4px; white-space: normal; text-align: left; }
+.gc-histcompare .gc-btn[aria-expanded="true"] { background: transparent; border-color: transparent; color: var(--g-ink); }
+.gc-chartwrap { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.gc-chartplot { position: relative; }
+.gc-chart { display: block; width: 100%; height: auto; color: var(--g-ink); touch-action: pan-y; }
+.gc-chart:focus { outline: none; }
+.gc-chart:focus-visible { outline: 2px solid var(--g-ink); outline-offset: 2px; }
+.gc-charty { position: absolute; left: 0; padding: 0 3px; background: var(--g-bg); color: var(--g-muted); font: 500 13px/1.1 var(--g-narrow); font-variant-numeric: tabular-nums; pointer-events: none; }
+.gc-charty--top { top: 0; }
+.gc-charty--bottom { bottom: 0; }
+.gc-chartfoot { display: flex; justify-content: space-between; gap: 8px; font: 500 13px/1.2 var(--g-narrow); color: var(--g-muted); font-variant-numeric: tabular-nums; }
+.gc-chartread { margin: 0; min-height: 18px; font: 500 13px/1.3 var(--g-font); color: var(--g-muted); }
+
+@media (max-width: 767px) {
+  .gc-rowbtn, .gc-foldbtn { min-height: 44px; }
+  .gc-rowstar { width: 44px; }
+  .gc-seg--fill button { min-height: 44px; }
+  .gc-hist .gc-select, .gc-histdates .gc-field { min-height: 44px; }
+}
+
+/* The credits are not to go under the bar at the foot of the map */
+.maplibregl-ctrl-bottom-right { z-index: 31; }
+
+/* An error inside a panel: the words in ink, the colour in the frame */
+.gc-errorline { padding: 8px 10px; border: 1px solid var(--g-danger); border-radius: 3px; font-size: 13px; color: var(--g-ink); }

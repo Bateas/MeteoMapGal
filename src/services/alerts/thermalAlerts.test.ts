@@ -1,7 +1,7 @@
 /**
  * Tests for thermalAlerts builders — inversion detection only.
  *
- * S136+1 day 4: removed the per-micro-zone `buildThermalAlerts` tests
+ * Removed the per-micro-zone `buildThermalAlerts` tests
  * along with the function itself (was spammy + redundant with the
  * thermal precursor service and the dedicated Thermal tab).
  *

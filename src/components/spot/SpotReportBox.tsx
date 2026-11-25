@@ -43,17 +43,8 @@ const WATER: { v: WaterState; label: string }[] = [
 ];
 const DIRS: { v: DirSeen; label: string }[] = [
   { v: 0, label: 'N' }, { v: 45, label: 'NE' }, { v: 90, label: 'E' }, { v: 135, label: 'SE' },
-  { v: 180, label: 'S' }, { v: 225, label: 'SO' }, { v: 270, label: 'O' }, { v: 315, label: 'NO' },
+  { v: 180, label: 'S' }, { v: 225, label: 'SW' }, { v: 270, label: 'W' }, { v: 315, label: 'NW' },
 ];
-
-// Spacing is set inline: the global reset in index.css still zeroes Tailwind's padding and margin.
-const chip = (active: boolean, tall = false) =>
-  `flex-1 ${tall ? 'min-h-9 text-[13px] font-semibold' : 'min-h-8 text-[12px]'} rounded border transition-colors ${
-    active ? 'border-sky-400 bg-sky-500/25 text-sky-100' : 'border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700'
-  }`;
-
-const CARD = 'rounded-md border border-sky-500/30 bg-sky-500/5 flex flex-col gap-1.5';
-const CARD_STYLE = { padding: '6px 8px', marginBottom: '6px' };
 
 const SPOT_NAME = new Map<string, string>(ALL_SPOTS.map((s) => [s.id, s.name]));
 const fmtWhen = (ms: number) =>
@@ -65,18 +56,18 @@ function ObserverZone({ observer }: { observer: ObserverInfo }) {
   const alphaMode = useUIStore((s) => s.alphaMode);
   const setAlphaMode = useUIStore((s) => s.setAlphaMode);
   return (
-    <details className="text-[11px] text-slate-400" style={{ paddingTop: '4px', borderTop: '1px solid rgba(148,163,184,.25)' }}>
-      <summary className="cursor-pointer text-slate-300">Tu zona de observador</summary>
-      <div className="flex flex-col gap-1" style={{ paddingTop: '4px' }}>
+    <details className="gf-hint">
+      <summary style={{ cursor: 'pointer', color: 'var(--g-ink)', minHeight: 28 }}>Tu zona de observador</summary>
+      <div className="flex flex-col" style={{ gap: 4, paddingTop: 4 }}>
         {observer.reports.length === 0
           ? <span>Aún no hay reportes tuyos con este código.</span>
           : observer.reports.slice(0, 8).map((r) => (
             <span key={`${r.time}-${r.spotId}`}>
-              <span className="text-slate-300">{fmtWhen(r.time)} · {SPOT_NAME.get(r.spotId) ?? r.spotId}</span>: {observerReportWhat(r)}
+              <span style={{ color: 'var(--g-ink)' }}>{fmtWhen(r.time)} · {SPOT_NAME.get(r.spotId) ?? r.spotId}</span>: {observerReportWhat(r)}
             </span>
           ))}
         {observer.lab && observer.lab.length > 0 && <ObserverLab rows={observer.lab} />}
-        <label className="flex items-center gap-2" style={{ paddingTop: '2px' }}>
+        <label className="flex items-center" style={{ gap: 8, paddingTop: 2 }}>
           <input type="checkbox" checked={alphaMode} onChange={(e) => setAlphaMode(e.target.checked)} />
           Ver las funciones en pruebas
         </label>
@@ -89,14 +80,14 @@ function ObserverZone({ observer }: { observer: ObserverInfo }) {
  *  forecast before it happens: observers are the judges). */
 function ObserverLab({ rows }: { rows: ObserverLabRow[] }) {
   return (
-    <div className="flex flex-col gap-0.5" style={{ paddingTop: '4px' }}>
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-violet-300">Laboratorio · última semana</span>
-      <span className="text-[10px] text-slate-500">Modelos en prueba en las boyas, tardes ya medidas. Error medio y horas de 11 kt o más avisadas.</span>
+    <div className="flex flex-col" style={{ gap: 2, paddingTop: 4 }}>
+      <span className="gf-strong" style={{ color: 'var(--g-ink)' }}>Laboratorio · última semana</span>
+      <span>Modelos en prueba en las boyas, tardes ya medidas. Error medio y horas de 11 kt o más avisadas.</span>
       {rows.map((r) => (
-        <span key={r.model} className={r.champion ? 'text-slate-200' : 'text-slate-400'}>
+        <span key={r.model} style={r.champion ? { color: 'var(--g-ink)' } : undefined}>
           {labModelName(r)}: {r.maeKt.toFixed(1)} kt de error
           {r.hits != null ? ` · avisó ${r.hits} de ${r.strongHours}${r.falseAlarms ? `, ${r.falseAlarms} falsas` : ''}` : ''}
-          <span className="text-slate-500"> ({r.n} h)</span>
+          {' '}({r.n} h)
         </span>
       ))}
     </div>
@@ -107,16 +98,14 @@ function ObserverLab({ rows }: { rows: ObserverLabRow[] }) {
  *  the app, so the figure stays hidden until they report what they see, unless they ask for it;
  *  whether they did travels with the report (beta_seen). Never the map's figure. */
 function ObserverBetaNote({ beta, revealed, onReveal }: { beta: ObserverBeta; revealed: boolean; onReveal?: () => void }) {
-  const head = (
-    <span className="text-[10px] font-semibold uppercase tracking-wide text-violet-300">Solo para observadores · BETA</span>
-  );
-  const box = 'flex flex-col gap-0.5 rounded border border-violet-400/40 bg-violet-500/10';
-  const boxStyle = { padding: '4px 6px' };
+  const head = <span className="gf-strong">Solo para observadores · BETA</span>;
+  const box = 'gf-note gf-note--block gc-t-riesgo';
+  const boxStyle = { display: 'flex', flexDirection: 'column', gap: 2, margin: 0 } as const;
   if (!beta.active) {
     return (
       <div className={box} style={boxStyle}>
         {head}
-        <span className="text-[11px] text-slate-300">
+        <span>
           {beta.reason === 'fuera de hora'
             ? 'Al anochecer (16-23 h), tras una tarde de sol, aquí verás cuánto viento suele quedar en el agua.'
             : `Al anochecer hoy no se activa: ${beta.reason ?? 'faltan datos'}.`}
@@ -127,19 +116,15 @@ function ObserverBetaNote({ beta, revealed, onReveal }: { beta: ObserverBeta; re
   return (
     <div className={box} style={boxStyle}>
       {head}
-      <span className="text-[11px] text-slate-300">Al caer el sol, el agua aquí suele seguir al viento de Porto de Vigo.</span>
+      <span>Al caer el sol, el agua aquí suele seguir al viento de Porto de Vigo.</span>
       {revealed && beta.estimateKt != null ? (
-        <span className="text-[12px] font-semibold text-violet-100">
+        <span className="gf-strong">
           Ahora unos {Math.round(beta.estimateKt)} kt{beta.appKt != null ? ` (la app marca ${Math.round(beta.appKt)})` : ''}. Puede fallar: tu reporte la juzga.
         </span>
       ) : (
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-[11px] text-slate-400">Reporta primero lo que ves y te la enseñamos.</span>
-          {onReveal && (
-            <button type="button" onClick={onReveal} className="text-[11px] text-violet-300 underline hover:text-violet-100">
-              Verla ya
-            </button>
-          )}
+        <div className="flex items-center justify-between" style={{ gap: 8 }}>
+          <span className="gf-hint">Reporta primero lo que ves y te la enseñamos.</span>
+          {onReveal && <button type="button" onClick={onReveal} className="gf-more">Verla ya</button>}
         </div>
       )}
     </div>
@@ -154,7 +139,7 @@ function CodeEntry({ onSaved }: { onSaved: () => Promise<ObserverInfo | null> })
   const [msg, setMsg] = useState<string | null>(null);
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="self-end text-[10px] text-slate-500 hover:text-slate-300">
+      <button type="button" onClick={() => setOpen(true)} className="gf-more" style={{ fontWeight: 400, fontSize: 12.5 }}>
         Código de observador
       </button>
     );
@@ -166,19 +151,18 @@ function CodeEntry({ onSaved }: { onSaved: () => Promise<ObserverInfo | null> })
     if (o) setOpen(false);
   };
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex gap-1">
+    <div className="flex flex-col" style={{ gap: 4, width: '100%', fontWeight: 400 }}>
+      <div className="flex" style={{ gap: 4 }}>
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Pega tu código o tu enlace"
           aria-label="Código de observador"
-          className="min-h-8 flex-1 rounded border border-slate-600 bg-slate-900 text-[12px] text-slate-200"
-          style={{ padding: '0 6px', minWidth: 0 }}
+          className="gf-input"
         />
-        <button type="button" onClick={save} className={chip(false)} style={{ flex: '0 0 auto', padding: '0 10px' }}>Guardar</button>
+        <button type="button" onClick={save} className="gf-opt" style={{ flex: '0 0 auto', padding: '0 12px' }}>Guardar</button>
       </div>
-      {msg && <span className="text-[11px] text-amber-300">{msg}</span>}
+      {msg && <span style={{ fontSize: 13 }}>{msg}</span>}
     </div>
   );
 }
@@ -204,16 +188,16 @@ export function SpotReportBox({ spotId, shownWindKt, shownVerdict }: Props) {
 
   // What others said, labelled as theirs: it never moves the verdict or the figure above.
   const said = recent && (
-    <div className="flex flex-col gap-0.5" style={{ paddingBottom: '6px', borderBottom: '1px solid rgba(148,163,184,.25)' }}>
-      <span className="text-[11px] text-slate-400">En el agua, {recentReportWhen(recent)}</span>
-      <span className="text-[12px] font-semibold text-slate-100">{recentReportWhat(recent)}</span>
+    <div className="flex flex-col" style={{ gap: 1 }}>
+      <span className="gf-hint">En el agua, {recentReportWhen(recent)}</span>
+      <span className="gf-strong" style={{ fontSize: 14 }}>{recentReportWhat(recent)}</span>
     </div>
   );
 
   if (state === 'sent') {
     return (
-      <div className={CARD} style={CARD_STYLE}>
-        <p className="text-[11px] text-emerald-300">
+      <div className="gf-ask">
+        <p>
           Gracias{observer ? `, ${observer.name}` : ''}. Con esto comprobamos y afinamos la app en este sitio.
         </p>
         {beta && <ObserverBetaNote beta={beta} revealed />}
@@ -224,10 +208,8 @@ export function SpotReportBox({ spotId, shownWindKt, shownVerdict }: Props) {
 
   const wait = cooldownLeftMin(spotId);
   if (wait > 0) {
-    const note = <span className="text-[11px] text-slate-400">Ya enviaste un reporte de este sitio. Puedes mandar otro en {wait} min.</span>;
-    return said || observer
-      ? <div className={CARD} style={CARD_STYLE}>{said}{note}{beta && <ObserverBetaNote beta={beta} revealed />}{observer && <ObserverZone observer={observer} />}</div>
-      : <p style={{ marginBottom: '6px' }}>{note}</p>;
+    const note = <span className="gf-hint">Ya enviaste un reporte de este sitio. Puedes mandar otro en {wait} min.</span>;
+    return <div className="gf-ask">{said}{note}{beta && <ObserverBetaNote beta={beta} revealed />}{observer && <ObserverZone observer={observer} />}</div>;
   }
 
   const send = async () => {
@@ -260,62 +242,59 @@ export function SpotReportBox({ spotId, shownWindKt, shownVerdict }: Props) {
   };
 
   return (
-    <div className={CARD} style={CARD_STYLE}>
+    <div className="gf-ask">
       {said}
       {beta && <ObserverBetaNote beta={beta} revealed={betaRevealed} onReveal={() => setBetaRevealed(true)} />}
       {pending && (
-        <div className="flex flex-col gap-1 rounded border border-amber-500/40 bg-amber-500/10" style={{ padding: '4px 6px' }}>
-          <span className="text-[11px] text-amber-200">
+        <div className="gf-note gf-note--block gc-t-alto" style={{ display: 'flex', flexDirection: 'column', gap: 4, margin: 0 }}>
+          <span>
             Has abierto el enlace de otro observador{observer ? ` y aquí reportas como ${observer.name}` : ''}. ¿Pasas a usar ese?
           </span>
-          <div className="flex gap-1">
-            <button type="button" className={chip(false)} onClick={() => answerPending(true)}>Sí, usar el nuevo</button>
-            <button type="button" className={chip(false)} onClick={() => answerPending(false)}>No, seguir igual</button>
+          <div className="gf-opts" style={{ ['--n' as string]: 2 } as React.CSSProperties}>
+            <button type="button" className="gf-opt" onClick={() => answerPending(true)}>Sí, usar el nuevo</button>
+            <button type="button" className="gf-opt" onClick={() => answerPending(false)}>No, seguir igual</button>
           </div>
         </div>
       )}
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-[12px] font-semibold text-sky-200">¿Estás aquí ahora?</span>
-        <span className="text-[10px] text-slate-500">{observer ? `observador: ${observer.name}` : 'solo si ves el agua'}</span>
-      </div>
-      <p className="text-[11px] text-slate-300">
-        El viento real, comparado con {shownWindKt != null ? `los ${Math.round(shownWindKt)} kt` : 'lo que dice la app'}:
+      <p>
+        {observer ? '' : 'Solo si ves el agua. '}El viento real frente a {shownWindKt != null ? `los ${Math.round(shownWindKt)} kt` : 'lo que dice la app'}:
       </p>
-      <div className="flex gap-1">
+      <div className="gf-opts">
         {WIND.map((o) => (
-          <button key={o.v} type="button" className={chip(wind === o.v, true)} aria-pressed={wind === o.v} onClick={() => setWind(o.v)}>
+          <button key={o.v} type="button" className="gf-opt" aria-pressed={wind === o.v} onClick={() => setWind(o.v)}>
             {o.label}
           </button>
         ))}
       </div>
+      {observer ? <small className="gf-hint">Observador: {observer.name}</small> : wind === null && <CodeEntry onSaved={refresh} />}
       {wind !== null && (
         <>
-          <div className="flex flex-col gap-1">
-            <p className="text-[11px] text-slate-300">El agua <span className="text-slate-500">(si quieres)</span>:</p>
-            <div className="grid grid-cols-2 gap-1">
+          <div className="flex flex-col" style={{ gap: 4 }}>
+            <p>El agua <span>(si quieres)</span>:</p>
+            <div className="gf-opts" style={{ ['--n' as string]: 2 } as React.CSSProperties}>
               {WATER.map((o) => (
-                <button key={o.v} type="button" className={chip(water === o.v)} aria-pressed={water === o.v} onClick={() => setWater(water === o.v ? null : o.v)}>
+                <button key={o.v} type="button" className="gf-opt" aria-pressed={water === o.v} onClick={() => setWater(water === o.v ? null : o.v)}>
                   {o.label}
                 </button>
               ))}
             </div>
           </div>
-          <div className="flex flex-col gap-1">
-            <p className="text-[11px] text-slate-300">De dónde viene <span className="text-slate-500">(los barcos fondeados apuntan hacia el viento)</span>:</p>
-            <div className="grid grid-cols-8 gap-1">
+          <div className="flex flex-col" style={{ gap: 4 }}>
+            <p>De dónde viene <span>(los barcos fondeados apuntan hacia el viento)</span>:</p>
+            <div className="gf-opts" style={{ ['--n' as string]: 4 } as React.CSSProperties}>
               {DIRS.map((o) => (
-                <button key={o.v} type="button" className={chip(dir === o.v)} aria-pressed={dir === o.v} onClick={() => setDir(dir === o.v ? null : o.v)}>
+                <button key={o.v} type="button" className="gf-opt" aria-pressed={dir === o.v} onClick={() => setDir(dir === o.v ? null : o.v)}>
                   {o.label}
                 </button>
               ))}
             </div>
           </div>
           {observer && (
-            <div className="flex flex-col gap-1">
-              <p className="text-[11px] text-slate-300">Nudos que ves <span className="text-slate-500">(si lo tienes claro)</span>:</p>
-              <div className="grid grid-cols-3 gap-1">
+            <div className="flex flex-col" style={{ gap: 4 }}>
+              <p>Nudos que ves <span>(si lo tienes claro)</span>:</p>
+              <div className="gf-opts">
                 {KT_RANGES.map(([lo, hi], i) => (
-                  <button key={i} type="button" className={chip(kt === i)} aria-pressed={kt === i} onClick={() => setKt(kt === i ? null : (i as KtRange))}>
+                  <button key={i} type="button" className="gf-opt" aria-pressed={kt === i} onClick={() => setKt(kt === i ? null : (i as KtRange))}>
                     {ktRangeLabel(lo, hi)}
                   </button>
                 ))}
@@ -323,30 +302,30 @@ export function SpotReportBox({ spotId, shownWindKt, shownVerdict }: Props) {
             </div>
           )}
           {conflict && (
-            <div className="flex flex-col gap-1 rounded border border-amber-500/40 bg-amber-500/10" style={{ padding: '4px 6px' }}>
-              <span className="text-[11px] text-amber-200">{conflictText[conflict]}</span>
-              <button type="button" className={chip(false)} onClick={() => setWind(wantsMore ? 1 : -1)}>
+            <div className="gf-note gf-note--block gc-t-alto" style={{ display: 'flex', flexDirection: 'column', gap: 4, margin: 0 }}>
+              <span>{conflictText[conflict]}</span>
+              <button type="button" className="gf-opt" onClick={() => setWind(wantsMore ? 1 : -1)}>
                 {wantsMore ? 'Sí, más viento' : 'Sí, menos viento'}
               </button>
             </div>
           )}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center" style={{ gap: 6 }}>
             <button
               type="button"
               disabled={state === 'sending'}
               onClick={send}
-              className="min-h-9 flex-1 rounded border border-sky-500 bg-sky-600/40 text-[13px] font-semibold text-sky-50 disabled:opacity-40"
+              className="gc-btn gc-btn--primary gc-btn--grow"
             >
               {state === 'sending' ? 'Enviando…' : 'Enviar'}
             </button>
-            <button type="button" onClick={reset} className="text-[11px] text-slate-500 hover:text-slate-300">
+            <button type="button" onClick={reset} className="gc-btn gc-btn--plain">
               Cancelar
             </button>
           </div>
-          {state === 'error' && <span className="text-[11px] text-rose-300">No se pudo enviar. Prueba en un rato.</span>}
+          {state === 'error' && <span style={{ fontSize: 13 }}>No se pudo enviar. Prueba en un rato.</span>}
         </>
       )}
-      {observer ? <ObserverZone observer={observer} /> : wind === null && <CodeEntry onSaved={refresh} />}
+      {observer && <ObserverZone observer={observer} />}
     </div>
   );
 }

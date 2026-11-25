@@ -1,7 +1,7 @@
 /**
  * Tests for maritimeFogService — Rías advection-fog detector.
  *
- * Audit S136+3+5: this 751-line service (largest detector, high user value
+ * This 751-line service (largest detector, high user value
  * — fog is critical for Rías navigation) was UNTESTED. Tests focus on the
  * two pure exported functions that gate false positives:
  *   - detectNorthWindConsensus: "is there real N wind that kills fog?"

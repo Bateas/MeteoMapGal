@@ -12,12 +12,10 @@
  * absorb all spots within `radiusKm`, repeat. Stable for small N (we
  * have ~10 spots per sector) and predictable across re-renders.
  *
- * The cluster verdict surfaces the WORST (most actionable) verdict in
- * the group so the user can spot dangerous conditions even when zoomed
- * out — "FUERTE" wins over "BUENO" wins over "NAVEGABLE" etc.
+ * A group carries no verdict: «the worst» of a list of wind verdicts was just the windiest, and a surf spot
+ * does not even have one. It stays neutral and speaks only about a real danger (spotDanger).
  */
 import type { SailingSpot } from '../config/spots';
-import type { SpotVerdict } from './spotScoringEngine';
 
 export interface SpotClusterPoint {
   type: 'spot';
@@ -33,8 +31,6 @@ export interface SpotClusterGroup {
   count: number;
   /** All spots inside the cluster */
   spots: SailingSpot[];
-  /** Worst verdict found among grouped spots (drives marker color) */
-  worstVerdict: SpotVerdict;
   /** Composite id used as React key — stable per group composition */
   id: string;
 }
@@ -53,19 +49,19 @@ export function clusterRadiusKm(zoom: number): number {
   return 15;
 }
 
-// ── Verdict priority (higher = more actionable / dangerous) ─
+// ── Danger ─────────────────────────────────────────────
 
-const VERDICT_PRIORITY: Record<SpotVerdict, number> = {
-  unknown: 0,
-  calm: 1,
-  light: 2,
-  sailing: 3,
-  good: 4,
-  strong: 5,
-};
+/** What can close a spot for real: lightning on top of it, or the engine's hard gates. */
+export type SpotDanger = 'rayos' | 'viento' | 'oleaje';
 
-function worstOf(a: SpotVerdict, b: SpotVerdict): SpotVerdict {
-  return VERDICT_PRIORITY[a] >= VERDICT_PRIORITY[b] ? a : b;
+/** The danger of a spot, if any. Not «FUERTE»: that is a verdict, and for many sailors a good day. */
+export function spotDanger(
+  score: { provisional?: boolean; hardGateKind?: 'wind' | 'wave' | null } | undefined,
+  lightning: boolean,
+): SpotDanger | null {
+  if (lightning) return 'rayos';
+  if (!score || score.provisional || !score.hardGateKind) return null;
+  return score.hardGateKind === 'wave' ? 'oleaje' : 'viento';
 }
 
 // ── Distance (fast equirectangular, sufficient for clustering) ─
@@ -87,12 +83,10 @@ function distKm(lat1: number, lon1: number, lat2: number, lon2: number): number 
  * groups, in the order the renderer should paint them.
  *
  * @param spots    All spots in the active sector
- * @param scores   Map spotId → SpotVerdict (used to pick the worst per group)
  * @param zoom     Current map zoom level
  */
 export function clusterSpots(
   spots: SailingSpot[],
-  verdicts: Map<string, SpotVerdict>,
   zoom: number,
 ): SpotClusterItem[] {
   const radius = clusterRadiusKm(zoom);
@@ -122,9 +116,6 @@ export function clusterSpots(
 
     const lat = group.reduce((s, x) => s + x.center[1], 0) / group.length;
     const lon = group.reduce((s, x) => s + x.center[0], 0) / group.length;
-    const worstVerdict: SpotVerdict = group
-      .map((s) => verdicts.get(s.id) ?? 'unknown')
-      .reduce((acc, v) => worstOf(acc, v), 'unknown' as SpotVerdict);
     const id = 'cluster:' + group.map((s) => s.id).sort().join('+');
 
     result.push({
@@ -133,7 +124,6 @@ export function clusterSpots(
       lon,
       count: group.length,
       spots: group,
-      worstVerdict,
       id,
     });
   }

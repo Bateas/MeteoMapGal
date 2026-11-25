@@ -39,6 +39,31 @@ const buoy: BuoyReading = {
   humidity: null, dewPoint: null,
 };
 
+describe('the history button follows the tabs on offer', () => {
+  afterEach(cleanup);
+  const buttons = () => [...document.querySelectorAll('button')].map((b) => b.textContent ?? '');
+
+  it('simple mode: no button that would bounce back from a hidden tab', () => {
+    useUIStore.setState({ isMobile: true, simpleMode: true });
+    render(<StationPopup station={station} />);
+    expect(buttons().join()).not.toMatch(/historial/);
+    cleanup();
+    render(<BuoyPopup reading={buoy} />);
+    expect(buttons().join()).not.toMatch(/historial/);
+  });
+
+  it('advanced mode: it is there, and no chart button (that tab is gone)', () => {
+    useUIStore.setState({ isMobile: true, simpleMode: false });
+    render(<StationPopup station={station} />);
+    expect(buttons().join()).toMatch(/Ver historial/);
+    expect(buttons().join()).not.toMatch(/gráfica/);
+    cleanup();
+    render(<BuoyPopup reading={buoy} />);
+    expect(buttons().join()).toMatch(/Ver historial/);
+    expect(buttons().join()).not.toMatch(/gráfica/);
+  });
+});
+
 function pressEscape(target: Element = document.body) {
   fireEvent.keyDown(target, { key: 'Escape' });
 }
@@ -122,19 +147,22 @@ describe('Escape belongs to whatever is on top', () => {
   });
 
   it('a focused text field keeps every popup open', () => {
+    // One at a time: only one card can be open, opening another closes it.
     useWeatherSelectionStore.getState().selectStation(station.id);
-    useBuoyStore.getState().selectBuoy(buoy.stationId);
-    const onClose = vi.fn();
-    render(
-      <>
-        <StationPopup station={station} />
-        <BuoyPopup reading={buoy} />
-        <WebcamPopup webcam={RIAS_WEBCAMS[0]} onClose={onClose} />
-      </>,
-    );
+    render(<StationPopup station={station} />);
     pressEscape(focusTextField());
     expect(useWeatherSelectionStore.getState().selectedStationId).toBe(station.id);
+    cleanup();
+
+    useBuoyStore.getState().selectBuoy(buoy.stationId);
+    render(<BuoyPopup reading={buoy} />);
+    pressEscape(focusTextField());
     expect(useBuoyStore.getState().selectedBuoyId).toBe(buoy.stationId);
+    cleanup();
+
+    const onClose = vi.fn();
+    render(<WebcamPopup webcam={RIAS_WEBCAMS[0]} onClose={onClose} />);
+    pressEscape(focusTextField());
     expect(onClose).not.toHaveBeenCalled();
   });
 

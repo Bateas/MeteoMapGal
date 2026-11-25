@@ -9,7 +9,7 @@
  * past the line (the caller says so). There is no clock any more: replayed over 21 days, the
  * 8-minute wait left 14.8 changes a day per spot and 4.6 there-and-back; waiting for the margin
  * leaves 9.65 and 2.05, with no rise to strong delayed. While the colour is held the wind is
- * within the margin of the line, and the card says so («entre Navegable y Buen día»,
+ * within the margin of the line, and the card says so («entre Navegable y Bueno»,
  * `verdictDoubt` in config/verdictStyles.ts). Every other
  * change is immediate: going UP to strong (danger lives there), unknown (no data / cold load)
  * and any jump of two levels or more. Coming DOWN from strong to good waits like any other

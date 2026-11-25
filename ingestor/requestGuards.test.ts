@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { clientIpOf, clientKeyOf, rateKeyOf, clampInt, hitBucket, isAllowedPushEndpoint, isValidPushSpotList, parseTimeRange, pruneCache, memoAsync } from './requestGuards';
+import { clientIpOf, clientKeyOf, rateKeyOf, clampInt, isSpotIdShape, hitBucket, isAllowedPushEndpoint, isValidPushSpotList, parseTimeRange, pruneCache, memoAsync } from './requestGuards';
 
 describe('clientIpOf — the bucket key must not be something the client wrote', () => {
   it('prefers the tunnel header, which the client cannot forge', () => {
@@ -212,5 +212,13 @@ describe('rateKeyOf — an IPv6 /64 is one client, here and in nginx', () => {
       expect(nginxKey(a), a).not.toBe('');
     }
     expect(nginxKey('203.0.113.9')).toBe('bin:203.0.113.9');
+  });
+});
+
+describe('isSpotIdShape: only spot slugs reach the spot scores query', () => {
+  it('takes every spot of the map and refuses junk', async () => {
+    const { ALL_SPOTS } = await import('../src/config/spots');
+    expect(ALL_SPOTS.every((s) => isSpotIdShape(s.id))).toBe(true);
+    for (const bad of ['', 'Castrelo', "x' OR 1=1", 'a'.repeat(65), 'castrelo/../x', 'castrelo%20']) expect(isSpotIdShape(bad)).toBe(false);
   });
 });

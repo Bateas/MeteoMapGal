@@ -2,12 +2,14 @@
  * WebcamSymbolLayer — GPU-accelerated webcam markers via MapLibre symbol layer.
  *
  * Triangle shape rotated by camera azimuth to show viewing direction.
- * Green theme (distinct from station circles and buoy diamonds).
+ * Neutral: green is «navegable» on a spot, and this is context, not a reading. The triangle already tells
+ * it from the station circles and the buoy diamonds.
  * Click opens WebcamPopup with live image.
  */
 import { useMemo, useEffect, useCallback } from 'react';
 import { Source, Layer, useMap } from 'react-map-gl/maplibre';
 import type { WebcamStation } from '../../config/webcams';
+import { useMapInk } from '../../hooks/useMapInk';
 
 interface WebcamSymbolLayerProps {
   webcams: WebcamStation[];
@@ -56,6 +58,7 @@ export function WebcamSymbolLayer({
   selectedWebcamId,
   onSelectWebcam,
 }: WebcamSymbolLayerProps) {
+  const ink = useMapInk();
   const { current: mapRef } = useMap();
 
   const geojson = useMemo<GeoJSON.FeatureCollection>(() => {
@@ -119,7 +122,7 @@ export function WebcamSymbolLayer({
 
   return (
     <Source id="webcams-geo" type="geojson" data={geojson}>
-      {/* Triangle icon — rotated by camera azimuth, green tint */}
+      {/* Triangle icon — rotated by camera azimuth */}
       <Layer
         id="webcams-icons"
         type="symbol"
@@ -133,18 +136,20 @@ export function WebcamSymbolLayer({
           // Camera name below at higher zoom
           'text-field': ['step', ['zoom'], '', 11, ['get', 'name']],
           'text-font': ['Noto Sans Regular'],
-          'text-size': 10,
+          'text-size': 12,
           'text-offset': [0, 1.6],
           'text-anchor': 'top',
           'text-optional': true,
           'text-allow-overlap': false,
         }}
         paint={{
-          'icon-color': '#4ade80',  // green-400 — webcam theme
-          'icon-opacity': 0.8,
-          'text-color': '#86efac',  // green-300
-          'text-halo-color': '#0f172a',
-          'text-halo-width': 1.2,
+          'icon-color': ink.halo === '#ffffff' ? '#475569' : '#94a3b8',
+          'icon-halo-color': ink.halo,
+          'icon-halo-width': 1,
+          'icon-opacity': 0.9,
+          'text-color': ink.text,
+          'text-halo-color': ink.halo,
+          'text-halo-width': 1.5,
         }}
       />
 
@@ -156,7 +161,7 @@ export function WebcamSymbolLayer({
         paint={{
           'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 10, 12, 16],
           'circle-color': 'transparent',
-          'circle-stroke-color': '#4ade80',
+          'circle-stroke-color': ink.text,
           'circle-stroke-width': 2.5,
           'circle-opacity': 0.9,
         }}

@@ -1,13 +1,11 @@
 /**
- * Popup for webcam markers — shows live image and camera info.
- * Desktop: MapLibre native popup. Mobile: bottom sheet.
+ * Card of a webcam: its live picture and where it looks. Shell: Ficha.
  */
-import { memo, useState, useEffect } from 'react';
-import { Popup } from 'react-map-gl/maplibre';
-import { PopupFit } from './PopupFit';
-import { useUIStore } from '../../store/uiStore';
+import { memo, useState, useEffect, useId } from 'react';
+import { Ficha, Note } from './Ficha';
 import { useWebcamStore } from '../../store/webcamStore';
 import type { WebcamStation } from '../../config/webcams';
+import { ALL_SPOTS } from '../../config/spots';
 import { isUsableVision } from '../../services/webcamFogSites';
 
 interface WebcamPopupProps {
@@ -16,9 +14,9 @@ interface WebcamPopupProps {
 }
 
 export const WebcamPopup = memo(function WebcamPopup({ webcam, onClose }: WebcamPopupProps) {
-  const isMobile = useUIStore((s) => s.isMobile);
   const [imgKey, setImgKey] = useState(0);
   const [imgError, setImgError] = useState(false);
+  const titleId = useId();
 
   // Auto-refresh image every 5 min
   useEffect(() => {
@@ -29,147 +27,54 @@ export const WebcamPopup = memo(function WebcamPopup({ webcam, onClose }: Webcam
     return () => clearInterval(iv);
   }, [webcam.refreshInterval]);
 
-  // Escape closes the webcam popup (mobile sheet and desktop popup). Same rules
-  // as SpotPopup: capture phase, an open aria-modal dialog owns the key, and a
-  // text field keeps its own Escape.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      if (document.querySelector('[aria-modal="true"]')) return;
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      onClose();
-    };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [onClose]);
+  // Proxy MG images through vite/nginx to avoid CORS
+  const proxyUrl = webcam.imageUrl.replace('https://www.meteogalicia.gal/', '/meteogalicia-api/');
+  const nearSpot = webcam.nearestSpotId ? ALL_SPOTS.find((s) => s.id === webcam.nearestSpotId)?.name : null;
 
-  const dirLabel = degreesToLabel(webcam.azimuth);
-
-  // Mobile: bottom sheet style
-  if (isMobile) {
-    return (
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-900/95 border-t border-green-500/30 backdrop-blur-md rounded-t-xl p-3 max-h-[70vh] overflow-auto">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-bold text-green-400">{webcam.name}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-200 text-lg flex items-center justify-center min-w-[44px] min-h-[44px] -mr-1" aria-label="Cerrar">X</button>
-        </div>
-        <WebcamContent webcam={webcam} imgKey={imgKey} imgError={imgError} onImgError={() => setImgError(true)} dirLabel={dirLabel} />
-      </div>
-    );
-  }
-
-  // Desktop: MapLibre popup
   return (
-    <Popup
-      longitude={webcam.lon}
-      latitude={webcam.lat}
-      anchor="bottom"
-      closeOnClick={false}
-      onClose={onClose}
-      maxWidth="320px"
-      className="webcam-popup"
-    >
-      <PopupFit />
-      <div className="bg-slate-900/95 rounded-lg border border-green-500/30 p-2.5 min-w-[280px]">
-        <div className="flex items-center justify-between mb-1.5">
-          <h3 className="text-xs font-bold text-green-400 truncate">{webcam.name}</h3>
-          <span className="text-[10px] text-slate-500 shrink-0 ml-2">{dirLabel} {webcam.azimuth}°</span>
+    <Ficha longitude={webcam.lon} latitude={webcam.lat} onClose={onClose} titleId={titleId}>
+      <div className="gf-head">
+        <div className="gf-titles">
+          <h2 id={titleId} className="gf-name">{webcam.name}</h2>
+          <div className="gf-sub">{webcam.concello}, {webcam.province} · mira al {degreesToLabel(webcam.azimuth)}</div>
         </div>
-        <WebcamContent webcam={webcam} imgKey={imgKey} imgError={imgError} onImgError={() => setImgError(true)} dirLabel={dirLabel} />
       </div>
-    </Popup>
+
+      {imgError ? (
+        <div className="gf-photo gf-photo--empty">Imagen no disponible</div>
+      ) : (
+        <img
+          key={imgKey}
+          src={`${proxyUrl}?t=${imgKey}`}
+          alt={`Webcam ${webcam.name}`}
+          className="gf-photo"
+          onError={() => setImgError(true)}
+          loading="lazy"
+        />
+      )}
+      <p className="gf-credit">Imagen: {webcam.source === 'dgt' ? 'DGT' : 'MeteoGalicia'}{nearSpot ? ` · cerca de ${nearSpot}` : ''}</p>
+
+      <VisionNote webcamId={webcam.id} />
+    </Ficha>
   );
 });
 
-function WebcamContent({
-  webcam, imgKey, imgError, onImgError, dirLabel,
-}: {
-  webcam: WebcamStation; imgKey: number; imgError: boolean; onImgError: () => void; dirLabel: string;
-}) {
-  // Proxy MG images through vite/nginx to avoid CORS
-  const proxyUrl = webcam.imageUrl.replace(
-    'https://www.meteogalicia.gal/',
-    '/meteogalicia-api/',
-  );
-
-  return (
-    <div className="space-y-1.5">
-      {/* Live image */}
-      <div className="relative rounded-md overflow-hidden bg-slate-800" style={{ aspectRatio: '16/10' }}>
-        {imgError ? (
-          <div className="flex items-center justify-center h-full text-slate-600 text-xs">
-            Imagen no disponible
-          </div>
-        ) : (
-          <img
-            key={imgKey}
-            src={`${proxyUrl}?t=${imgKey}`}
-            alt={`Webcam ${webcam.name}`}
-            className="w-full h-full object-cover"
-            onError={onImgError}
-            loading="lazy"
-          />
-        )}
-        {/* Source badge */}
-        <div className="absolute bottom-1 left-1 text-[8px] bg-black/60 text-green-400 px-1 rounded">
-          MeteoGalicia
-        </div>
-      </div>
-
-      {/* Vision IA analysis — from ingestor/Ollama */}
-      <VisionBadge webcamId={webcam.id} />
-
-      {/* Info row */}
-      <div className="flex items-center justify-between text-[10px] text-slate-500">
-        <span>{webcam.concello}, {webcam.province}</span>
-        <span>Dir: {dirLabel} ({webcam.azimuth}°)</span>
-      </div>
-
-      {/* Spot link if available */}
-      {webcam.nearestSpotId && (
-        <div className="text-[10px] text-green-400/70">
-          Spot cercano: {webcam.nearestSpotId}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** Vision IA badge — sky/visibility/fog from Ollama analysis.
- *  Wind estimate hidden: moondream is not reliable for wind. */
-function VisionBadge({ webcamId }: { webcamId: string }) {
-  const visionResults = useWebcamStore((s) => s.visionResults);
-  const result = visionResults.get(webcamId);
+/**
+ * What the image model says, only when it sees fog or very poor visibility: the one thing it is reliable
+ * for, and a hint rather than a measurement. Its reading of the sky added nothing on top of the picture.
+ */
+function VisionNote({ webcamId }: { webcamId: string }) {
+  const result = useWebcamStore((s) => s.visionResults.get(webcamId));
   if (!result || !isUsableVision(result.weather.sky)) return null; // night
-
-  const skyLabels: Record<string, string> = {
-    clear: 'Despejado', partly_cloudy: 'Parcialmente nublado', overcast: 'Cubierto',
-    fog: 'Niebla', rain: 'Lluvia', storm: 'Tormenta', night: 'Noche', unknown: '',
-  };
-  const visLabels: Record<string, { color: string; label: string }> = {
-    good: { color: '#4ade80', label: 'Vis. buena' },
-    moderate: { color: '#fbbf24', label: 'Vis. moderada' },
-    poor: { color: '#f87171', label: 'Vis. pobre' },
-  };
-  const visInfo = visLabels[result.weather.visibility];
+  const fog = result.weather.fogVisible;
+  if (!fog && result.weather.visibility !== 'poor') return null;
   const ago = Math.round((Date.now() - result.analyzedAt.getTime()) / 60_000);
-  const agoLabel = ago < 60 ? `${ago}min` : `${Math.round(ago / 60)}h`;
-
   return (
-    <div className="bg-slate-800/80 rounded-md px-2 py-1.5 border border-slate-700/50">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] text-slate-500 uppercase tracking-wide">Vision IA</span>
-        <span className={`text-[8px] px-1 rounded ${result.confidence === 'high' ? 'bg-green-500/20 text-green-400' : result.confidence === 'medium' ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-500/20 text-slate-500'}`}>
-          {result.confidence === 'high' ? 'alta' : result.confidence === 'medium' ? 'media' : 'baja'}
-        </span>
-      </div>
-      <div className="flex items-center gap-2 mt-0.5 text-[9px] text-slate-500">
-        {skyLabels[result.weather.sky] && <span className="text-slate-400">{skyLabels[result.weather.sky]}</span>}
-        {visInfo && <span style={{ color: visInfo.color }}>{visInfo.label}</span>}
-        {result.weather.fogVisible && <span className="text-amber-400">Niebla</span>}
-        <span className="ml-auto">hace {agoLabel}</span>
-      </div>
-      {/* Description from LLM omitted — English, not actionable for user */}
+    <div className="gf-notes" style={{ marginTop: 8 }}>
+      <Note icon="eye" tone="alto">
+        {fog ? 'Parece haber niebla en la imagen' : 'Se ve muy poco en la imagen'}
+        <small>Lectura automática de hace {ago < 60 ? `${ago} min` : `${Math.round(ago / 60)} h`}, sin confirmar.</small>
+      </Note>
     </div>
   );
 }

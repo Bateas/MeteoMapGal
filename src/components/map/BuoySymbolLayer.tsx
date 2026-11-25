@@ -7,7 +7,13 @@
 import { useMemo, useEffect, useCallback } from 'react';
 import { Source, Layer, useMap } from 'react-map-gl/maplibre';
 import { BUOY_COORDS_MAP, type BuoyReading } from '../../api/buoyClient';
-import { waterTempColor } from '../../services/buoyUtils';
+import { waterTempColor, silentLabel, labelSideAwayFromSpots } from '../../services/buoyUtils';
+import { useMapInk } from '../../hooks/useMapInk';
+import { useSectorStore } from '../../store/sectorStore';
+import { getSpotsForSector } from '../../config/spots';
+
+/** Under this a wave figure on the map says nothing, and it is what the tide gauges report. */
+const MIN_WAVE_LABEL_M = 0.3;
 
 /**
  * In the map's credits while the buoys are drawn. Puertos del Estado asks for its
@@ -24,6 +30,8 @@ interface BuoySymbolLayerProps {
   selectedBuoyId: number | null;
   onSelectBuoy: (id: number | null) => void;
 }
+
+const SILENT_GREY = '#8b929c';
 
 /** Freshness opacity for buoy — more aggressive fade for stale data */
 function buoyFreshness(timestamp?: Date | string | null): number {
@@ -77,19 +85,26 @@ export function BuoySymbolLayer({
   selectedBuoyId,
   onSelectBuoy,
 }: BuoySymbolLayerProps) {
+  const ink = useMapInk();
   const { current: mapRef } = useMap();
+  const sectorId = useSectorStore((s) => s.activeSector.id);
 
   const geojson = useMemo<GeoJSON.FeatureCollection>(() => {
     const features: GeoJSON.Feature[] = [];
+    const spots = getSpotsForSector(sectorId).map((s) => ({ lat: s.center[1], lon: s.center[0] }));
 
     for (const buoy of buoys) {
       const coords = BUOY_COORDS_MAP.get(buoy.stationId);
       if (!coords) continue;
 
-      const waveLabel = buoy.waveHeight != null ? `${buoy.waveHeight.toFixed(1)}m` : '';
+      // Only a real sea. The tide gauges report a few centimetres: beside a spot, «0.0m» read as a measured flat.
+      // A buoy silent for hours is grey with «sin dato desde» (18-nov), not a faint copy of its old colour.
+      const silent = silentLabel(buoy.timestamp);
+      const waveLabel = silent
+        ?? (buoy.waveHeight != null && buoy.waveHeight >= MIN_WAVE_LABEL_M ? `${buoy.waveHeight.toFixed(1).replace('.', ',')} m` : '');
       const isSelected = buoy.stationId === selectedBuoyId;
       // Water scale, the one the buoy popup uses: the air scale painted 16 °C water lime here and green there.
-      const tempColor = waterTempColor(buoy.waterTemp ?? null);
+      const tempColor = silent ? SILENT_GREY : waterTempColor(buoy.waterTemp ?? null);
 
       features.push({
         type: 'Feature',
@@ -98,16 +113,18 @@ export function BuoySymbolLayer({
           id: buoy.stationId,
           name: buoy.stationName,
           waveLabel,
+          // The long «sin dato desde» goes to the side with no spot marker on it (symbols draw under markers).
+          labelSide: silent ? labelSideAwayFromSpots(coords, spots) : 'above',
           waterTemp: buoy.waterTemp,
           tempColor,
-          freshness: buoyFreshness(buoy.timestamp),
+          freshness: silent ? 0.8 : buoyFreshness(buoy.timestamp),
           isSelected: isSelected ? 1 : 0,
         },
       });
     }
 
     return { type: 'FeatureCollection', features };
-  }, [buoys, selectedBuoyId]);
+  }, [buoys, selectedBuoyId, sectorId]);
 
   // Click handler
   const handleClick = useCallback(
@@ -186,14 +203,15 @@ export function BuoySymbolLayer({
         layout={{
           'text-field': ['step', ['zoom'], '', 10, ['get', 'waveLabel']],
           'text-font': ['Noto Sans Bold'],
-          'text-size': 11,
-          'text-offset': [0, -2],
-          'text-anchor': 'bottom',
+          'text-size': 12,
+          'text-offset': ['match', ['get', 'labelSide'], 'left', ['literal', [-1.5, 0]], 'right', ['literal', [1.5, 0]], ['literal', [0, -2]]],
+          'text-anchor': ['match', ['get', 'labelSide'], 'left', 'right', 'right', 'left', 'bottom'],
+          'text-justify': 'auto',
           'text-allow-overlap': true,
         }}
         paint={{
-          'text-color': '#22d3ee', // cyan-400
-          'text-halo-color': '#0f172a',
+          'text-color': ink.text,
+          'text-halo-color': ink.halo,
           'text-halo-width': 1.5,
         }}
       />
@@ -205,16 +223,16 @@ export function BuoySymbolLayer({
         layout={{
           'text-field': ['step', ['zoom'], '', 11, ['get', 'name']],
           'text-font': ['Noto Sans Regular'],
-          'text-size': 10,
+          'text-size': 12,
           'text-offset': [0, 1.8],
           'text-anchor': 'top',
           'text-optional': true,
           'text-allow-overlap': false,
         }}
         paint={{
-          'text-color': '#67e8f9', // cyan-300
-          'text-halo-color': '#0f172a',
-          'text-halo-width': 1,
+          'text-color': ink.text,
+          'text-halo-color': ink.halo,
+          'text-halo-width': 1.5,
         }}
       />
 

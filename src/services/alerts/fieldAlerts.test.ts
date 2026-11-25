@@ -1,7 +1,7 @@
 /**
  * Tests for fieldAlerts builder — converts FieldAlerts (campo) to UnifiedAlert[].
  *
- * Critical path: feeds Telegram alert pipeline (frost, hail, fog, drone) +
+ * Critical path: feeds Telegram alert pipeline (frost, hail, fog) +
  * frontend FieldDrawer. Pure transformation function.
  *
  * fourth test file in src/services/alerts/.
@@ -29,19 +29,6 @@ function emptyField(): FieldAlerts {
       level: 'none', dewPoint: null, spread: null, spreadTrend: null,
       fogEta: null, humidity: null, windSpeed: null, confidence: 0, hypothesis: '',
     },
-    drone: {
-      flyable: true, windKt: 5, gustKt: 8, rain: false, storms: false,
-      reasons: [], airspaceRestricted: false, airspaceSeverity: 'none',
-      airspaceReasons: [], activeNotams: 0,
-    },
-    wind: {
-      active: false, directionLabel: '', upwindCount: 0, avgIncreaseKt: 0,
-      frontSpeedKt: 0, estimatedArrivalMin: null, confidence: 0, summary: '',
-    },
-    et0: { dailyMm: 0, weeklyMm: 0, level: 'low' as never },
-    disease: { level: 'low' as never, hours: 0, hypothesis: '' },
-    gdd: { stage: 'dormancy' as never, accumulated: 0, todayGdd: 0 },
-    maxLevel: 'none',
   };
 }
 
@@ -88,22 +75,24 @@ describe('buildFieldAlerts — frost', () => {
     expect(alerts).toHaveLength(1);
     expect(alerts[0].id).toBe('frost-forecast');
     expect(alerts[0].category).toBe('frost');
-    expect(alerts[0].score).toBe(55);
+    expect(alerts[0].score).toBe(50);
+    expect(alerts[0].severity).toBe('moderate');
     expect(alerts[0].title).toBe('Riesgo de helada');
     expect(alerts[0].detail).toContain('-2.0°C');
     expect(alerts[0].urgent).toBe(false);
   });
 
-  it('uses HELADA SEVERA + urgent for critico', () => {
+  it('its worst case is never urgent nor red: one forecast point, under examination', () => {
     const f = emptyField();
     f.frost = { ...f.frost, level: 'critico', minTemp: -5 };
     const alerts = buildFieldAlerts(f);
-    expect(alerts[0].title).toBe('HELADA SEVERA');
-    expect(alerts[0].urgent).toBe(true);
-    expect(alerts[0].score).toBe(85);
+    expect(alerts[0].title).toBe('Helada fuerte prevista');
+    expect(alerts[0].urgent).toBe(false);
+    expect(alerts[0].severity).toBe('moderate');
+    expect(alerts[0].score).toBe(50);
   });
 
-  it('appends time window when present', () => {
+  it('says the day and the hour of the coldest point, not always «tonight»', () => {
     const f = emptyField();
     f.frost = {
       ...f.frost, level: 'alto', minTemp: -1,
@@ -113,7 +102,8 @@ describe('buildFieldAlerts — frost', () => {
       },
     };
     const alerts = buildFieldAlerts(f);
-    expect(alerts[0].detail).toMatch(/3:00.7:00/);
+    expect(alerts[0].detail).toContain('hacia las 5 h');
+    expect(alerts[0].detail).not.toContain('Esta noche');
   });
 
   it('appends NAO− context when phase is strongly negative', () => {
@@ -221,67 +211,18 @@ describe('buildFieldAlerts — fog', () => {
   });
 });
 
-// ── Drone ───────────────────────────────────────────────────
-
-describe('buildFieldAlerts — drone', () => {
-  it('emits drone-nogo when flyable=false', () => {
-    const f = emptyField();
-    f.drone = { ...f.drone, flyable: false, reasons: ['Viento >25kt', 'Lluvia'] };
-    const alerts = buildFieldAlerts(f);
-    expect(alerts).toHaveLength(1);
-    expect(alerts[0].id).toBe('drone-nogo');
-    expect(alerts[0].category).toBe('drone');
-    expect(alerts[0].title).toBe('Dron: Precaución');
-  });
-
-  it('does NOT emit when flyable=true', () => {
-    const f = emptyField();
-    f.drone = { ...f.drone, flyable: true };
-    expect(buildFieldAlerts(f)).toEqual([]);
-  });
-
-  it('score scales with reason count: 1=45, 2=60, 3=75', () => {
-    const f1 = emptyField();
-    f1.drone = { ...f1.drone, flyable: false, reasons: ['A'] };
-    expect(buildFieldAlerts(f1)[0].score).toBe(45);
-
-    const f2 = emptyField();
-    f2.drone = { ...f2.drone, flyable: false, reasons: ['A', 'B'] };
-    expect(buildFieldAlerts(f2)[0].score).toBe(60);
-
-    const f3 = emptyField();
-    f3.drone = { ...f3.drone, flyable: false, reasons: ['A', 'B', 'C'] };
-    expect(buildFieldAlerts(f3)[0].score).toBe(75);
-  });
-
-  it('detail shows top 2 reasons joined with separator', () => {
-    const f = emptyField();
-    f.drone = {
-      ...f.drone,
-      flyable: false,
-      reasons: ['Viento fuerte', 'Lluvia', 'Tormenta cercana'],
-    };
-    const detail = buildFieldAlerts(f)[0].detail;
-    expect(detail).toContain('Viento fuerte');
-    expect(detail).toContain('Lluvia');
-    // Third reason not in main detail (slice(0,2))
-    expect(detail).not.toContain('Tormenta cercana');
-  });
-});
-
 // ── Multiple alerts at once ─────────────────────────────────
 
 describe('buildFieldAlerts — multi-alert composition', () => {
-  it('emits all 4 alert types when all active', () => {
+  it('emits the 3 alert types when all active', () => {
     const f = emptyField();
     f.frost = { ...f.frost, level: 'alto', minTemp: -1 };
     f.rain = { ...f.rain, level: 'alto', maxPrecip: 3, hoursUntilRain: 2 };
     f.fog = { ...f.fog, level: 'alto', spread: 1.5, confidence: 70 };
-    f.drone = { ...f.drone, flyable: false, reasons: ['Viento'] };
 
     const alerts = buildFieldAlerts(f);
     expect(alerts.map(a => a.id).sort()).toEqual([
-      'drone-nogo', 'fog-alert', 'frost-forecast', 'rain-forecast',
+      'fog-alert', 'frost-forecast', 'rain-forecast',
     ]);
   });
 });

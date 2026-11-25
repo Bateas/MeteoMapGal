@@ -8,6 +8,7 @@ import {
   averageWindDirection,
   isDirectionInRange,
   windSpeedColor,
+  windStep,
   scaleGustToSpot,
 } from './windUtils';
 
@@ -130,38 +131,43 @@ describe('isDirectionInRange', () => {
   });
 });
 
-describe('windSpeedColor — simplified scale (0-6kt = one blue)', () => {
-  it('returns slate for calm/null (<0.5 m/s)', () => {
-    expect(windSpeedColor(null)).toBe('#64748b');
-    expect(windSpeedColor(0.3)).toBe('#64748b');
+describe('windSpeedColor: the map scale, with the cuts of the spot verdict', () => {
+  const kt = (k: number) => k / 1.94384;
+  it('no reading is calm', () => {
+    expect(windSpeedColor(null)).toBe('#a3aca7');
   });
-  it('returns sky-400 for all light wind 1-6kt (one blue)', () => {
-    expect(windSpeedColor(1)).toBe('#38bdf8');
-    expect(windSpeedColor(2)).toBe('#38bdf8');
+  it('changes at the figure on screen: 6, 8, 12, 18, and then Beaufort 22, 34 and 48 kt, from less to more (18-nov)', () => {
+    expect(windSpeedColor(kt(5))).toBe('#a3aca7');
+    expect(windSpeedColor(kt(6))).toBe('#62a8f5');
+    expect(windSpeedColor(kt(7))).toBe('#62a8f5');
+    expect(windSpeedColor(kt(8))).toBe('#37bd78');
+    expect(windSpeedColor(kt(11))).toBe('#37bd78');
+    expect(windSpeedColor(kt(12))).toBe('#f5b82e');
+    expect(windSpeedColor(kt(17))).toBe('#f5b82e');
+    expect(windSpeedColor(kt(18))).toBe('#ff8a3d');
+    expect(windSpeedColor(kt(21))).toBe('#ff8a3d');
+    // Past the verdict: a 41 kt gust is not the colour of an 18 kt breeze
+    expect(windSpeedColor(kt(22))).toBe('#ff4d4d');
+    expect(windSpeedColor(kt(33))).toBe('#ff4d4d');
+    expect(windSpeedColor(kt(34))).toBe('#e45cff');
+    expect(windSpeedColor(kt(47))).toBe('#e45cff');
+    expect(windSpeedColor(kt(48))).toBe('#9d7bff');
+    expect(windSpeedColor(kt(55))).toBe('#9d7bff');
+    // Force 11 and up: the darkest violet (18-nov, «60 nudos necesita un color»)
+    expect(windSpeedColor(kt(56))).toBe('#6a3df0');
+    expect(windSpeedColor(kt(65))).toBe('#6a3df0');
   });
-  it('returns green for gentle wind 6-9kt', () => {
-    expect(windSpeedColor(4)).toBe('#22c55e');
+  it('reads on a light map too', () => {
+    expect(windSpeedColor(kt(12), false)).toBe('#b67c00');
+    expect(windSpeedColor(kt(18), false)).toBe('#c2560c');
+    expect(windSpeedColor(kt(22), false)).toBe('#b8322c');
+    expect(windSpeedColor(kt(34), false)).toBe('#9a1fb0');
+    expect(windSpeedColor(kt(48), false)).toBe('#5b2bb5');
+    expect(windSpeedColor(kt(60), false)).toBe('#2e0f5c');
   });
-  it('returns lime for moderate wind 9-13kt', () => {
-    expect(windSpeedColor(5)).toBe('#84cc16');
-  });
-  it('returns yellow for fresh wind 13-18kt', () => {
-    expect(windSpeedColor(7)).toBe('#eab308');
-  });
-  it('returns orange for strong wind 18-23kt', () => {
-    expect(windSpeedColor(10)).toBe('#f97316');
-  });
-  it('returns red for gale 23-30kt', () => {
-    expect(windSpeedColor(13)).toBe('#ef4444');
-  });
-  it('returns violet for extreme 30-40kt', () => {
-    expect(windSpeedColor(17)).toBe('#a855f7');
-  });
-  it('returns dark violet for severe storm 40-50kt', () => {
-    expect(windSpeedColor(22)).toBe('#7c3aed');
-  });
-  it('returns near-black for hurricane 50+kt', () => {
-    expect(windSpeedColor(27)).toBe('#1e1b4b');
+  it('rounds like the figure: 11,5 kt is 12 on screen, so it is already «bueno»', () => {
+    expect(windStep(11.4)).toBe(2);
+    expect(windStep(11.5)).toBe(3);
   });
 });
 

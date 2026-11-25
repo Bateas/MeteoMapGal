@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildDayParts, buildHourCols, daySentence, tempBand, windTone, cardinalEs, type PartHour } from './forecastParte';
+import { buildDayParts, buildHourCols, daySentence, tempBand, windTone, type PartHour } from './forecastParte';
 import type { HourlyForecast } from '../types/forecast';
 
 const KT = 1 / 1.944;
@@ -22,37 +22,32 @@ describe('windTone: the words of the map', () => {
   });
 });
 
-describe('cardinalEs', () => {
-  it('Spanish 16 points', () => {
-    expect([0, 225, 247, 270, 337.5, 359].map(cardinalEs)).toEqual(['N', 'SO', 'OSO', 'O', 'NNO', 'N']);
-  });
-});
-
 describe('daySentence', () => {
-  it('names every stretch of bueno, not only the longest (Castrelo, 18-nov)', () => {
-    const s = daySentence([ph(13, 4), ph(14, 15), ph(15, 11), ph(16, 10), ph(17, 15)]);
-    expect(s).toBe('Navegable de 14 a 18 h, bueno de 14 a 15 h y de 17 a 18 h (hasta 15 kt del SO); el resto, en calma.');
+  it('several stretches: the best one and how many other sailable hours, never a list (Cesantes, 18-nov)', () => {
+    // 8-9 navegable, 10-13 navegable/bueno, 14-18 with the peak: the sentence names one window.
+    const kts = [10, 2, 9, 12, 8, 5, 13, 8, 9, 12];
+    const s = daySentence(kts.map((kt, i) => ph(8 + i, kt)));
+    expect(s).toBe('Mejor de 14 a 18 h, hasta 13 kt del SW; navegable otras 4 h.');
   });
-  it('names every sailing stretch, not only the longest (Castrelo, Friday 20-nov in the 17-nov WRF)', () => {
+  it('the 17-nov Friday: the 15 kt afternoon is the best window, and the rest is not called calm', () => {
     const kts = [14, 11, 8, 9, 6, 15, 12, 10, 7, 9];
     const s = daySentence(kts.map((kt, i) => ph(8 + i, kt)));
-    expect(s).toBe('Navegable de 8 a 12 h, de 13 a 16 h y de 17 a 18 h, bueno de 8 a 9 h y de 13 a 15 h (hasta 15 kt del SO); el resto, flojo o en calma.');
+    expect(s).toBe('Mejor de 13 a 16 h, hasta 15 kt del SW; navegable otras 5 h.');
+    expect(s).not.toMatch(/calma|flojo/);
   });
-  it('a lone sailable hour late in the day is named too (Castrelo, Thursday 19-nov in the 17-nov WRF)', () => {
-    const kts = [6, 3, 8, 9, 7, 5, 3, 7, 7, 11];
-    const s = daySentence(kts.map((kt, i) => ph(8 + i, kt)));
-    expect(s).toBe('Navegable de 10 a 12 h y de 17 a 18 h (hasta 11 kt del SO); el resto, flojo o en calma.');
+  it('on a tie in strength the longer stretch wins', () => {
+    expect(daySentence([ph(9, 11), ph(10, 3), ph(12, 11), ph(13, 9), ph(14, 9)])).toBe('Mejor de 12 a 15 h, hasta 11 kt del SW; navegable otra hora.');
   });
-  it('every stretch of strong wind, and sailable hours between them are not called calm', () => {
+  it('every stretch of strong wind, then the sailing window', () => {
     const s = daySentence([ph(12, 19, { gustKt: 30 }), ph(13, 10), ph(14, 20, { gustKt: 33 }), ph(15, 4)]);
-    expect(s).toBe('Fuerte de 12 a 13 h y de 14 a 15 h (rachas de 33 kt); navegable de 13 a 14 h (hasta 10 kt del SO); el resto, en calma.');
+    expect(s).toBe('Fuerte de 12 a 13 h y de 14 a 15 h (rachas de 33 kt); navegable de 13 a 14 h, hasta 10 kt del SW.');
   });
-  it('names the sailing window, its best part and the rest', () => {
+  it('one window: its word and its peak, nothing about the rest', () => {
     const s = daySentence([ph(10, 4), ph(11, 7), ph(12, 9), ph(13, 13), ph(14, 14), ph(15, 10), ph(16, 5)]);
-    expect(s).toBe('Navegable de 12 a 16 h, bueno de 13 a 15 h (hasta 14 kt del SO); el resto, flojo o en calma.');
+    expect(s).toBe('Navegable de 12 a 16 h, hasta 14 kt del SW.');
   });
-  it('a window that is all «bueno» says so once', () => {
-    expect(daySentence([ph(13, 13), ph(14, 15)])).toBe('Bueno de 13 a 15 h (hasta 15 kt del SO).');
+  it('a window that is all «bueno» says so', () => {
+    expect(daySentence([ph(13, 13), ph(14, 15)])).toBe('Bueno de 13 a 15 h, hasta 15 kt del SW.');
   });
   it('no wind: the best it gets and when', () => {
     expect(daySentence([ph(10, 2), ph(15, 5), ph(18, 3)])).toBe('Sin viento para navegar: como mucho 5 kt hacia las 15 h.');
@@ -82,7 +77,7 @@ describe('buildDayParts', () => {
     expect(parts.map((p) => p.label)).toEqual(['Hoy', 'Mañana']);
     expect(parts[0].hours.map((h) => h.time.getHours())).toEqual([15, 16, 17, 18, 19, 20]);
     expect(parts[1].hours[0].time.getHours()).toBe(8);
-    expect(parts[1].sentence).toBe('Navegable de 12 a 16 h (hasta 10 kt del SO); el resto, en calma.');
+    expect(parts[1].sentence).toBe('Navegable de 12 a 16 h, hasta 10 kt del SW.');
   });
 });
 

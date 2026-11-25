@@ -74,6 +74,9 @@ export interface SailingSpot {
   center: [number, number]; // [lon, lat]
   radiusKm: number;
   description: string;
+  /** What someone has to know before going, shown on the card at all times. The description is prose and
+   *  stays off the card: anything about risk or about how far to trust the figure goes here. */
+  caution?: string;
   /** Known wind patterns for this spot */
   windPatterns: WindPattern[];
   /** Station IDs to prioritize for scoring (prefixed: aemet_, mg_, mc_, wu_, nt_) */
@@ -146,7 +149,7 @@ export interface SailingSpot {
 export const RIAS_SPOTS: SailingSpot[] = [
   {
     id: 'cesantes',
-    name: 'Cesantes (Interior)',
+    name: 'Cesantes (fondo de la ría)',
     shortName: 'Cesantes',
     icon: 'sailboat',
     center: [-8.619, 42.307],
@@ -785,6 +788,7 @@ export const RIAS_SPOTS: SailingSpot[] = [
     center: [-9.033, 42.556],
     radiusKm: 15, // Extended from 10 — remote area, few stations
     description: 'Playa NW en parque natural de dunas. Olas potentes, corrientes fuertes. Solo intermedio-avanzado. Mejor con swell NW, viento SE (offshore).',
+    caution: 'Olas potentes y corrientes fuertes. Solo nivel intermedio o avanzado.',
     beta: true,
     category: 'surf',
     beachOrientation: 315, // NW-facing
@@ -911,7 +915,8 @@ export const EMBALSE_SPOTS: SailingSpot[] = [
     icon: 'sailboat',
     center: [-7.712, 42.630],
     radiusKm: 8,
-    description: 'Embalse de Belesar, cañón del Miño en la Ribeira Sacra. Spot en prueba: el viento sale de una estación en la ladera (San Fiz, a 2 m) y de O Saviñao en la meseta; ninguna mide sobre el agua.',
+    description: 'Embalse de Belesar, cañón del Miño en la Ribeira Sacra. Spot en prueba: el viento sale de una estación en la ladera (San Fiz, con el anemómetro a 2 m del suelo) y de O Saviñao en la meseta; ninguna mide sobre el agua.',
+    caution: 'Spot en prueba: el viento sale de una estación en la ladera (San Fiz, con el anemómetro a 2 m del suelo) y de O Saviñao en la meseta; ninguna mide sobre el agua.',
     windPatterns: [],
     preferredStations: [
       'mg_19021',     // San Fiz (MeteoGalicia agro, 1,8 km, 2 m)
@@ -924,7 +929,7 @@ export const EMBALSE_SPOTS: SailingSpot[] = [
     beta: true,
   },
   {
-    // Spot en prueba (11-nov), pedido por el equipo. Embalse de Velle, en el Miño, aguas arriba de
+    // Spot en prueba (11-nov). Embalse de Velle, en el Miño, aguas arriba de
     // la ciudad de Ourense. Ninguna estacion mide sobre el agua: las dos con viento mas cercanas
     // estan en la ciudad. Ourense-Estacions (2,3 km, 139 m, cada 10 min) lee bajo entre
     // edificios (48 h de muestra: media 1 kt, racha hasta 10); Ourense de AEMET (3,8 km) da un
@@ -937,6 +942,7 @@ export const EMBALSE_SPOTS: SailingSpot[] = [
     center: [-7.851020, 42.358982],
     radiusKm: 6,
     description: 'Embalse de Velle, en el Miño junto a Ourense. Spot en prueba: el viento sale de dos estaciones de la ciudad (Ourense-Estacións y Ourense de AEMET); ninguna mide sobre el agua.',
+    caution: 'Spot en prueba: el viento sale de dos estaciones de la ciudad (Ourense-Estacións y Ourense de AEMET); ninguna mide sobre el agua.',
     windPatterns: [],
     preferredStations: [
       'mg_10155',     // Ourense-Estacions (MeteoGalicia, 2,3 km, 139 m, 10 min)
@@ -979,11 +985,29 @@ export function isBeachSpot(spotId: string): boolean {
   return BEACH_SPOT_IDS.has(spotId);
 }
 
+/**
+ * The tide station whose line a spot card shows («Próxima marea», «Marea N cm más alta de lo previsto»),
+ * or undefined when the card has no tide block: no spot open, a spot without one, a user pin.
+ * The card and the strip above the map both ask here, so they can never both say the same line.
+ */
+export function cardTideStation(spotId: string): string | undefined {
+  if (!spotId) return undefined;
+  return ALL_SPOTS.find((s) => s.id === spotId)?.tideStationId;
+}
+
 /** Get spots for a specific sector */
 export function getSpotsForSector(sectorId: string): SailingSpot[] {
   if (sectorId === 'rias') return RIAS_SPOTS;
   if (sectorId === 'embalse') return EMBALSE_SPOTS;
   return [];
+}
+
+/**
+ * Whether a selected spot may stay open in this sector. Empty means nothing selected (true); a spot of
+ * another sector is a leftover, for example the one remembered from the last visit (P3 review, 19-nov).
+ */
+export function spotFitsSector(spotId: string, sectorId: string): boolean {
+  return spotId === '' || getSpotsForSector(sectorId).some((s) => s.id === spotId);
 }
 
 /** Default spot per sector */

@@ -20,6 +20,7 @@ import {
   isDirVariable,
   DIR_VARIABLE_BELOW,
 } from './verdictStyles';
+import { surfTone, windToneOver, fillOf, hexOf } from './verdictStyles';
 import { verdictFigure, gateWaveWhere, gateWaveText, verdictDoubt, verdictDoubtText } from './verdictStyles';
 import type { SpotVerdict } from '../services/spotScoringEngine';
 
@@ -140,7 +141,7 @@ describe('spot closed by the sea (wave hard gate)', () => {
   it('prefers the sea AT the spot: SWAN there, or the estimate from the buoy', () => {
     const swan = { ...cies, waves: { ...cies.waves, localHeight: 2.08, localSource: 'swan' as const } };
     expect(verdictFigure(swan)).toBe('2,1 m');
-    expect(gateWaveWhere(swan)).toBe('en la zona, SWAN (modelo)');
+    expect(gateWaveWhere(swan)).toBe('en la zona, según el modelo');
     const est = { ...cies, waves: { ...cies.waves, localHeight: 2.04, localSource: 'estimate' as const } };
     expect(verdictFigure(est)).toBe('≈2,0 m');
     expect(gateWaveWhere(est)).toBe('estimada desde Cabo Silleiro');
@@ -156,12 +157,21 @@ describe('spot closed by the sea (wave hard gate)', () => {
   });
 });
 
+describe('surfTone: the wave on the same scale as the wind', () => {
+  it('FLAT, PEQUE, SURF OK, CLÁSICO and GRANDE read like calma, flojo, navegable, bueno and fuerte', () => {
+    expect([0, 1, 2, 3, 4].map(surfTone)).toEqual(['calm', 'light', 'sailing', 'good', 'strong']);
+  });
+  it('a level it does not know says nothing', () => {
+    expect(surfTone(9)).toBe('unknown');
+  });
+});
+
 describe('verdictDoubt: the wind on a line', () => {
   const at = (verdict: 'calm' | 'light' | 'sailing' | 'good' | 'strong', kt: number) => ({ verdict, effectiveWindKt: kt });
   it('names both levels at the 12 and 18 kt lines, from either side', () => {
-    expect(verdictDoubtText(at('sailing', 11))).toBe('entre Navegable y Buen día');
-    expect(verdictDoubtText(at('good', 12.2))).toBe('entre Navegable y Buen día');
-    expect(verdictDoubtText(at('good', 17))).toBe('entre Buen día y Fuerte');
+    expect(verdictDoubtText(at('sailing', 11))).toBe('entre Navegable y Bueno');
+    expect(verdictDoubtText(at('good', 12.2))).toBe('entre Navegable y Bueno');
+    expect(verdictDoubtText(at('good', 17))).toBe('entre Bueno y Fuerte');
   });
   it('is silent away from a line', () => {
     expect(verdictDoubtText(at('sailing', 9.5))).toBeNull();
@@ -178,5 +188,28 @@ describe('verdictDoubt: the wind on a line', () => {
     expect(verdictDoubtText(at('light', 7.8))).toBe('entre Flojo y Navegable');
     expect(verdictDoubtText(at('calm', 5.9))).toBe('entre Calma y Flojo');
     expect(verdictDoubtText(at('calm', 5))).toBeNull();
+  });
+});
+
+describe('the colour of a spot past «Fuerte» (18-nov, one wind scale)', () => {
+  it('a «Fuerte» spot takes the colour of its wind from 22 kt: red, magenta, violet, violet-black', () => {
+    expect(windToneOver('strong', 21)).toBeNull();
+    expect(windToneOver('strong', 22)).toBe('duro');
+    expect(windToneOver('strong', 34)).toBe('temporal');
+    expect(windToneOver('strong', 50)).toBe('tduro');
+    expect(windToneOver('strong', 60)).toBe('tmduro');
+    expect(fillOf('strong', windToneOver('strong', 25))).toBe('var(--g-c-duro)');
+    expect(hexOf('strong', windToneOver('strong', 25))).toBe('#ff4d4d');
+  });
+
+  it('a «Fuerte» on its gusts with a low mean keeps the verdict colour, never a lower one', () => {
+    expect(windToneOver('strong', 14)).toBeNull();
+    expect(fillOf('strong', windToneOver('strong', 14))).toBe('var(--g-c-fuerte)');
+  });
+
+  it('below «Fuerte», or with no figure, the verdict colour stands', () => {
+    expect(windToneOver('good', 30)).toBeNull();
+    expect(windToneOver('strong', null)).toBeNull();
+    expect(windToneOver('unknown', 40)).toBeNull();
   });
 });

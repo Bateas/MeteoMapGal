@@ -58,69 +58,65 @@ export function NetworkCoverage() {
   const silent = coverage.total - coverage.active;
 
   return (
-    <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-3">
-      <div className="flex items-baseline gap-2 flex-wrap">
-        <span className="text-2xl font-bold text-white tabular-nums">{coverage.active}</span>
-        <span className="text-xs text-slate-400">estaciones emitiendo ahora mismo</span>
+    <div className="gg-cover">
+      <p className="gg-cover-total">
+        <b className="gg-nums">{coverage.active}</b> estaciones emitiendo ahora mismo
         {silent > 0 && (
-          <span className="text-[11px] text-slate-500">
-            · {silent} en silencio (siguen listadas, no reportan hace más de 2 h)
+          <span className="gg-muted gg-small gg-block">
+            {silent} en silencio: siguen listadas, pero no reportan hace más de 2 h
           </span>
         )}
-      </div>
+      </p>
 
-      <div className="space-y-2">
-        {coverage.provinces.map((p) => {
-          const pct = coverage.active > 0 ? (p.active / coverage.active) * 100 : 0;
-          return (
-            <div key={p.province} className="space-y-1">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-xs font-semibold text-slate-300">{p.province}</span>
-                <span className="text-[11px] text-slate-400 tabular-nums">
-                  {p.active}
-                  {p.total !== p.active && <span className="text-slate-600"> / {p.total}</span>}
-                </span>
-              </div>
-
-              {/* One bar per province, split by source. Widths are shares of the
-                  whole live network, so the bars are comparable between rows. */}
-              <div className="flex h-1.5 rounded-full overflow-hidden bg-slate-800">
-                {p.bySource
-                  .filter((s) => s.active > 0)
-                  .map((s) => (
-                    <div
-                      key={s.source}
-                      style={{
-                        width: `${(s.active / coverage.active) * 100}%`,
-                        backgroundColor: SOURCE_COLOR[s.source] ?? '#64748b',
-                      }}
-                      title={`${sourceLabel(s.source)}: ${s.active} activas`}
-                    />
-                  ))}
-                {pct < 100 && <div className="flex-1" />}
-              </div>
-
-              <p className="text-[10px] text-slate-500 leading-relaxed">
-                {p.active > 0
-                  ? p.bySource
-                      .filter((s) => s.active > 0)
-                      .map((s) => `${sourceLabel(s.source)} ${s.active}`)
-                      .join(' · ')
-                  : p.province === UNPLACED_LABEL
-                    // Not a mystery and worth naming: the province is written when
-                    // discovery sees a station, so one that stopped reporting before
-                    // we started recording it never got one — and being gone, it is
-                    // never rediscovered to receive it now. They stay listed because
-                    // their old readings are still in the history.
-                    ? 'Ninguna emitiendo. Son estaciones que se apagaron antes de que empezásemos a anotar la provincia; siguen listadas porque su histórico sigue ahí.'
-                    : 'Ninguna emitiendo ahora mismo.'}
-              </p>
+      {coverage.provinces.map((p) => {
+        const pct = coverage.active > 0 ? (p.active / coverage.active) * 100 : 0;
+        return (
+          <div key={p.province} className="gg-cover-prov">
+            <div className="gg-cover-head">
+              <span>{p.province}</span>
+              <span className="gg-nums">
+                {p.active}
+                {p.total !== p.active && <span className="gg-muted"> de {p.total}</span>}
+              </span>
             </div>
-          );
-        })}
-      </div>
 
-      <p className="text-[11px] text-slate-500 leading-relaxed border-t border-slate-800 pt-2">
+            {/* One bar per province, split by source. Widths are shares of the
+                whole live network, so the bars are comparable between rows. */}
+            <div className="gg-cover-bar" aria-hidden="true">
+              {p.bySource
+                .filter((s) => s.active > 0)
+                .map((s) => (
+                  <span
+                    key={s.source}
+                    style={{
+                      width: `${(s.active / coverage.active) * 100}%`,
+                      backgroundColor: SOURCE_COLOR[s.source] ?? '#64748b',
+                    }}
+                  />
+                ))}
+              {pct < 100 && <span style={{ flex: 1 }} />}
+            </div>
+
+            <p className="gg-muted gg-small">
+              {p.active > 0
+                ? p.bySource
+                    .filter((s) => s.active > 0)
+                    .map((s) => `${sourceLabel(s.source)} ${s.active}`)
+                    .join(', ')
+                : p.province === UNPLACED_LABEL
+                  // Not a mystery and worth naming: the province is written when
+                  // discovery sees a station, so one that stopped reporting before
+                  // we started recording it never got one — and being gone, it is
+                  // never rediscovered to receive it now. They stay listed because
+                  // their old readings are still in the history.
+                  ? 'Ninguna emitiendo. Son estaciones que se apagaron antes de que empezásemos a anotar la provincia; siguen listadas porque su histórico sigue ahí.'
+                  : 'Ninguna emitiendo ahora mismo.'}
+            </p>
+          </div>
+        );
+      })}
+
+      <p className="gg-muted gg-small gg-cover-foot">
         Cobertura, no calidad. Una estación cuenta aquí en cuanto emite, pero para entrar
         en el veredicto de un spot tiene que estar cerca y estar calibrada, y las últimas
         en llegar todavía no lo están. El radio de cada spot las mantiene fuera solas

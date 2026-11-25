@@ -518,7 +518,7 @@ describe('trackStorms — history pruning', () => {
   });
 });
 
-// ── Linear-regression velocity (T2-1 S136+3+3) ───────
+// ── Linear-regression velocity ───────────────────
 
 describe('trackStorms — regression-based velocity smoothing', () => {
   /**

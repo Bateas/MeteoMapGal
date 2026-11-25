@@ -28,16 +28,15 @@ function setup(simpleMode: boolean) {
 describe('desktop header in simple mode', () => {
   beforeEach(() => localStorage.clear());
 
-  it('hides the source strip and the readings count', () => {
+  it('hides the source strip', () => {
     setup(true);
     expect(screen.queryByTestId('source-strip')).toBeNull();
-    expect(screen.queryByText('1/2')).toBeNull();
   });
 
-  it('advanced mode still shows them', () => {
+  it('advanced mode shows it, and the readings count is gone from both', () => {
     setup(false);
     expect(screen.getByTestId('source-strip')).toBeTruthy();
-    expect(screen.getByText('1/2')).toBeTruthy();
+    expect(screen.queryByText('1/2')).toBeNull();
   });
 
   it('the toggle is an action that says where it goes, with no pressed state', () => {

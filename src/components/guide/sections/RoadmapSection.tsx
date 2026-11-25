@@ -1,243 +1,111 @@
 /**
- * Guide section: Roadmap — vertical timeline + data sources.
- * Concise, user-friendly. No architecture details exposed.
+ * Guide: what exists, what is next, and where the data comes from. The attributions and the
+ * «not for navigation» notice are obligations: keep them word for word.
  */
-import { WeatherIcon } from '../../icons/WeatherIcons';
 import { NetworkCoverage } from '../NetworkCoverage';
 import { SPOT_COUNT, SURF_SPOT_COUNT, SAILING_SPOT_COUNT, WEBCAM_COUNT, MG_WEBCAM_COUNT, DGT_WEBCAM_COUNT, BUOY_COUNT, SOURCES, approxStationCount } from '../../../config/networkStats';
-import type { IconId } from '../../icons/WeatherIcons';
 import { useUIStore } from '../../../store/uiStore';
+import { Def, H3 } from '../guideParts';
+
+const SUPPLEMENTARY: [string, string][] = [
+  ['MeteoSIX (MeteoGalicia)', 'Previsión WRF a 1 km, oleaje costero y temperatura del mar.'],
+  ['Open-Meteo', 'Energía del aire para las tormentas, rachas, visibilidad y previsión de oleaje.'],
+  ['RainViewer', 'Radar de lluvia.'],
+  ['MeteoGalicia', 'Rayos, avisos oficiales, calidad del aire y cámaras.'],
+  ['DGT', 'Cámaras de tráfico de Ribadavia y Barbantes, para la niebla.'],
+  ['IHM', 'Predicción de mareas de 5 puertos.'],
+  ['Puertos del Estado y Observatorio Costeiro', `${BUOY_COUNT} boyas y mareógrafos.`],
+  ['CESGA', 'Modelo de oleaje SWAN.'],
+  ['NOAA', 'Índices NAO y AO, y partes METAR de los aeropuertos.'],
+  ['IGN', 'Mapa topográfico y foto aérea.'],
+  ['NASA FIRMS y EFFIS', 'Incendios por satélite.'],
+];
 
 export function RoadmapSection() {
   const alphaMode = useUIStore((s) => s.alphaMode);
   const toggleAlphaMode = useUIStore((s) => s.toggleAlphaMode);
   return (
-    <div className="space-y-8">
-      <div className="space-y-2">
-        <h2 className="text-3xl font-extrabold text-white tracking-tight">Roadmap</h2>
-        <p className="text-slate-400 text-sm leading-relaxed">
-          Progreso del proyecto, próximas funcionalidades y fuentes de datos.
+    <div className="g-theme gg-page">
+      <h2>Roadmap y fuentes</h2>
+      <p>Qué hay hoy, qué viene y de dónde sale cada dato.</p>
+
+      <section className="gg-section">
+        <H3 id="check-circle" tone="wind">Qué hay hoy</H3>
+        <ul className="gg-bullets">
+          <li>{SPOT_COUNT} spots con veredicto automático: {SAILING_SPOT_COUNT} de vela y {SURF_SPOT_COUNT} de surf.</li>
+          <li>Rayos y tormentas, con aviso desde cada spot. Aviso al móvil si lo activas.</li>
+          <li>Lluvia ahora, niebla, incendios y calidad del aire, que salen solos cuando hace falta.</li>
+          <li>Previsión por horas, olas de las próximas 24 horas y mareas.</li>
+          <li>Avisos oficiales de MeteoGalicia.</li>
+          <li>{WEBCAM_COUNT} cámaras enlazadas a sus spots: {MG_WEBCAM_COUNT} de MeteoGalicia y {DGT_WEBCAM_COUNT} de la DGT.</li>
+          <li>Favoritos y compartir por enlace.</li>
+        </ul>
+      </section>
+
+      <section className="gg-section">
+        <H3 id="compass" tone="sea">Qué viene</H3>
+        <dl className="gg-defs">
+          <Def id="map-pin" tone="sea" name="Más zonas">La costa norte: Costa da Morte y Ferrol. Después de validar bien las actuales.</Def>
+          <Def id="bell" tone="storm" name="Avisos con antelación">Hay modelos en prueba. Solo se publican si aprueban el examen contra lo que pasó de verdad.</Def>
+          <Def id="eye" tone="air" name="Ideas, sin fecha">Alertas a tu medida y seguimiento de embarcaciones.</Def>
+        </dl>
+      </section>
+
+      <section className="gg-section">
+        <H3 id="database" tone="rain">Estaciones</H3>
+        <p>{approxStationCount()} estaciones de redes públicas y ciudadanas en toda Galicia. El reparto cambia cada semana.</p>
+        <dl className="gg-defs gg-defs-tight">
+          {SOURCES.map((s) => <div key={s.key}><dt>{s.name}</dt><dd>{s.what}</dd></div>)}
+        </dl>
+        <h4>La red, ahora mismo</h4>
+        <NetworkCoverage />
+      </section>
+
+      <section className="gg-section">
+        <H3 id="satellite" tone="air">Otras fuentes</H3>
+        <dl className="gg-defs gg-defs-tight">
+          {SUPPLEMENTARY.map(([name, what]) => <div key={name}><dt>{name}</dt><dd>{what}</dd></div>)}
+        </dl>
+      </section>
+
+      <section className="gg-section gg-small">
+        <H3 id="info" tone="fog">Atribuciones</H3>
+        <p>
+          © AEMET · © MeteoGalicia – Xunta de Galicia (CC BY-SA 4.0) ·{' '}
+          Fuente: <a href="https://www.ipma.pt" target="_blank" rel="noopener noreferrer">IPMA — Instituto Português do Mar e da Atmosfera</a> (uso sin ánimo de lucro) ·{' '}
+          Datos de Puertos del Estado (portus.puertos.es) · Observatorio Costeiro da Xunta de Galicia (CC BY-SA 4.0) ·{' '}
+          © Instituto Hidrográfico de la Marina ·{' '}
+          Modelo SWAN — CESGA ·{' '}
+          © Meteoclimatic · Powered by Weather Underground® · Powered by Netatmo ·{' '}
+          Open-Meteo.com (CC BY 4.0) · RainViewer.com ·{' '}
+          Esri, HERE, Garmin · © OpenStreetMap contributors · © IGN España (CC BY 4.0) ·{' '}
+          AWS Open Data (Mapzen Terrarium) · Noto Sans © Google (OFL) · Archivo © The Archivo Project Authors (OFL).
         </p>
-      </div>
+        <p className="gg-notice">
+          <strong>NO APTO PARA NAVEGACIÓN MARÍTIMA NI AÉREA.</strong>{' '}
+          Cartas náuticas, mareas y boyas son visualización ilustrativa.
+          Use siempre datos oficiales para decisiones operativas.
+        </p>
+        <p>
+          <strong>Licencia software:</strong>{' '}
+          <a href="https://github.com/Bateas/MeteoMapGal" target="_blank" rel="noopener noreferrer">MIT (código)</a>. Cada fuente de datos retiene su propia licencia — algunas
+          requieren autorización para uso comercial. Proyecto sin ánimo de lucro.
+          {' · '}
+          <a href="https://github.com/Bateas/MeteoMapGal/issues" target="_blank" rel="noopener noreferrer">Reportar bug</a>
+        </p>
+      </section>
 
-      {/* ── Timeline ─────────────────────────────────────── */}
-      <div className="relative pl-8">
-        {/* Vertical line */}
-        <div className="absolute left-[11px] top-0 bottom-0 w-px bg-slate-700" />
-
-        {/* ── Ultimas novedades ── */}
-        <TimelineGroup label="Últimas novedades" dotColor="bg-emerald-500" textColor="text-emerald-400" />
-        <TimelineMilestone iconId="wind" title="Aviso de downburst seco (rachas súbitas sin lluvia)" desc="Detector que cruza 4 señales: ratio racha/medio ≥2.0 en estación, aire frío ≤-15°C en altura (500 hPa), atmósfera inestable (CAPE ≥800 + LI ≤-2), y nube alta + capa baja seca (cobertura ≥70% con lluvia ≤0.5mm/h). Cuando 3 de 4 alinean: aviso 'moderado'; las 4 alineadas: 'ALTO' + urgente. Cuelga el semáforo de regatas a rojo automáticamente — un downburst seco puede volcar embarcación pequeña en menos de 30s. Pasa también por Telegram vía la pipeline de notificaciones." status="done" />
-        <TimelineMilestone iconId="wind" title="Ventana Mágica (Rías Baixas)" desc="Detector sector-wide de convergencias raras de SW sinóptico + ΔT termico + boca húmeda + hora térmica. Cuando la alineación da score ≥75/100 (suelen ocurrir pocos días por temporada), se muestra un banner púrpura-ámbar arriba del mapa y se envía aviso Telegram. Veto eléctrico: ≥3 rayos cerca cancelan la 'magia' porque las tormentas contradicen el concepto. Persiste en base de datos para poder analizar después cuántas veces dispara." status="done" />
-        <TimelineMilestone iconId="database" title="Tab Histórico — Resumen sector" desc="El tab Historial ahora arranca con una vista 'Resumen sector' que muestra heatmap de tormentas y CAPE diarios, top 5 zonas con más rayos del periodo y evolución de la calidad del aire ICA, todo agregado por sector (Embalse o Rías). Toggle para volver al explorer detallado 'Por estación' cuando hace falta. Consume directamente las CAGGs (continuous aggregates) que ya estaban acumulando datos." status="done" />
-        <TimelineMilestone iconId="zap" title="Storm tracker — vector estable con confianza" desc="Antes el vector de movimiento se calculaba como mediana entre pares de polls; con tormentas que aceleraban o cambiaban dirección quedaba sub-optimal. Ahora hace regresión lineal sobre la historia completa de centroides y reporta un tier de confianza (low/medium/high) según R² del fit. El visual modula automáticamente: vectores high-confidence bold + solid, low-confidence dashed + tenue — el ojo distingue 'storm va a sitio cierto' de 'storm está cambiando dirección'." status="done" />
-        <TimelineMilestone iconId="info" title="Cesantes — viento coherente en toda la app" desc="Ficha, marcador, banner móvil y ticker muestran la misma cifra de Cesantes: la medida. Desde la v2.196 la canalización ya no sube esa cifra ni el veredicto (una tarde marcó BUENO 13 kt con la ensenada en calma): la ficha añade «Posible brisa hasta ~N kt (sin confirmar)», y un reporte reciente desde el agua que diga que no ha entrado la descarta." status="done" />
-        <TimelineMilestone iconId="sailboat" title={`${SPOT_COUNT} spots con veredicto automático`} desc={`${SAILING_SPOT_COUNT} de vela + ${SURF_SPOT_COUNT} de surf. Scoring basado en ${approxStationCount()} estaciones y ${BUOY_COUNT} boyas marinas.`} status="done" />
-        <TimelineMilestone iconId="waves" title="Previsión de olas 24h" desc="Altura, período, tendencia y veredicto de surf (FLAT/PEQUE/SURF OK/CLÁSICO/GRANDE)." status="done" />
-        <TimelineMilestone iconId="camera" title={`${WEBCAM_COUNT} webcams con visión IA`} desc={`${MG_WEBCAM_COUNT} cámaras MeteoGalicia + ${DGT_WEBCAM_COUNT} cámaras DGT (Ribadavia, Barbantes). Análisis automático: niebla, visibilidad y estado del cielo.`} status="done" />
-        <TimelineMilestone iconId="bell" title="Alertas inteligentes por Telegram" desc="Avisos de cambio de condiciones: viento, niebla, tormentas, olas. Silencio nocturno." status="done" />
-        <TimelineMilestone iconId="sailboat" title="Modo Evento para regatas" desc="Zona de agua, panel de seguridad, balizas, mareas, aviación, previsión 6h." status="done" />
-        <TimelineMilestone iconId="compass" title="Previsión horaria por spot" desc="Ventana de navegación 48h + mini-timeline 12h directamente en el popup." status="done" />
-        <TimelineMilestone iconId="map-pin" title="Compartir, favoritos y comparador" desc="Comparte condiciones por WhatsApp/Telegram. Compara todos los spots en una tabla." status="done" />
-        <TimelineMilestone iconId="layers" title="Radar y cartas náuticas" desc="Capas de datos: radar precipitación, batimetría, señalización marítima, carta IHM." status="done" />
-        <TimelineMilestone iconId="zap" title="Predictor de tormentas con 9 senales" desc="Cruza CAPE, CIN, lluvia, nubosidad, rayos, avance, sombra solar, rachas, avisos oficiales MeteoGalicia y sky_state WRF. Probabilidad 0-100% con ETA y accion recomendada." status="done" />
-        <TimelineMilestone iconId="wind" title="Detector de viración por spot (Rías)" desc="Identifica la fase del ciclo diario de viento en cada spot: terral matutino (NE/E), transición ~12h, viración tarde (SW/W) y decay nocturno. Patrón empírico calibrado contra el archivo propio (auditoría marzo-mayo 2026, del orden de 30 días térmicos por spot), con validación cruzada contra la boya local cuando la hay. Aparece como una línea informativa en el popup del spot durante temporada activa abr-sep, con confianza alta (boya confirma) o media (sólo estación)." status="done" />
-        <TimelineMilestone iconId="info" title="Mapa empírico de sesgos por estación" desc="Cada estación 'oficial' tiene sectores donde mide mal por orografía. El detector las cruza con boyas reales (Vigo REDMAR, Marín REDMAR, Cabo Silleiro REDEXT) y documenta empíricamente qué direcciones son fiables y cuáles no por estación. Cangas: N apantallada, SW limpia. Vigo Porto: oro estándar excepto E-SE. Lourizán: subvalora todo, no usable como referencia primaria." status="done" />
-        <TimelineMilestone iconId="info" title="Per-station freshness alarm en boyas" desc="Cada boya tiene cadencia esperada conocida (REDMAR 10-15min, REDEXT 30min, ObsCosteiro 10min). Si alguna queda atrás de su umbral, alerta en logs en horas. Aprendido tras un blackout silencioso de 40 días en boyas Cabo Silleiro y Marín REDMAR (causa: filtro MAX_AGE demasiado estricto, no rate-limit como creímos)." status="done" />
-        <TimelineMilestone iconId="zap" title="Clusters inteligentes y etiquetas on-map" desc="Nucleos tormentosos con subdivision automatica, etiquetas (rayos, distancia, velocidad, ETA), flechas de avance, proyeccion 30min. Radar auto sutil cuando hay tormentas." status="done" />
-        <TimelineMilestone iconId="bell" title="Avisos oficiales MeteoGalicia" desc="RSS de avisos adversos: tormentas, oleaje, viento, lluvia. Niveles amarillo/naranja/rojo. Integrado en predictor + ticker + panel condiciones." status="done" />
-
-        <TimelineMilestone iconId="thermometer" title="MeteoSIX v5 — WRF 1km" desc="Prevision atmosferica a 1km de resolucion de MeteoGalicia: el panel de prevision la lee a nivel de sector desde nuestro servidor, y la ficha de cada spot consulta la celda de ese spot. USWAN para oleaje nearshore y MOHID para temperatura del mar si estan operativos." status="done" />
-        <TimelineMilestone iconId="cloud" title="Niebla localizada multi-evidencia" desc="Overlay que se activa por detector (radio 4km). Cruza: webcams con IA de vision, firma solar (HR>85% + radiacion bloqueada), visibilidad oficial AEMET de 8 aeropuertos/estaciones costeras (<1km = niebla confirmada). Fade asimetrico 2s aparicion / 5s disipacion que mimica niebla real." status="done" />
-        <TimelineMilestone iconId="compass" title="Panel de prevision Windguru-style" desc="Vista fullscreen (tecla P) con tabla de colores por intensidad, dots de calidad, dimming nocturno, conclusion inteligente y meteograma SVG." status="done" />
-        <TimelineMilestone iconId="camera" title="Webcams DGT" desc="Cámaras de tráfico en Ribadavia (N-120) y Barbantes (A-52) para validar niebla en valles interiores." status="done" />
-        <TimelineMilestone iconId="wind" title="Predictor de canalizacion en Cesantes" desc="Cesantes tiene una ensenada abrigada donde las estaciones cercanas subestiman el viento real. Solo cuenta la brisa termica de tarde (sol en el interior y agua mas fria que el aire): con ella la ensenada recibe 1,4-1,6 veces lo que marca el puerto de Vigo. Si llueve en 2 o mas estaciones cercanas no se aplica, y tampoco con viento de frente en altura (15 kt o mas del S-SW-W a 1.500 m): ese dia entra lo que miden las estaciones. Cuando su estimacion supera la medicion en 4 kt o mas, la ficha la ofrece como «Posible brisa hasta ~N kt (sin confirmar)» junto al viento medido: no cambia la cifra ni el veredicto." status="done" />
-        <TimelineMilestone iconId="cloud" title="Detector de calima/Saharan dust" desc="Overlay que se activa solo cuando Open-Meteo reporta polvo del Sáhara. Tinte marrón-ocre sutil con 3 niveles (leve / moderada / fuerte) según concentración de polvo y opacidad atmosférica (AOD). Fade asimétrico 2s/5s." status="done" />
-        <TimelineMilestone iconId="info" title="Respaldo automático cuando el SWAN cae" desc="El servidor académico CESGA falla varias veces al mes. Ahora cuando ese modelo no puede cargar, se dibujan automáticamente puntos de altura de ola en 6 ubicaciones estratégicas de las Rías (bocanas e interiores) tomados de Open-Meteo Marine. Pierdes resolución (de 250m a puntos discretos) pero no te quedas sin contexto espacial de oleaje." status="done" />
-        <TimelineMilestone iconId="zap" title="Incendios activos en tiempo real" desc="Detección de focos de incendio vía satélite NASA FIRMS (VIIRS 375m, latencia ≤1h). Cobertura Galicia + Asturias W + Norte Portugal. Puntos rojos pulsantes en el mapa, tamaño según intensidad calorífica (FRP). Aviso en ticker cuando hay focos activos." status="done" />
-        <TimelineMilestone iconId="info" title="Calidad del aire oficial Xunta" desc="Datos de la Rede Galega de Calidade do Aire (MeteoGalicia ICA). Cuando alguna estación marca calidad deficiente o peor, el ticker la nombra junto con el contaminante responsable (O3, PM10, NO2, etc). Sustituye a Open-Meteo en Galicia." status="done" />
-        <TimelineMilestone iconId="cloud" title="Penachos de humo direccionales" desc="Cuando hay fuegos activos, se dibuja un cono marrón corriente abajo del foco con la dirección y velocidad del viento real de la estación más cercana. La longitud crece con la intensidad del foco (FRP). Físicamente coherente: si el viento es flojo no aparece, si cambia el viento el penacho rota." status="done" />
-        <TimelineMilestone iconId="cloud" title="Halo de niebla en estaciones AEMET" desc="Cuando un aeropuerto o estación oficial AEMET reporta visibilidad &lt;2km, aparece un halo blanco-azulado a su alrededor. Constreñido a la cota baja de la propia estación: nunca pinta cumbres. Sólo se ve cuando hay datos oficiales que lo confirman." status="done" />
-        <TimelineMilestone iconId="zap" title="Ondas concéntricas en cada rayo nuevo" desc="Cada rayo recién registrado emite una onda animada que se expande durante 3 segundos. Llamada visual urgente: si está cayendo AHORA cerca, se ve sin necesidad de leer ningún texto. Anillo amarillo brillante para los rayos a tierra (más peligrosos), tono más suave para los intra-nube." status="done" />
-        <TimelineMilestone iconId="zap" title="Tracker de tormentas más fiable" desc="Auditoría a fondo del cálculo de centroide y dirección. ID estable por núcleo (mismo ID entre polls = mismo storm físico), matching greedy-global sin doble asignación, mediana multi-snapshot de velocidad para suprimir el ruido en clusters pequeños, umbral de match adaptativo. La flecha de avance y el ETA son ahora mucho más estables." status="done" />
-        <TimelineMilestone iconId="zap" title="Histórico de rayos en TimescaleDB" desc="Cada rayo registrado por la red MeteoGalicia se persiste 24/7 en base de datos propia. Primera fase de un dataset histórico riguroso para detectar patrones reales: zonas de mayor incidencia, correlación con dirección de viento, paso de frentes, hora del día. A medida que se acumulen meses se podrán extraer patrones que ningún modelo genérico captura para Galicia." status="done" />
-        <TimelineMilestone iconId="info" title="Histórico sinóptico — viento en altura" desc="Datos horarios de viento, temperatura y altura geopotencial a 850, 700 y 500 hPa por sector — la base de toda la dinámica que mueve las tormentas. Sin esto solo veríamos el resultado en superficie; con esto podemos correlacionar lo que pasa abajo con lo que está pasando arriba." status="done" />
-        <TimelineMilestone iconId="zap" title="Histórico de inestabilidad atmosférica" desc="CAPE, CIN, índice de levantamiento y agua precipitable persistidos por hora y sector. Permitirá calibrar el predictor de tormentas con casos reales de Galicia: ¿qué umbrales de CAPE producen actividad eléctrica aquí, no en el genérico continental?" status="done" />
-        <TimelineMilestone iconId="zap" title="Tipo de tormenta y riesgo de granizo" desc="Cada núcleo tormentoso clasifica ahora qué tipo es: 'eléctrica seca' (rayos sin lluvia, peligro incendio campo), 'lluvia intensa' (chaparrón, refugio), 'lluvia con rayos', 'estratiforme leve'. Más: si la atmósfera (CAPE alto + LI muy negativo) sugiere granizo, se pintan anillos rayados azul-hielo alrededor del núcleo y la etiqueta lo avisa. Sustituye al 'vemos los rayos pero ni idea si va a caer poca lluvia o un mega chaparrón'." status="done" />
-        <TimelineMilestone iconId="zap" title="Granizo PROBABLE con aire frío en altura" desc="Antes el aviso de granizo se quedaba en 'posible' (CAPE+LI). Ahora consultamos también la temperatura a 500 hPa (~5500m). Si está por debajo de -15 °C, las nubes pueden congelar el agua antes de que caiga: granizo PROBABLE, no solo posible. La etiqueta del núcleo lo refleja y los anillos se ven más intensos." status="done" />
-        <TimelineMilestone iconId="zap" title="Frentes alargados (squall lines) trackeados por la cabeza" desc="Cuando un frente tormentoso se estira 30+ km, el centroide normal se queda atrás (los rayos viejos lo arrastran). Ahora cada núcleo tiene DOS centroides: uno para dibujar (todo el conjunto) y otro de cabeza (solo los rayos más recientes). El matching y la velocidad usan el de cabeza, así el ID del storm sigue siendo el mismo entre polls aunque el frente avance kilómetros." status="done" />
-        <TimelineMilestone iconId="zap" title="Trayectoria visible de cada tormenta" desc="Antes solo veías DÓNDE estaba el storm AHORA. Ahora cada núcleo dibuja una línea morada dashada que conecta todas sus posiciones de los últimos 15 min con la actual — la 'estela' del storm. Y la flecha naranja proyecta los próximos 30 min a la velocidad actual (mín 6 km, máx 25 km), con la punta más grande para que se lea desde lejos. De un vistazo: de dónde viene + dónde va." status="done" />
-        <TimelineMilestone iconId="database" title="Histórico consultable en milisegundos" desc="Pre-agregaciones automáticas en la base de datos: rayos por celda de 5 km y hora, índices de inestabilidad por día y sector, calidad del aire diaria por estación. Refresco continuo cada 5 min (rayos) o cada hora (resto). Permite responder 'cuántos rayos cayeron en esta zona el martes pasado a las 18h' sin escanear millones de filas." status="done" />
-        <TimelineMilestone iconId="zap" title="Predictor de tormentas con accuracy medible" desc="Cada predicción del predictor de 8 señales se evalúa automáticamente 6h después contra rayos reales + precipitación medida. Tabla de outcomes acumulada en base de datos. Permite cuantificar la accuracy real del predictor en Galicia y, eventualmente, recalibrar los pesos de las 8 señales con datos propios en lugar de depender de heurísticas genéricas." status="done" />
-        <TimelineMilestone iconId="sun" title="UV index con reflexión sobre agua" desc="Cuando el índice UV supera 7 entre 12-16h (ventana de exposición real con sol alto), se muestra el UV actual junto con el efectivo sobre agua (factor +30% por reflexión). Acción concreta según severidad: 'gorra/protector' (alto), 'cuidado' (muy alto), 'evitar exposición' (extremo). Fuera de la ventana queda silencioso." status="done" />
-        <TimelineMilestone iconId="waves" title="Aguas vivas extremas + storm surge" desc="Para Rías: cuando el coeficiente de marea supera 95 (mareas vivas, ventanas intermareales máximas) se avisa con la próxima pleamar/bajamar y su hora. Cross-check con presión atmosférica de las boyas: si una borrasca atlántica baja la presión, se suma la marea por baja presión calculada (regla del barómetro inverso). Pensado para mariscadores y surfistas." status="done" />
-        <TimelineMilestone iconId="info" title="Pre-clasificador de webcams (visión IA acelerada)" desc="Antes de pedir al modelo de visión que analice una imagen de webcam, un clasificador rápido en milisegundos decide si la escena es 'trivial' (mar plano + cielo uniforme + Beaufort previo bajo). Si lo es, reusa el último veredicto sin volver a llamar al modelo. Resultado: ~25 minutos de CPU/día ahorrados, mismo cubrimiento, capacidad para escalar a más cámaras sin tocar hardware." status="done" />
-        <TimelineMilestone iconId="eye" title="Modo Simple / Avanzado" desc="Toggle accesible en la cabecera (escritorio) y centro de la barra inferior (móvil). En Modo Simple se esconden detalles de operador (markers de estaciones, flechas de viento, ticker, capas, tabs Gráfica/Comparar/Rankings/Historial) y deja sólo lo esencial: spots con veredicto, boyas, previsiones y alertas reactivas. Pensado para usuarios casuales que sólo quieren 'cómo está hoy'. Banner ámbar persistente con un clic para volver al modo completo." status="done" />
-        <TimelineMilestone iconId="cloud" title="Mapa de calidad del aire por estación (ICA)" desc="Cuando la red oficial Xunta detecta calidad deficiente o peor en alguna estación, aparece un overlay con halos coloreados centrados en cada estación medidora (verde/amarillo/naranja/rojo/morado según índice ICA). Refleja la realidad heterogénea: una estación urbana puede marcar deficiente mientras la rural cercana sigue buena. Auto-activa con ICA≥3, manual disponible en el selector de capas." status="done" />
-        <TimelineMilestone iconId="zap" title="Heatmap CAPE corregido en todo Galicia" desc="El mapa de riesgo convectivo (CAPE × LI) cubre ahora correctamente toda Galicia, no sólo el norte. Bug de meses descubierto y corregido: la query de la base de datos filtraba por última actualización completa, así que si Open-Meteo fallaba parcialmente algunos batches, las celdas no refrescadas quedaban ocultas. Nuevo enfoque tolerante a ciclos parciales + ventana de frescura 3h + fetcher con reintentos." status="done" />
-
-        {/* ── Proximamente ── */}
-        <TimelineGroup label="Próximamente" dotColor="bg-sky-500" textColor="text-sky-400" />
-        <TimelineMilestone iconId="anchor" title="Seguimiento de embarcaciones" desc="Posición de barcos en tiempo real y alertas marítimas inteligentes." status="idea" />
-        <TimelineMilestone iconId="bell" title="Alertas a medida" desc="Define tus umbrales de viento, olas o temperatura y recibe avisos automáticos." status="idea" />
-        <TimelineMilestone iconId="map-pin" title="Más zonas y actividades" desc="A Coruña, Costa da Morte, nuevos spots. Scoring por actividad: surf, vela, kite, SUP." status="idea" />
-        <TimelineMilestone iconId="eye" title="Correlaciones históricas" desc={'Patrones basados en datos reales acumulados: "Cuando Silleiro marca X, Patos tiene Y."'} status="idea" />
-      </div>
-
-      {/* ── Fuentes de datos ─────────────────────────────── */}
-      <div className="border-t border-slate-700/50 pt-6 space-y-4">
-        <div className="space-y-1">
-          <h2 className="text-xl font-bold text-white">Fuentes de datos</h2>
-          <p className="text-[11px] text-slate-500 leading-relaxed">
-            Todos los datos provienen de <strong className="text-slate-400">fuentes abiertas y públicas</strong>:
-            organismos oficiales, redes ciudadanas y proyectos de ciencia abierta.
-          </p>
-        </div>
-
-        <div className="space-y-3">
-          <h3 className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-            <WeatherIcon id="database" size={13} /> Estaciones en tiempo real
-          </h3>
-          <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-2">
-            {SOURCES.map((src, i) => (
-              <SourceRow
-                key={src.key}
-                letter={src.name[0]}
-                name={src.name}
-                desc={src.what}
-                color={['#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#a855f7', '#64748b', '#0891b2'][i] ?? '#64748b'}
-              />
-            ))}
-            <p className="text-[11px] text-slate-500 pt-1">
-              {approxStationCount()} estaciones en toda Galicia. El reparto por red cambia cada semana,
-              así que no se fija aquí.
-            </p>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <h3 className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-            <WeatherIcon id="database" size={13} /> La red, ahora mismo
-          </h3>
-          <NetworkCoverage />
-        </div>
-
-        <div className="space-y-3">
-          <h3 className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-            <WeatherIcon id="satellite" size={13} /> Fuentes complementarias
-          </h3>
-          <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800 space-y-2">
-            <SourceRow letter="M" name="MeteoSIX v5 (MeteoGalicia)" desc="WRF 1km (atmosferico), USWAN (oleaje nearshore), MOHID (temp. mar) — modelo principal" color="#3b82f6" />
-            <SourceRow letter="O" name="Open-Meteo" desc="CAPE, CIN, LI, rachas, visibilidad — datos de conveccion background" color="#06b6d4" />
-            <SourceRow letter="R" name="AEMET Radar" desc="Radar nacional (Cerceda/A Coruña)" color="#ec4899" />
-            <SourceRow letter="L" name="MeteoGalicia" desc="Red de detección de rayos" color="#f43f5e" />
-            <SourceRow letter="E" name="ENAIRE" desc="Espacio aéreo y NOTAMs para drones" color="#6366f1" />
-            <SourceRow letter="T" name="IHM / Puertos del Estado" desc="Predicciones de mareas (5 puertos)" color="#14b8a6" />
-            <SourceRow letter="B" name="Puertos del Estado (POEM) + Obs. Costeiro" desc={`${BUOY_COUNT} boyas y mareógrafos — oleaje, viento, corrientes, nivel del mar`} color="#06b6d4" />
-            <SourceRow letter="X" name="Observatorio Costeiro da Xunta (INTECMAR)" desc="Plataformas de las rías cada 10 min — viento, agua, humedad, punto de rocío; en tiempo real desde la API de INTECMAR (5 plataformas activas)" color="#14b8a6" />
-            <SourceRow letter="C" name="CMEMS / Copernicus Marine" desc="Temperatura superficial del mar (SST) — WMTS tiles" color="#0d9488" />
-            <SourceRow letter="D" name="EMODnet" desc="Batimetría — profundidades marinas WMS" color="#475569" />
-            <SourceRow letter="N" name="NOAA" desc="Índices NAO/AO — teleconexiones atlánticas · partes METAR (aviationweather.gov) con la visibilidad de los aeropuertos de Vigo, Santiago y A Coruña" color="#059669" />
-            <SourceRow letter="I" name="IGN" desc="Cartografía: ortofotos PNOA, sombreado MDT, curvas de nivel" color="#7c3aed" />
-            <SourceRow letter="W" name="MeteoGalicia Webcams" desc={`${MG_WEBCAM_COUNT} cámaras públicas de costa e interior (imágenes cada 5 min)`} color="#3b82f6" />
-            <SourceRow letter="D" name="DGT Webcams" desc="Cámaras de tráfico (Ribadavia, Barbantes) — validación de niebla interior" color="#64748b" />
-            <SourceRow letter="O" name="Open-Meteo Marine" desc="Previsión horaria de oleaje y swell (48h)" color="#06b6d4" />
-            <SourceRow letter="V" name="MeteoGalicia Avisos" desc="Avisos adversos oficiales — tormentas, oleaje, viento, lluvia (RSS)" color="#eab308" />
-            <SourceRow letter="P" name="RainViewer" desc="Radar precipitación animado (2h pasadas, tiles libres)" color="#3b82f6" />
-            <SourceRow letter="F" name="NASA FIRMS" desc="Focos de incendio activos vía satélite VIIRS (375m, ≤1h latencia)" color="#dc2626" />
-            <SourceRow letter="A" name="MeteoGalicia ICA (Xunta)" desc="Calidad del aire oficial — Rede Galega de Calidade do Aire" color="#10b981" />
-          </div>
-        </div>
-
-        {/* Tech stack — simplified, no architecture details */}
-        <div className="space-y-3">
-          <h3 className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-            <WeatherIcon id="info" size={13} /> Tecnologías
-          </h3>
-          <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-800">
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px]">
-              <TechRow name="React + Vite" license="MIT" />
-              <TechRow name="TypeScript" license="Apache-2" />
-              <TechRow name="MapLibre GL" license="BSD-3" />
-              <TechRow name="Tailwind CSS" license="MIT" />
-              <TechRow name="Zustand" license="MIT" />
-              <TechRow name="Recharts" license="MIT" />
-            </div>
-            <div className="flex gap-4 mt-3 pt-2 border-t border-slate-700/50 text-[11px]">
-              <span className="text-slate-500">{approxStationCount()} estaciones</span>
-              <span className="text-slate-500">{WEBCAM_COUNT} webcams + IA</span>
-              <span className="text-slate-500">TimescaleDB 24/7</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Atribuciones obligatorias + nota de uso */}
-        <div className="bg-slate-900/30 rounded-lg p-3 border border-slate-700/50 space-y-2">
-          <p className="text-[11px] text-slate-400">
-            <strong className="text-slate-300">Atribuciones:</strong>{' '}
-            © AEMET · © MeteoGalicia – Xunta de Galicia (CC BY-SA 4.0) ·{' '}
-            Fuente: <a
-              href="https://www.ipma.pt"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-400 hover:text-blue-300 underline underline-offset-2"
-            >IPMA — Instituto Português do Mar e da Atmosfera</a> (uso sin ánimo de lucro) ·{' '}
-            Datos de Puertos del Estado (portus.puertos.es) · Observatorio Costeiro da Xunta de Galicia (CC BY-SA 4.0) ·{' '}
-            © Instituto Hidrográfico de la Marina ·{' '}
-            E.U. Copernicus Marine Service (CMEMS) · © EMODnet Bathymetry (CC BY 4.0) ·{' '}
-            Modelo SWAN — CESGA · ENAIRE / AESA ·{' '}
-            © Meteoclimatic · Powered by Weather Underground® · Powered by Netatmo ·{' '}
-            Open-Meteo.com (CC BY 4.0) · RainViewer.com ·{' '}
-            © OpenStreetMap contributors · © CARTO · © IGN España (CC BY 4.0) ·{' '}
-            AWS Open Data (Mapzen Terrarium) · Noto Sans © Google (OFL).
-          </p>
-          <p className="text-[11px] text-amber-400/90">
-            <strong>NO APTO PARA NAVEGACIÓN MARÍTIMA NI AÉREA.</strong>{' '}
-            Cartas náuticas, mareas, boyas y zonas aéreas son visualización ilustrativa.
-            Use siempre datos oficiales para decisiones operativas.
-          </p>
-          <p className="text-[11px] text-slate-400">
-            <strong className="text-slate-300">Licencia software:</strong>{' '}
-            <a
-              href="https://github.com/Bateas/MeteoMapGal"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-400 hover:text-blue-300 underline underline-offset-2"
-            >MIT (código)</a>. Cada fuente de datos retiene su propia licencia — algunas
-            requieren autorización para uso comercial. Proyecto sin ánimo de lucro.
-            {' · '}
-            <a
-              href="https://github.com/Bateas/MeteoMapGal/issues"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-400 hover:text-blue-300 underline underline-offset-2"
-            >Reportar bug</a>
-          </p>
-        </div>
-
-        {/* ── Alpha mode toggle (experimental features) ─────── */}
-        <div className="bg-amber-950/20 rounded-lg p-3 border border-amber-900/40 mt-4">
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={alphaMode}
-              onChange={toggleAlphaMode}
-              className="mt-0.5 w-4 h-4 rounded accent-amber-500"
-            />
-            <div className="flex-1">
-              <div className="text-[13px] font-bold text-amber-300 flex items-center gap-2">
-                Modo Alpha
-                <span className="text-[8px] font-bold text-amber-500/70 uppercase tracking-wider">experimental</span>
-              </div>
-              <p className="text-[11px] text-amber-200/60 mt-1">
-                Activa funcionalidades en pruebas. Actualmente: <strong>Modo Evento / Regata</strong>.
-                Pueden ser inestables o cambiar sin aviso.
-              </p>
-            </div>
-          </label>
-        </div>
+      <section className="gg-section">
+        <H3 id="alert-triangle" tone="storm">Modo Alpha</H3>
+        <label className="gg-check">
+          <input type="checkbox" checked={alphaMode} onChange={toggleAlphaMode} />
+          <span>
+            <b>Activar funciones en prueba</b>
+            <span className="gg-muted gg-small gg-block">Ahora mismo no hay ninguna abierta. Cuando la haya, se dirá aquí. Pueden fallar o cambiar sin aviso.</span>
+          </span>
+        </label>
         {alphaMode && <TeamDeviceRow />}
-      </div>
+      </section>
     </div>
   );
 }
@@ -251,99 +119,15 @@ export function RoadmapSection() {
 function TeamDeviceRow() {
   const marked = document.cookie.split('; ').includes('mmg_equipo=1');
   return (
-    <div className="bg-slate-900/40 rounded-lg p-3 border border-slate-700/60 mt-3 flex flex-col gap-1">
-      <div className="text-[13px] font-bold text-slate-300">Dispositivo del equipo</div>
-      <p className="text-[11px] text-slate-400">
+    <div className="gg-gap">
+      <p><b className="gg-ink">Dispositivo del equipo.</b>{' '}
         {marked
           ? 'Este dispositivo está marcado: sus visitas no cuentan en la audiencia.'
           : 'Márcalo solo si es del equipo: sus visitas dejarán de contar en la audiencia.'}
       </p>
-      <a
-        href={marked ? '/equipo/fuera' : '/equipo'}
-        className="text-[12px] text-blue-400 hover:text-blue-300 underline underline-offset-2 self-start"
-      >
+      <a href={marked ? '/equipo/fuera' : '/equipo'}>
         {marked ? 'Quitar la marca' : 'Marcar este dispositivo'}
       </a>
-    </div>
-  );
-}
-
-/* ─── Timeline sub-components ───────────────────── */
-
-function TimelineGroup({ label, dotColor, textColor }: { label: string; dotColor: string; textColor: string }) {
-  return (
-    <div className="relative flex items-center gap-2 pt-5 pb-2">
-      <div className={`absolute left-[-21px] w-[21px] h-[21px] rounded-full ${dotColor} flex items-center justify-center ring-2 ring-slate-950`}>
-        {dotColor.includes('emerald') && (
-          <WeatherIcon id="check" size={12} className="text-white" />
-        )}
-        {dotColor.includes('amber') && (
-          <WeatherIcon id="clock" size={12} className="text-white" />
-        )}
-      </div>
-      <span className={`text-sm font-bold ${textColor} ml-3 uppercase tracking-wide`}>{label}</span>
-    </div>
-  );
-}
-
-function TimelineMilestone({
-  iconId,
-  title,
-  desc,
-  status,
-}: {
-  iconId: IconId;
-  title: string;
-  desc: string;
-  status: 'done' | 'planned' | 'idea' | 'wip';
-}) {
-  const cfg = {
-    done:    { dot: 'bg-emerald-500/30 border-emerald-500/50', text: 'text-emerald-400', icon: 'text-emerald-400/70' },
-    wip:     { dot: 'bg-sky-500/30 border-sky-500/50', text: 'text-sky-400', icon: 'text-sky-400/70' },
-    planned: { dot: 'bg-amber-500/20 border-amber-500/40', text: 'text-amber-400', icon: 'text-amber-400/70' },
-    idea:    { dot: 'bg-slate-500/20 border-slate-500/40', text: 'text-slate-400', icon: 'text-slate-500' },
-  };
-  const s = cfg[status];
-
-  return (
-    <div className="relative flex items-start gap-3 pb-4 ml-3">
-      {/* Small dot on timeline */}
-      <div className={`absolute left-[-33px] top-1.5 w-[9px] h-[9px] rounded-full border ${s.dot}`} />
-      <span className={`shrink-0 mt-0.5 ${s.icon}`}>
-        <WeatherIcon id={iconId} size={15} />
-      </span>
-      <div className="min-w-0">
-        <span className={`text-xs font-bold ${s.text}`}>{title}</span>
-        <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{desc}</p>
-      </div>
-    </div>
-  );
-}
-
-/* ─── Shared sub-components ─────────────────────── */
-
-function SourceRow({ letter, name, desc, color }: { letter: string; name: string; desc: string; color: string }) {
-  return (
-    <div className="flex items-start gap-3">
-      <div
-        className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold text-white"
-        style={{ background: color }}
-      >
-        {letter}
-      </div>
-      <div>
-        <span className="text-[11px] font-bold text-slate-300">{name}</span>
-        <span className="text-[11px] text-slate-500 ml-1">{desc}</span>
-      </div>
-    </div>
-  );
-}
-
-function TechRow({ name, license }: { name: string; license: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-slate-300 font-medium">{name}</span>
-      <span className="text-slate-600 font-mono text-[11px]">{license}</span>
     </div>
   );
 }

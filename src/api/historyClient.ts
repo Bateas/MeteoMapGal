@@ -281,11 +281,16 @@ export async function fetchBuoyStations(): Promise<BuoyStation[]> {
   return data.stations;
 }
 
-/** Get buoy readings for a station within a time range */
+/**
+ * Get buoy readings for a station within a time range. Raw readings, oldest first, up to `limit` (2000 by
+ * default on the server: a limit too low cuts the most recent ones). `interval: 'hourly'` gives the aggregates,
+ * under other field names and without salinity or dew point.
+ */
 export async function fetchBuoyReadings(
   stationId: number,
   from?: string,
   to?: string,
+  options: { interval?: 'raw' | 'hourly'; limit?: number } = {},
 ): Promise<BuoyHistoryReading[]> {
   const data = await fetchJson<{ readings: BuoyHistoryReading[] }>(
     `${BASE}/buoys/readings`,
@@ -293,6 +298,8 @@ export async function fetchBuoyReadings(
       station_id: String(stationId),
       ...(from ? { from } : {}),
       ...(to ? { to } : {}),
+      ...(options.interval ? { interval: options.interval } : {}),
+      ...(options.limit ? { limit: String(options.limit) } : {}),
     }
   );
   return data.readings;

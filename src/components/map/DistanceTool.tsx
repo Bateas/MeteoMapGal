@@ -8,11 +8,15 @@
  * UX: Click point A → click point B → shows line + distance label.
  * Click again to start new measurement. Press Escape or toggle off to cancel.
  */
+import { WeatherIcon } from '../icons/WeatherIcons';
 import { useState, useEffect, memo, useRef } from 'react';
 import type { MapRef } from 'react-map-gl/maplibre';
 import { Source, Layer, Marker } from 'react-map-gl/maplibre';
 import type { LineLayerSpecification } from 'maplibre-gl';
 import { useUIStore } from '../../store/uiStore';
+import { useSectorStore } from '../../store/sectorStore';
+import { haversineDistance } from '../../services/geoUtils';
+import { degreesToCardinal } from '../../services/windUtils';
 
 interface DistanceToolProps {
   mapRef: React.RefObject<MapRef | null>;
@@ -25,17 +29,6 @@ interface Point {
   lat: number;
 }
 
-/** Haversine distance in kilometers */
-function haversineKm(a: Point, b: Point): number {
-  const R = 6371;
-  const dLat = (b.lat - a.lat) * Math.PI / 180;
-  const dLng = (b.lng - a.lng) * Math.PI / 180;
-  const sinLat = Math.sin(dLat / 2);
-  const sinLng = Math.sin(dLng / 2);
-  const h = sinLat * sinLat + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * sinLng * sinLng;
-  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
-}
-
 /** Bearing from A to B in degrees (0-360) */
 function bearing(a: Point, b: Point): number {
   const dLng = (b.lng - a.lng) * Math.PI / 180;
@@ -46,11 +39,7 @@ function bearing(a: Point, b: Point): number {
   return ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
 }
 
-/** Convert degrees to cardinal direction (N, NNE, NE, etc.) */
-function degreesToCardinal(deg: number): string {
-  const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
-  return dirs[Math.round(deg / 22.5) % 16];
-}
+const oneDecimal = (n: number) => n.toFixed(1).replace('.', ',');
 
 const lineLayer: LineLayerSpecification = {
   id: 'distance-line',
@@ -68,6 +57,15 @@ export const DistanceTool = memo(function DistanceTool({ mapRef, isActive, onDea
   const [pointA, setPointA] = useState<Point | null>(null);
   const [pointB, setPointB] = useState<Point | null>(null);
   const clickPhaseRef = useRef<'A' | 'B' | 'done'>('A');
+
+  // A change of sector ends the measure: its points are in the other sector, off the map (P3 review, 19-nov)
+  const sectorId = useSectorStore((s) => s.activeSector.id);
+  const sectorRef = useRef(sectorId);
+  useEffect(() => {
+    if (sectorId === sectorRef.current) return;
+    sectorRef.current = sectorId;
+    if (isActive) onDeactivate();
+  }, [sectorId, isActive, onDeactivate]);
 
   // Reset on deactivate
   useEffect(() => {
@@ -129,7 +127,7 @@ export const DistanceTool = memo(function DistanceTool({ mapRef, isActive, onDea
   if (!isActive) return null;
 
   const hasLine = pointA && pointB;
-  const distKm = hasLine ? haversineKm(pointA, pointB) : 0;
+  const distKm = hasLine ? haversineDistance(pointA.lat, pointA.lng, pointB.lat, pointB.lng) : 0;
   const distNm = distKm / 1.852;
   const brg = hasLine ? bearing(pointA, pointB) : 0;
   const midLat = hasLine ? (pointA.lat + pointB.lat) / 2 : 0;
@@ -154,16 +152,12 @@ export const DistanceTool = memo(function DistanceTool({ mapRef, isActive, onDea
         // not at a fixed distance from the top of the screen, where it covered
         // the official warnings.
         <div
-          className={`fixed ${isMobile ? '' : 'top-16 '}left-1/2 -translate-x-1/2 z-40 bg-slate-800/95 border border-amber-500/30 rounded-lg px-4 py-2 text-sm text-amber-300 shadow-lg backdrop-blur-sm flex items-center gap-3`}
+          className={`g-theme gc-hint fixed ${isMobile ? '' : 'top-16 '}left-1/2 -translate-x-1/2 z-40`}
           style={isMobile ? { top: 'calc(var(--map-top, 4rem) + var(--map-stack-h, 0px) + 0.875rem)' } : undefined}
         >
           <span>{clickPhaseRef.current === 'A' ? 'Toca el punto de inicio' : 'Toca el punto final'}</span>
-          <button
-            onClick={onDeactivate}
-            className="text-slate-400 hover:text-white text-xs ml-1 px-1.5 py-0.5 rounded bg-slate-700/50 hover:bg-slate-600/50 transition-colors"
-            aria-label="Cerrar herramienta de medición"
-          >
-            &times;
+          <button type="button" onClick={onDeactivate} className="gc-btn gc-btn--plain gc-btn--icon" style={{ minHeight: 28, width: 28 }} aria-label="Cerrar herramienta de medición">
+            <WeatherIcon id="x" size={14} />
           </button>
         </div>
       )}
@@ -173,7 +167,7 @@ export const DistanceTool = memo(function DistanceTool({ mapRef, isActive, onDea
         <Marker longitude={pointA.lng} latitude={pointA.lat} anchor="center">
           <div className="relative">
             <div className="w-4 h-4 rounded-full bg-amber-400 border-2 border-white shadow-lg" />
-            <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[11px] font-bold text-amber-300 bg-slate-900/80 px-1 rounded">A</span>
+            <span className="g-theme gc-pointname absolute -top-6 left-1/2 -translate-x-1/2">A</span>
           </div>
         </Marker>
       )}
@@ -183,7 +177,7 @@ export const DistanceTool = memo(function DistanceTool({ mapRef, isActive, onDea
         <Marker longitude={pointB.lng} latitude={pointB.lat} anchor="center">
           <div className="relative">
             <div className="w-4 h-4 rounded-full bg-amber-400 border-2 border-white shadow-lg" />
-            <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[11px] font-bold text-amber-300 bg-slate-900/80 px-1 rounded">B</span>
+            <span className="g-theme gc-pointname absolute -top-6 left-1/2 -translate-x-1/2">B</span>
           </div>
         </Marker>
       )}
@@ -198,16 +192,12 @@ export const DistanceTool = memo(function DistanceTool({ mapRef, isActive, onDea
       {/* Distance label at midpoint */}
       {hasLine && (
         <Marker longitude={midLng} latitude={midLat} anchor="bottom">
-          <div className="bg-slate-800/95 border border-amber-500/40 rounded-lg px-3 py-2 text-center shadow-xl backdrop-blur-sm">
-            <div className="text-amber-300 font-bold text-sm">{distKm.toFixed(1)} km</div>
-            <div className="text-slate-400 text-xs">{distNm.toFixed(1)} mn &middot; {cardinal} ({brg.toFixed(0)}&deg;)</div>
-            <button
-              onClick={onDeactivate}
-              className="mt-1.5 text-[11px] text-slate-500 hover:text-amber-300 transition-colors"
-              aria-label="Cerrar medición"
-            >
-              Cerrar
-            </button>
+          <div className="g-theme gc-popover gc-measure-label" style={{ textAlign: 'center' }}>
+            <div className="gc-popover-body" style={{ gap: 3, alignItems: 'center' }}>
+              <b style={{ fontSize: 17, fontWeight: 800 }}>{oneDecimal(distKm)} km</b>
+              <span className="gc-note">{oneDecimal(distNm)} mn, {cardinal} ({brg.toFixed(0)}°)</span>
+              <button type="button" onClick={onDeactivate} className="gc-linkbtn" style={{ alignSelf: 'center' }} aria-label="Cerrar medición">Cerrar</button>
+            </div>
           </div>
         </Marker>
       )}

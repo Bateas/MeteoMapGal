@@ -1,24 +1,18 @@
 /**
- * AemetVisibilityHalo — small DEM-aware fog halos around AEMET stations
- * that report visibility < 2km.
+ * AemetVisibilityHalo — works out where the official visibility sensors say there is fog. It draws nothing:
+ * FogOverlay paints these points with its own, one look (see fogField).
  *
  * Reactive philosophy:
- * - Auto-renders only when ≥1 of the 8 official AEMET visibility stations
- *   reports vis < 2km (data-confirmed fog, not modeled).
- * - Each halo is anchored to that station's actual altitude. Cells more
+ * - Only when ≥1 of the official visibility sensors reports vis < 2km
+ *   (data-confirmed fog, not modeled).
+ * - Each patch is anchored to that station's actual altitude. Points more
  *   than 50m above the station are skipped — niebla is a cold-air-pool
  *   phenomenon, never on hilltops (user requirement).
- * - Coastal stations (≤50m altitude) extend the halo over water; interior
+ * - Coastal stations (≤50m altitude) extend over water; interior
  *   stations don't (no advective component to fall back on).
- *
- * Distinct from FogOverlay (which is detector-based: webcams + solar
- * signature). This one is the OFFICIAL AEMET METAR signal — they
- * complement, never overlap visually because each uses its own color.
  */
 
-import { memo, useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { Source, Layer } from 'react-map-gl/maplibre';
-import type { Feature, FeatureCollection } from 'geojson';
+import { memo, useEffect, useState, useMemo, useRef } from 'react';
 import { loadElevationSampler, type ElevationAt } from '../../api/demElevation';
 import { useWeatherStore } from '../../store/weatherStore';
 import {
@@ -31,11 +25,7 @@ import {
   isVisibilityFresh,
   VISIBILITY_STALE_CHECK_INTERVAL_MS,
 } from '../../services/visibilityFreshness';
-
-const SOURCE_ID = 'aemet-visibility-halo';
-const FADE_IN_MS = 2_000;
-const FADE_OUT_MS = 5_000;
-const GRID_RESOLUTION = 18; // cells per side (324 cells / station max)
+import { fogLattice, fogPoint, useFogFieldStore, type FogPoint } from './fogField';
 
 type FogStation = { id: string; name: string; lat: number; lon: number; vis: number };
 
@@ -47,8 +37,8 @@ type FogStation = { id: string; name: string; lat: number; lon: number; vis: num
  * stations" rule applies — terrain never answered null, so it never did.
  * A tile that could not be loaded is unknown and is not painted.
  */
-export function buildHaloGeoJSON(elevAt: ElevationAt, stations: FogStation[]): FeatureCollection {
-  const features: Feature[] = [];
+export function buildHaloPoints(elevAt: ElevationAt, stations: FogStation[]): FogPoint[] {
+  const points: FogPoint[] = [];
   for (const s of stations) {
     const radius = haloRadiusKm(s.vis);
     if (radius <= 0) continue;
@@ -56,64 +46,35 @@ export function buildHaloGeoJSON(elevAt: ElevationAt, stations: FogStation[]): F
     if (stationRaw === null) continue;
     const stationElev = Math.max(0, stationRaw);
 
-    const bbox = haloBbox(s.lat, s.lon, radius);
-    const cellW = (bbox.east - bbox.west) / GRID_RESOLUTION;
-    const cellH = (bbox.north - bbox.south) / GRID_RESOLUTION;
+    for (const { lng, lat } of fogLattice(haloBbox(s.lat, s.lon, radius))) {
+      // Equirectangular distance (good enough at <10km)
+      const dLat = (lat - s.lat) * 111;
+      const dLon = (lng - s.lon) * 111 * Math.cos((s.lat * Math.PI) / 180);
+      const dKm = Math.hypot(dLat, dLon);
+      if (dKm > radius) continue;
 
-    for (let row = 0; row < GRID_RESOLUTION; row++) {
-      for (let col = 0; col < GRID_RESOLUTION; col++) {
-        const lng = bbox.west + (col + 0.5) * cellW;
-        const lat = bbox.south + (row + 0.5) * cellH;
+      const cellRaw = elevAt(lng, lat);
+      if (cellRaw === null) continue;
+      const cellElev = cellRaw <= 0 ? null : cellRaw;
+      const density = densityForCell(dKm, radius, cellElev, stationElev, s.vis);
+      if (density === 0) continue;
 
-        // Equirectangular distance (good enough at <10km)
-        const dLat = (lat - s.lat) * 111;
-        const dLon = (lng - s.lon) * 111 * Math.cos((s.lat * Math.PI) / 180);
-        const dKm = Math.hypot(dLat, dLon);
-        if (dKm > radius) continue;
-
-        const cellRaw = elevAt(lng, lat);
-        if (cellRaw === null) continue;
-        const cellElev = cellRaw <= 0 ? null : cellRaw;
-        const density = densityForCell(dKm, radius, cellElev, stationElev, s.vis);
-        if (density === 0) continue;
-
-        const x1 = bbox.west + col * cellW;
-        const x2 = x1 + cellW;
-        const y1 = bbox.south + row * cellH;
-        const y2 = y1 + cellH;
-
-        features.push({
-          type: 'Feature',
-          properties: {
-            density,
-            stationId: s.id,
-            stationName: s.name,
-            visibilityKm: s.vis,
-          },
-          geometry: {
-            type: 'Polygon',
-            coordinates: [[[x1, y1], [x2, y1], [x2, y2], [x1, y2], [x1, y1]]],
-          },
-        });
-      }
+      points.push(fogPoint(lng, lat, density));
     }
   }
-  return { type: 'FeatureCollection', features };
+  return points;
 }
 
 function AemetVisibilityHaloInner() {
   const visibilityReadings = useWeatherStore((s) => s.visibilityReadings);
-
-  const [geojson, setGeojson] = useState<FeatureCollection | null>(null);
-  const [opacity, setOpacity] = useState(0);
-  const lastRef = useRef<FeatureCollection | null>(null);
+  const setSensorPoints = useFogFieldStore((s) => s.setSensorPoints);
   /** Build sequence: a slower older build must not overwrite a newer one. */
   const buildSeqRef = useRef(0);
 
   // Age is time-dependent but the store only pushes on a successful AEMET
-  // poll — while AEMET is down nothing re-renders this component, so a halo
+  // poll — while AEMET is down nothing re-renders this component, so fog
   // built from the last reading would sit on the map forever. Tick so the
-  // age check runs on its own clock and the halo can fade out by itself.
+  // age check runs on its own clock and the fog can fade out by itself.
   const [freshnessTick, setFreshnessTick] = useState(0);
   useEffect(() => {
     const i = setInterval(
@@ -124,12 +85,8 @@ function AemetVisibilityHaloInner() {
   }, []);
 
   // Filter visibilityReadings → list of stations with vis<threshold.
-  // Stale readings are skipped: this halo claims "AEMET is measuring fog HERE,
+  // Stale readings are skipped: this claims "AEMET is measuring fog HERE,
   // right now", which a frozen value from a dead poll cannot back.
-  // MUST be memoized: a fresh array on every render made `buildHalo` fresh
-  // too, which is in the rebuild effect's deps, which calls setGeojson with a
-  // new object, which re-renders... forever. The loop only bites while fog is
-  // actually reported, so it hid until the halo could produce features.
   const fogStations = useMemo(() => {
     const out: FogStation[] = [];
     const now = Date.now();
@@ -144,32 +101,7 @@ function AemetVisibilityHaloInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibilityReadings, freshnessTick]);
 
-  const buildHalo = useCallback(async () => {
-    const seq = ++buildSeqRef.current;
-    if (fogStations.length === 0) {
-      // Fade out when there's no data
-      setOpacity(0);
-      return;
-    }
-
-    // Only the DEM tiles around the reporting stations (cached across builds).
-    const elevAt = await loadElevationSampler(
-      fogStations.map((s) => haloBbox(s.lat, s.lon, haloRadiusKm(s.vis))),
-    );
-    if (seq !== buildSeqRef.current) return; // a newer build is on its way
-
-    const data = buildHaloGeoJSON(elevAt, fogStations);
-    if (data.features.length > 0) {
-      setGeojson(data);
-      lastRef.current = data;
-      // Trigger fade-in
-      setTimeout(() => setOpacity(1), 16);
-    } else {
-      setOpacity(0);
-    }
-  }, [fogStations]);
-
-  // Rebuild halos when readings change. Tied to length + visibility values
+  // Rebuild when readings change. Tied to length + visibility values
   // so we don't spam re-renders on no-op map prop changes.
   const fogStationsKey = fogStations
     .map((s) => `${s.id}:${s.vis.toFixed(2)}`)
@@ -177,42 +109,25 @@ function AemetVisibilityHaloInner() {
     .join('|');
 
   useEffect(() => {
+    const seq = ++buildSeqRef.current;
     if (fogStations.length === 0) {
-      buildSeqRef.current += 1; // drop any build still in flight
-      setOpacity(0);
-      // Hold last frame during fade-out, then clear
-      const t = setTimeout(() => { setGeojson(null); lastRef.current = null; }, FADE_OUT_MS);
-      return () => clearTimeout(t);
+      setSensorPoints([]);
+      return;
     }
-
-    void buildHalo();
-    // fogStationsKey gates the rebuild; buildHalo carries the stations
+    // Only the DEM tiles around the reporting stations (cached across builds).
+    void loadElevationSampler(
+      fogStations.map((s) => haloBbox(s.lat, s.lon, haloRadiusKm(s.vis))),
+    ).then((elevAt) => {
+      if (seq !== buildSeqRef.current) return; // a newer build is on its way
+      setSensorPoints(buildHaloPoints(elevAt, fogStations));
+    });
+    // fogStationsKey gates the rebuild; the closure carries the stations
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fogStationsKey]);
+  }, [fogStationsKey, setSensorPoints]);
 
-  if (!geojson || geojson.features.length === 0) return null;
+  useEffect(() => () => setSensorPoints([]), [setSensorPoints]);
 
-  return (
-    <Source id={SOURCE_ID} type="geojson" data={geojson}>
-      <Layer
-        id="aemet-vis-halo-fill"
-        type="fill"
-        source={SOURCE_ID}
-        paint={{
-          'fill-color': '#dbeafe', // very pale blue-white (distinct from FogOverlay's dynamic colors)
-          'fill-opacity': [
-            'interpolate', ['linear'], ['get', 'density'],
-            0, 0,
-            0.25, 0.18 * opacity,
-            0.5, 0.32 * opacity,
-            0.75, 0.45 * opacity,
-            1, 0.55 * opacity,
-          ],
-          'fill-antialias': false,
-        }}
-      />
-    </Source>
-  );
+  return null;
 }
 
 export const AemetVisibilityHalo = memo(AemetVisibilityHaloInner);

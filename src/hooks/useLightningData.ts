@@ -10,8 +10,6 @@ import type { LightningStrike, StormAlert, StormAlertLevel } from '../types/ligh
 import type { ClusterSnapshot } from '../services/stormTracker';
 import { useSectorStore } from '../store/sectorStore';
 import { useWeatherStore } from '../store/weatherStore';
-import { useForecastStore } from './useForecastTimeline';
-import { enrichClustersWithIntensity, type NearbyPrecipReading, type ConvectionState } from '../services/stormIntensityService';
 import type { RecentLightningActivity } from '../services/stormPredictor';
 import { useVisibilityPolling } from './useVisibilityPolling';
 import { assessSpotLightningRisk } from '../services/lightningProximityService';
@@ -41,7 +39,7 @@ const POLL_INTERVAL_STORM_MS = 60 * 1000;
  *  Why the OR fallback: MG's publish lag is typically 3-5 min, so strikes
  *  often appear with age 4-5 min on first poll. A strict count5m≥1 gate
  *  silently fails to activate when every strike crosses the 5 min boundary
- *  just before we see it. Confirmed live during the S136+2 night storm:
+ *  just before we see it. Confirmed live during a night storm:
  *  Network panel showed 2:44 between polls despite ~10 strikes/min nearby.
  *  Adding count15m≥5 catches the "sustained storm" case even when MG lag
  *  pushes individual strikes past the 5 min cutoff. */
@@ -235,28 +233,7 @@ export function computeStormAlert(
 // Export the ClusterSnapshot type for stormTracker
 export type { ClusterSnapshot };
 
-// ── storm intensity enrichment helpers ──────────────────────────
-// Pull-on-demand state collectors. Don't create reactive subscriptions —
-// the storm tracker poll cycle is the only consumer.
-
-function collectNearbyReadings(): NearbyPrecipReading[] {
-  const wx = useWeatherStore.getState();
-  const stations = wx.stations;
-  const now = Date.now();
-  const out: NearbyPrecipReading[] = [];
-  for (const s of stations) {
-    const r = wx.currentReadings.get(s.id);
-    if (!r || r.precipitation == null) continue;
-    out.push({
-      lat: s.lat,
-      lon: s.lon,
-      precipMm: r.precipitation,
-      ageSeconds: r.timestamp ? Math.floor((now - r.timestamp.getTime()) / 1000) : Infinity,
-    });
-  }
-  return out;
-}
-
+// Pull-on-demand: no reactive subscription, the storm tracker poll cycle is the only consumer.
 function collectGustFrontReadings(): import('../services/gustFrontService').GustFrontReading[] {
   const wx = useWeatherStore.getState();
   const now = Date.now();
@@ -278,29 +255,6 @@ function collectGustFrontReadings(): import('../services/gustFrontService').Gust
     });
   }
   return out;
-}
-
-function collectCurrentConvection(): ConvectionState | null {
-  const fc = useForecastStore.getState();
-  const list = fc.convectionData.length > 0 ? fc.convectionData : fc.hourly;
-  if (list.length === 0) return null;
-  // Find the entry closest to NOW
-  const now = Date.now();
-  let best = list[0];
-  let bestDist = Math.abs(best.time.getTime() - now);
-  for (const f of list) {
-    const d = Math.abs(f.time.getTime() - now);
-    if (d < bestDist) { best = f; bestDist = d; }
-  }
-  // T_500hPa plumbed fetched alongside CAPE/LI from Open-Meteo.
-  // When present (Auto path), unlocks 'probable' hail risk via cold-tops rule.
-  // WRF-MG primary path won't carry it (MeteoSIX doesn't expose pressure-level
-  // temps) but convectionData is always Open-Meteo background, so it's there.
-  return {
-    cape: best.cape ?? null,
-    liftedIndex: best.liftedIndex ?? null,
-    temperature500hPa: best.temperature500hPa ?? null,
-  };
 }
 
 export function useLightningData() {
@@ -372,20 +326,12 @@ export function useLightningData() {
       historyRef.current = history;
       setClusterHistory(history);
 
-      // enrich each cluster with intensity classification.
-      // Pulls precip readings + convection state via getState() so we don't
-      // add extra reactive dependencies to this cycle.
-      const enriched = enrichClustersWithIntensity(
-        clusters,
-        collectNearbyReadings(),
-        collectCurrentConvection(),
-      );
-      setClusters(enriched);
+      setClusters(clusters);
 
       // gust front detection. Cross stations with active
       // clusters; flag those whose gust ratio + bearing alignment match an
       // outflow signature. Pulls station data via getState() (same pattern).
-      const fronts = detectGustFronts(collectGustFrontReadings(), enriched);
+      const fronts = detectGustFronts(collectGustFrontReadings(), clusters);
       setGustFronts(fronts);
 
       const alert = computeStormAlert(strikes, clusters, prevAlertRef.current, centerLat, centerLon);

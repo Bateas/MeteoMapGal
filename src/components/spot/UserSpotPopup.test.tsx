@@ -13,6 +13,7 @@ import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 // so the rename field can be reached.
 vi.mock('react-map-gl/maplibre', () => ({
   Popup: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
+  useMap: () => ({ current: null }),
 }));
 
 // A coastal pin looks up the next tide; keep that offline.
@@ -67,5 +68,17 @@ describe('UserSpotPopup and Escape', () => {
     document.body.appendChild(modal);
     fireEvent.keyDown(document.body, { key: 'Escape' });
     expect(useUserSpotStore.getState().selectedUserSpotId).toBe(pin.id);
+  });
+});
+
+describe('UserSpotPopup and Enter in the rename field (17-nov, a finding of the web-guidance scan)', () => {
+  it('the Enter of a composition keyboard picks the word and keeps editing; a plain Enter saves', () => {
+    render(<UserSpotPopup spot={pin} />);
+    fireEvent.click(screen.getByTitle('Cambiar nombre'));
+    const field = screen.getByRole('textbox', { name: 'Nombre del spot' });
+    fireEvent.keyDown(field, { key: 'Enter', isComposing: true });
+    expect(screen.queryByRole('textbox', { name: 'Nombre del spot' })).not.toBeNull();
+    fireEvent.keyDown(field, { key: 'Enter' });
+    expect(screen.queryByRole('textbox', { name: 'Nombre del spot' })).toBeNull();
   });
 });

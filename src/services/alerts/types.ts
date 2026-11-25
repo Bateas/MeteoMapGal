@@ -16,7 +16,6 @@ export type AlertCategory =
   | 'frost'          // Helada
   | 'fog'            // Niebla
   | 'rain'           // Lluvia / Granizo
-  | 'drone'          // Vuelo dron
   | 'wind-front'     // Frente de viento
   | 'pressure'       // Tendencia barométrica
   | 'marine'         // Mar cruzada / oleaje
@@ -76,5 +75,4 @@ export const CATEGORY_WEIGHT: Record<AlertCategory, number> = {
   'wind-front':  1.0,   // Propagation info
   'pressure':    2.5,   // Early storm indicator
   'marine':      2.0,   // Cross-sea / wave safety
-  'drone':       0.5,   // Convenience
 };

@@ -109,13 +109,6 @@ export interface StormCluster {
    *  cluster polygon hugs the active front instead of the trailing tail.
    *  Falls back to strikePositions when fewer than 3 recent ones exist. */
   recentStrikePositions: [number, number][];
-  /**
-   * Storm intensity classification. Optional — populated by
-   * `enrichClustersWithIntensity` AFTER the basic tracker computes positions.
-   * Carries type/rainRate/hailRisk/label so the overlay can render the
-   * differential visual hint and an enriched popup label.
-   */
-  intensity?: import('./stormIntensityService').StormIntensity;
 }
 
 export interface StormTrackerState {
@@ -414,10 +407,10 @@ function matchClustersGreedy(
 /**
  * Linear regression over time-series positions to compute a stable velocity vector.
  *
- * Background (T2-1 S136+3+3): the previous implementation took the MEDIAN of
+ * Background: the previous implementation took the MEDIAN of
  * per-pair speed/bearing candidates. For monotonically-trending storms that
  * accelerate or change bearing across the window, the median collapses the
- * trend and produces a vector that lags. Live S136+2 storm showed centroid
+ * trend and produces a vector that lags. A live storm showed centroid
  * jumps of 10/26/43/65 km/h across 4 polls — median ≈ 35 but the radar mass
  * was steadily moving at ~40-50 km/h NNE.
  *
@@ -546,7 +539,7 @@ function computeVelocities(
     if (matched && recentSnapshot) {
       inheritedId = matched.id;
 
-      // ── Linear-regression velocity (T2-1 S136+3+3) ──
+      // ── Linear-regression velocity ──
       // Collect all valid snapshots that contain a centroid matching THIS cluster
       // (within MAX_MATCH_KM). Fit lat-vs-time and lon-vs-time linearly to
       // produce a TREND vector — more stable than per-pair median when the

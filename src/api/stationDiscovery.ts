@@ -32,12 +32,6 @@ function isInExtraCoverage(
   return extraPoints.some((p) => isWithinRadius(p.lat, p.lon, lat, lon, 15));
 }
 
-/** Retry a fetch function after a delay */
-async function retryAfterDelay<T>(fn: () => Promise<T>, delayMs: number): Promise<T> {
-  await new Promise((r) => setTimeout(r, delayMs));
-  return fn();
-}
-
 import { APP_VERSION } from '../config/version';
 
 // In-memory cache for discovered stations per sector (60min TTL)

@@ -3,7 +3,7 @@
  * Use for APIs without their own retry logic.
  *
  * @example
- * const data = await fetchWithRetry('/enaire-api/zones', {
+ * const data = await fetchWithRetry('/ihm-api/tides', {
  *   label: 'ENAIRE',
  *   timeout: 15000,
  *   maxRetries: 2,

@@ -781,7 +781,7 @@ async function queryConvectionGridUncached(hourOffset = 0): Promise<ConvectionGr
   // ORDER BY (cell_i, cell_j, fetched_at DESC) matches the DISTINCT ON keys
   // — DISTINCT ON keeps the first row per group, which after that ORDER is
   // the freshest fetched_at value for each cell.
-  // Window bumped 3h → 4h (S136+3+5): cycle cadence went 90min → 120min, so a
+  // Window bumped 3h → 4h: cycle cadence went 90min → 120min, so a
   // single missed cycle is now 240min of staleness. 4h tolerates one failure
   // without dropping cells; longer than that the data is genuinely stale and
   // should fall through to the dataMissing badge.

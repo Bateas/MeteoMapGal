@@ -100,15 +100,6 @@ describe('dark theme slate-500 override', () => {
   });
 });
 
-describe('.badge-beta text colour', () => {
-  it('follows the theme variable instead of a fixed #64748b', () => {
-    const block = css.match(/\.badge-beta\s*\{([^}]*)\}/)?.[1] ?? '';
-    expect(block).not.toBe('');
-    expect(block).not.toMatch(/color:\s*#64748b/i);
-    expect(block).toMatch(/color:\s*var\(--color-slate-400/);
-  });
-});
-
 describe('mobile Header station count', () => {
   beforeEach(() => {
     useWeatherStore.setState({
@@ -122,12 +113,9 @@ describe('mobile Header station count', () => {
     useUIStore.setState({ isMobile: true, simpleMode: false });
   });
 
-  it('uses a colour that is readable on the active blue pill', () => {
+  it('a phone does not spend header width on the count (it lives in the desktop header)', () => {
     render(createElement(Header, { onRefresh: () => {} }));
-    const count = screen.getByText('1/2');
-    // blue-200 at 60% was 2.2:1 on bg-blue-600; blue-50 is 4.8:1.
-    expect(count.className).toContain('text-blue-50');
-    expect(count.className).not.toContain('text-blue-200/60');
+    expect(screen.queryByText('1/2')).toBeNull();
   });
 });
 

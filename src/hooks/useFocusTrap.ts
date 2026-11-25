@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const FOCUSABLE = 'a[href], summary, button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
  * Traps keyboard focus inside a container while active.
@@ -19,9 +19,11 @@ export function useFocusTrap<T extends HTMLElement>(active: boolean) {
     const container = containerRef.current;
     if (!container) return;
 
-    // Focus first focusable element
+    // Focus first focusable element. Without scrolling: a sheet that sits inside an overflow-hidden box
+    // (the map's) made the browser scroll that box to show the button, and map and sheet jumped up
+    // 256 px with the close button in the middle of the card (18-nov).
     const first = container.querySelector<HTMLElement>(FOCUSABLE);
-    first?.focus();
+    first?.focus({ preventScroll: true });
 
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key !== 'Tab' || !container) return;
@@ -50,7 +52,7 @@ export function useFocusTrap<T extends HTMLElement>(active: boolean) {
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       // Restore focus
-      previousFocusRef.current?.focus();
+      previousFocusRef.current?.focus({ preventScroll: true });
     };
   }, [active]);
 

@@ -1,11 +1,16 @@
 import { useState, useEffect, useMemo } from 'react';
 import { WeatherIcon } from '../icons/WeatherIcons';
+import { Note } from '../map/Ficha';
 import { fetchTidePredictions } from '../../api/tideClient';
 import type { TidePoint } from '../../api/tideClient';
 import { useMeteoTide } from '../../hooks/useMeteoTide';
 import { formatMeteoTide } from '../../services/meteoTideService';
 
-export function SpotTideSummary({ tideStationId, tidePreference }: { tideStationId: string; tidePreference?: string }) {
+/**
+ * `nextOnly` (simple mode): just the tide that comes, in words, «Bajamar 22:54 · 1,0 m». The four of the
+ * day are a table to plan with; whoever only looks wants to know which way the water is going.
+ */
+export function SpotTideSummary({ tideStationId, tidePreference, nextOnly = false }: { tideStationId: string; tidePreference?: string; nextOnly?: boolean }) {
   const [tides, setTides] = useState<TidePoint[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -84,8 +89,8 @@ export function SpotTideSummary({ tideStationId, tidePreference }: { tideStation
   // tides read as a known gap and not as a spot without tides.
   if (failed) {
     return (
-      <div className="text-[11px] mb-1.5 pt-1 border-t border-slate-700/40 flex items-center gap-1 text-slate-500">
-        <WeatherIcon id="anchor" size={10} className="text-slate-500" />
+      <div className="gf-row gf-row--static">
+        <WeatherIcon id="anchor" size={16} />
         <span>Tabla de mareas no disponible ahora</span>
       </div>
     );
@@ -93,43 +98,41 @@ export function SpotTideSummary({ tideStationId, tidePreference }: { tideStation
   if (!tides || tides.length === 0) return null;
 
   return (
-    <div className="text-[11px] mb-1.5 pt-1 border-t border-slate-700/40">
-      <div className="flex items-center gap-1 text-slate-400 mb-0.5">
-        <WeatherIcon id="anchor" size={10} className="text-cyan-500/70" />
-        <span className="font-semibold">Mareas hoy</span>
-      </div>
-      <div className="flex gap-2 flex-wrap">
+    <div className="gf-sec">
+      <h4 className="gf-label">{nextOnly ? 'Próxima marea' : 'Mareas hoy'}</h4>
+      {nextOnly && nextTide && (
+        <div className="gf-strong" style={{ fontSize: 14.5 }}>
+          {nextTide.type === 'high' ? 'Pleamar' : 'Bajamar'} {nextTide.time} · {nextTide.height.toFixed(1).replace('.', ',')} m
+        </div>
+      )}
+      {!nextOnly && (
+      <div className="flex flex-wrap gf-mono" style={{ gap: '2px 12px', fontSize: 13.5 }}>
         {tides.map((t, i) => {
           const isNext = t === nextTide;
           const icon = t.type === 'high' ? '\u25B2' : '\u25BC';
-          const color = t.type === 'high' ? '#22d3ee' : '#60a5fa';
           return (
             <span
               key={i}
-              className={`font-mono ${isNext ? 'font-bold' : 'opacity-60'}`}
-              style={{ color: isNext ? color : undefined }}
+              className={isNext ? 'gf-strong' : undefined}
+              style={isNext ? undefined : { color: 'var(--g-muted)' }}
               title={t.type === 'high' ? 'Pleamar' : 'Bajamar'}
             >
-              {icon} {t.time} ({t.height.toFixed(1)}m)
+              {icon} {t.time} ({t.height.toFixed(1).replace('.', ',')} m)
             </span>
           );
         })}
       </div>
+      )}
       {meteoTide && meteoTide.level !== 'none' && (
-        <div
-          className={`mt-0.5 flex items-center gap-1 text-[10px] ${
-            meteoTide.level === 'high' ? 'text-amber-400' : 'text-slate-400'
-          }`}
-          title="Nivel medido por el mareógrafo frente a la predicción oficial"
-        >
-          <WeatherIcon id="waves" size={10} className="shrink-0" />
-          {formatMeteoTide(meteoTide)}
+        <div style={{ marginTop: 6 }}>
+          <Note icon="waves" tone={meteoTide.level === 'high' ? 'alto' : undefined} title="Nivel medido por el mareógrafo frente a la predicción oficial">
+            {formatMeteoTide(meteoTide)}
+          </Note>
         </div>
       )}
       {tideMismatch && (
-        <div className="mt-0.5 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[10px] flex items-center gap-1">
-          <WeatherIcon id="alert-triangle" size={10} className="shrink-0" />
-          {tideMismatch}
+        <div style={{ marginTop: 6 }}>
+          <Note icon="alert-triangle" tone="alto">{tideMismatch}</Note>
         </div>
       )}
     </div>

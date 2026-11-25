@@ -8,6 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   waveHeightColor,
+  silentLabel,
   waveHeightClass,
   waterTempColor,
   waterTempClass,
@@ -284,3 +285,17 @@ describe('trustedBuoyWindDir', () => {
   });
 });
 
+describe('silentLabel: a buoy silent for hours says since when (18-nov)', () => {
+  const now = Date.UTC(2026, 10, 18, 0, 30); // 01:30 in Madrid
+  it('says nothing while the buoy is recent', () => {
+    expect(silentLabel(new Date(now - 2 * 3_600_000), now)).toBeNull();
+  });
+  it('the hour when it went silent today, the day when it was before', () => {
+    expect(silentLabel('2026-11-17T23:10:00.000Z', Date.UTC(2026, 10, 18, 5, 0))).toBe('sin dato desde las 00:10');
+    expect(silentLabel('2026-11-17T17:10:00.000Z', now)).toBe('sin dato desde ayer a las 18:10');
+    expect(silentLabel('2026-11-11T07:50:00.000Z', now)).toBe('sin dato desde el 11-nov');
+  });
+  it('without a time at all it says only that there is none', () => {
+    expect(silentLabel(null, now)).toBe('sin dato');
+  });
+});

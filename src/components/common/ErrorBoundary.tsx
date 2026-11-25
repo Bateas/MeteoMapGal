@@ -42,18 +42,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex flex-col items-center justify-center h-full min-h-[120px] bg-slate-900/80 rounded-lg p-6 gap-3">
-          <div className="text-red-400"><WeatherIcon id="alert-triangle" size={24} /></div>
-          <div className="text-sm text-slate-300 font-medium">
-            Error en {this.props.section}
-          </div>
-          <div className="text-[11px] text-slate-500 text-center max-w-xs leading-relaxed">
-            {this.state.error?.message || 'Error desconocido'}
-          </div>
-          <button
-            onClick={this.handleRetry}
-            className="text-[11px] bg-slate-700 text-slate-300 px-4 py-1.5 rounded hover:bg-slate-600 transition-colors mt-1"
-          >
+        <div className="g-theme gc-failed">
+          <WeatherIcon id="alert-triangle" size={24} />
+          <b>Error en {this.props.section}</b>
+          <p className="gc-small">{this.state.error?.message || 'Error desconocido'}</p>
+          <button type="button" onClick={this.handleRetry} className="gc-btn">
             Reintentar
           </button>
         </div>

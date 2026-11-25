@@ -4,8 +4,8 @@
   "description": "Monitorización meteorológica en tiempo real para Galicia",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "background_color": "#141618",
+  "theme_color": "#141618",
   "orientation": "any",
   "icons": [
     {

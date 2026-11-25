@@ -13,7 +13,7 @@
 # errors vanish from the count.
 set -u
 
-BASELINE=183
+BASELINE=160
 
 log=$(mktemp)
 git ls-files -z -- '*.ts' '*.tsx' '*.js' '*.mjs' '*.cjs' \

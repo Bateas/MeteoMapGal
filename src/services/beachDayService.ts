@@ -1,8 +1,8 @@
 /**
  * Beach-day verdict — casual reframe of conditions for the "¿buen día de
- * playa?" question (EJE ALCANCE prototype, S136+3+6).
+ * playa?" question.
  *
- * Calibrated to GALICIAN reality (user feedback S136+3+7): cold water (17-18°)
+ * Calibrated to GALICIAN reality: cold water (17-18°)
  * and a ~22° coast are a NORMAL, perfectly fine beach day here — NOT a bad one.
  * A day is BAD ("mal día") when one of four hard gates trips:
  *   · raining now   · fog / poor visibility   · air < 20°C   · wind ≥ 25 kt
@@ -46,6 +46,9 @@ export interface BeachDayResult {
   summary: string;
   /** 2-4 short chips, e.g. ["Sol", "Buena temperatura 24°"] */
   reasons: string[];
+  /** Bad only because the air is cold: nobody is asking about the beach, so the card says nothing
+   *  («¿Playa? Mal día de playa · Frío 15°» in November told no one anything, 18-nov). */
+  outOfSeason?: boolean;
 }
 
 /** Air below this (°C) makes it a bad beach day in Galicia. */
@@ -85,7 +88,7 @@ export function assessBeachDay(i: BeachDayInputs): BeachDayResult {
 
   // ── Remaining hard gates (need the value) ──
   if (i.airTempC != null && i.airTempC < COLD_AIR_GATE) {
-    return bad(`Frío ${Math.round(i.airTempC)}° en costa`);
+    return { ...bad(`Frío ${Math.round(i.airTempC)}° en costa`), outOfSeason: true };
   }
   if (i.windKt != null && i.windKt >= STRONG_WIND_GATE) {
     return bad('Demasiado viento');

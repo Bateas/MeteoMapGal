@@ -363,7 +363,6 @@ async function ingestorRoots(): Promise<string[]> {
 
 /** Type-only chains accepted today. Adding one here needs a reason; removing one is progress. */
 const KNOWN_TYPE_ONLY = [
-  'reaches UI code in src/components/ (type-only): ingestor/analyzer.ts -> src/services/windUtils.ts -> src/components/icons/WeatherIcons.tsx',
   'reaches UI code in src/components/ (type-only): ingestor/analyzer.ts -> src/config/spots.ts -> src/components/icons/WeatherIcons.tsx',
   'reaches UI code in src/components/ (type-only): ingestor/discover.ts -> src/config/sectors.ts -> src/components/icons/WeatherIcons.tsx',
 ];

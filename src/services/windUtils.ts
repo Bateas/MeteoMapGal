@@ -19,63 +19,71 @@ export function windArrowRotation(fromDegrees: number): number {
   return (fromDegrees + 180) % 360;
 }
 
-/** Compute arrow length based on wind speed (m/s) */
-export function windArrowLength(speed: number): number {
-  return Math.min(15 + speed * 5, 50);
-}
-
 /**
  * Color for wind speed visualization — tuned for inland reservoir conditions.
  * More color resolution in the 3–17 kt range where most sailing action happens.
  * Input: speed in m/s. Thresholds shown in approximate knots.
  */
 /**
- * Wind speed → color. Simplified scale aligned with verdict thresholds.
- * 0-6kt = one blue (flojo), 6-9 = green, 9-13 = lime, 13-18 = yellow, 18-23 = orange, 23+ = red.
- * Units: m/s input (1 kt ≈ 0.514 m/s).
+ * The map's scale, in whole knots (the figure on screen): under 6 calma, under 8 flojo, under 12 navegable, under 18
+ * bueno, the rest fuerte. One list for spot, arrow and wind layer: they had their own cuts, so at 6-7 kt the spot was
+ * blue beside a green arrow, and at 12 kt gold beside a lime one.
  */
-export function windSpeedColor(speed: number | null): string {
-  if (speed === null || speed < 0.5) return '#64748b'; // slate-500  (calm, <1 kt)
-  if (speed < 3.0) return '#38bdf8';   // sky-400    (1-6 kt: flojo — one blue for all light wind)
-  if (speed < 4.5) return '#22c55e';   // green-500  (6-9 kt: gentle / navegable entry)
-  if (speed < 6.5) return '#84cc16';   // lime-500   (9-13 kt: moderate / navegable — darker than lime-400 for contrast vs green)
-  if (speed < 9.0) return '#eab308';   // yellow-500 (13-18 kt: fresh / bueno)
-  if (speed < 12)  return '#f97316';   // orange-500 (18-23 kt: strong / fuerte)
-  if (speed < 15)  return '#ef4444';   // red-500    (23-30 kt: gale)
-  if (speed < 20)  return '#a855f7';   // violet     (30-40 kt: storm)
-  if (speed < 25)  return '#7c3aed';   // dark violet (40-50 kt: severe storm)
-  return '#1e1b4b';                    // near-black  (50+ kt: hurricane)
+export const WIND_STEPS_KT = [6, 8, 12, 18] as const;
+
+export function windStep(kt: number): 0 | 1 | 2 | 3 | 4 {
+  const rounded = Math.round(kt);
+  if (rounded < WIND_STEPS_KT[0]) return 0;
+  if (rounded < WIND_STEPS_KT[1]) return 1;
+  if (rounded < WIND_STEPS_KT[2]) return 2;
+  if (rounded < WIND_STEPS_KT[3]) return 3;
+  return 4;
 }
 
 /**
- * Tailwind text-color class for wind speed — matches windSpeedColor() thresholds.
- * Use in components that need className-based coloring (e.g. BuoyPanel).
+ * The colour of the wind: one scale for the whole app (18-nov). The colour says how
+ * much wind there is and always goes from less to more (cold, warm, extreme); the word is the spot's verdict, five
+ * steps (windStep). Up to 18 kt the cuts are the app's sailing ones; above, Beaufort: 22 kt is force 6 (and «viento
+ * fuerte» for AEMET, 41 km/h), 34 kt force 8 (gale), 48 kt force 10 (storm), 56 kt force 11 (violent storm, the darkest
+ * violet: gusts of 47-72 kt have been measured on the capes). There is no official colour standard for wind (WMO, AEMET and Beaufort
+ * publish none); the order follows the usual wind maps: blue and green for little, yellow to red for a lot, magenta
+ * and violet for the extreme.
  */
-export function windSpeedClass(speed: number | null): string {
-  if (speed === null || speed < 0.5) return 'text-slate-500';
-  if (speed < 3.0) return 'text-sky-400';     // 1-6kt flojo
-  if (speed < 4.5) return 'text-green-500';   // 6-9kt
-  if (speed < 6.5) return 'text-lime-500';    // 9-13kt
-  if (speed < 9.0) return 'text-yellow-500';  // 13-18kt
-  if (speed < 12)  return 'text-orange-500';  // 18-23kt
-  if (speed < 15)  return 'text-red-500';     // 23-30kt
-  if (speed < 20)  return 'text-purple-400';  // 30-40kt
-  if (speed < 25)  return 'text-violet-600';  // 40-50kt
-  return 'text-indigo-950';                   // 50+kt
+export const WIND_TONE_STEPS_KT = [...WIND_STEPS_KT, 22, 34, 48, 56] as const;
+/** The token suffix of each tone: --g-s-*, --g-c-*, --g-ct-*. */
+export const WIND_TONE_NAMES = ['calma', 'flojo', 'navegable', 'bueno', 'fuerte', 'duro', 'temporal', 'tduro', 'tmduro'] as const;
+export type WindToneName = typeof WIND_TONE_NAMES[number];
+export type WindTone = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+
+export function windTone(kt: number): WindTone {
+  const rounded = Math.round(kt);
+  let tone = 0;
+  while (tone < WIND_TONE_STEPS_KT.length && rounded >= WIND_TONE_STEPS_KT[tone]) tone++;
+  return tone as WindTone;
+}
+
+/** The --g-s-* tokens of each theme as hex, for what is painted on a canvas: at least 3:1 on its own background. */
+export const WIND_TONES_ON_DARK = ['#a3aca7', '#62a8f5', '#37bd78', '#f5b82e', '#ff8a3d', '#ff4d4d', '#e45cff', '#9d7bff', '#6a3df0'] as const;
+export const WIND_TONES_ON_LIGHT = ['#868f8a', '#3480d2', '#128f5a', '#b67c00', '#c2560c', '#b8322c', '#9a1fb0', '#5b2bb5', '#2e0f5c'] as const;
+
+/** Wind in m/s → its colour on the scale. It depends on the map drawn: the street map is light under a dark theme too. */
+export function windSpeedColor(speed: number | null, onDarkMap = true): string {
+  const tones = onDarkMap ? WIND_TONES_ON_DARK : WIND_TONES_ON_LIGHT;
+  return tones[speed === null ? 0 : windTone(msToKnots(speed))];
 }
 
 /** Color for temperature visualization */
 export function temperatureColor(temp: number | null): string {
   if (temp === null) return '#6b7280'; // gray-500
-  if (temp < 0) return '#1d4ed8';     // blue-700
-  if (temp < 5) return '#3b82f6';     // blue-500
-  if (temp < 10) return '#06b6d4';    // cyan-500
-  if (temp < 15) return '#22c55e';    // green-500
-  if (temp < 20) return '#84cc16';    // lime-500
-  if (temp < 25) return '#eab308';    // yellow-500
-  if (temp < 30) return '#f97316';    // orange-500
-  if (temp < 35) return '#ef4444';    // red-500
-  return '#991b1b';                   // red-800
+  if (temp < 0) return '#2a55c3';
+  if (temp < 5) return '#4c85e3';
+  if (temp < 10) return '#47b3cb';
+  if (temp < 15) return '#4fc06d';
+  if (temp < 20) return '#8dc84b';
+  if (temp < 25) return '#e2b64b';
+  if (temp < 30) return '#eb7e42';
+  if (temp < 35) return '#e05853';
+  return '#8e2d28';
 }
 
 /** Convert m/s to knots */
@@ -90,107 +98,7 @@ export function formatWindSpeed(speedMs: number | null): string {
   return `${msToKnots(speedMs).toFixed(1)} kt`;
 }
 
-/** Format temperature for display */
-export function formatTemperature(temp: number | null): string {
-  if (temp === null) return '--';
-  return `${temp.toFixed(1)}°C`;
-}
-
-/** Format humidity for display */
-export function formatHumidity(humidity: number | null): string {
-  if (humidity === null) return '--';
-  return `${Math.round(humidity)}%`;
-}
-
-/** Format precipitation for display (mm) */
-export function formatPrecipitation(mm: number | null): string {
-  if (mm === null) return '--';
-  if (mm === 0) return '0 mm';
-  return `${mm.toFixed(1)} mm`;
-}
-
-/** Color for precipitation visualization */
-export function precipitationColor(mm: number | null): string {
-  if (mm === null || mm === 0) return '#64748b'; // slate-500
-  if (mm < 1) return '#93c5fd';   // blue-300
-  if (mm < 5) return '#3b82f6';   // blue-500
-  if (mm < 15) return '#2563eb';  // blue-600
-  return '#7c3aed';               // violet-600
-}
-
-// ── Solar radiation utilities ────────────────────────────
-
-/** Format solar radiation (W/m²) for display */
-export function formatSolarRadiation(wm2: number | null | undefined): string {
-  if (wm2 == null) return '--';
-  return `${Math.round(wm2)} W/m²`;
-}
-
-/** Color for solar radiation visualization:
- *  0: night/dark, <200: cloudy, 200-500: partial, 500-800: good, >800: intense */
-export function solarRadiationColor(wm2: number | null | undefined): string {
-  if (wm2 == null) return '#64748b';   // slate-500
-  if (wm2 <= 0) return '#475569';       // slate-600 (night)
-  if (wm2 < 200) return '#94a3b8';      // slate-400 (cloudy/low)
-  if (wm2 < 500) return '#fbbf24';      // amber-400 (partial sun)
-  if (wm2 < 800) return '#f59e0b';      // amber-500 (good sun)
-  return '#f97316';                      // orange-500 (intense)
-}
-
-/** Sun icon ID based on radiation level (returns IconId for WeatherIcon component) */
-export function solarRadiationIcon(wm2: number | null | undefined): import('../components/icons/WeatherIcons').IconId | null {
-  if (wm2 == null) return null;
-  if (wm2 <= 0) return 'moon';           // night
-  if (wm2 < 100) return 'cloud';         // heavy cloud
-  if (wm2 < 300) return 'cloud-sun';     // partly cloudy
-  if (wm2 < 600) return 'cloud-sun';     // partial sun
-  return 'sun';                           // clear/strong sun
-}
-
 // ── Pressure & dew point utilities ──────────────────────
-
-/** Format atmospheric pressure for display (hPa) */
-export function formatPressure(hPa: number | null | undefined): string {
-  if (hPa == null) return '--';
-  return `${hPa.toFixed(1)} hPa`;
-}
-
-/** Color for pressure visualization:
- *  Low (<1000) → purple/storm. Normal (1010-1020) → neutral. High (>1025) → blue/stable. */
-export function pressureColor(hPa: number | null | undefined): string {
-  if (hPa == null) return '#64748b';     // slate-500
-  if (hPa < 1000) return '#a855f7';       // purple-500 (very low — storm)
-  if (hPa < 1010) return '#f59e0b';       // amber-500 (low — unsettled)
-  if (hPa < 1020) return '#94a3b8';       // slate-400 (normal)
-  if (hPa < 1030) return '#38bdf8';       // sky-400 (high — stable)
-  return '#3b82f6';                        // blue-500 (very high — blocking)
-}
-
-/** Format dew point temperature for display (°C) */
-export function formatDewPoint(td: number | null | undefined): string {
-  if (td == null) return '--';
-  return `${td.toFixed(1)}°C`;
-}
-
-/** Color for dew point / spread visualization:
- *  Close to T (small spread) → blue/fog risk. Far from T → green/dry. */
-export function dewPointSpreadColor(spread: number | null | undefined): string {
-  if (spread == null) return '#64748b';   // slate-500
-  if (spread < 2) return '#3b82f6';        // blue-500 (fog imminent)
-  if (spread < 5) return '#06b6d4';        // cyan-500 (damp)
-  if (spread < 10) return '#22c55e';       // green-500 (comfortable)
-  return '#f59e0b';                        // amber-500 (very dry)
-}
-
-/** Color for humidity visualization:
- *  Very high (>90%) → blue. High (>70%) → green. Moderate → amber. Low → orange. */
-export function humidityColor(hr: number | null | undefined): string {
-  if (hr == null) return '#64748b';       // slate-500
-  if (hr > 90) return '#3b82f6';          // blue-500 (saturated)
-  if (hr > 70) return '#22c55e';          // green-500 (high)
-  if (hr > 50) return '#eab308';          // yellow-500 (moderate)
-  return '#f97316';                       // orange-500 (dry)
-}
 
 // ── Direction utilities ──────────────────────────────────
 

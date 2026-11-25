@@ -12,7 +12,7 @@
  * Error recovery: on failure, retries after 5 min instead of waiting 30 min.
  */
 import { useCallback, useEffect, useRef } from 'react';
-import { fetchStoredBuoys } from '../api/buoyClient';
+import { fetchStoredBuoys, fetchSilentBuoys } from '../api/buoyClient';
 import { fetchAllObsReadings } from '../api/observatorioCosteiro';
 import { useBuoyStore } from '../store/buoyStore';
 import { useSectorStore } from '../store/sectorStore';
@@ -51,6 +51,10 @@ export function useBuoyData() {
         if (stored.length > 0) {
           setBuoys(stored);
           setError(null);
+          // The buoys of the list missing from the batch: grey on the map with «sin dato desde».
+          fetchSilentBuoys(stored.map((b) => b.stationId))
+            .then((silent) => useBuoyStore.getState().setSilentBuoys(silent))
+            .catch(() => {});
           console.debug(`[useBuoyData] ${stored.length} buoys from our own API`);
           return;
         }

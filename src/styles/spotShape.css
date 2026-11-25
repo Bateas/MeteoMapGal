@@ -1,0 +1,16 @@
+/*
+ * The ring of a spot moves to its new place in half a second (SpotShape.tsx). Both arcs have
+ * pathLength 100, so the dashes are percentages of the arc whatever its radius.
+ */
+@keyframes gs-grow { from { stroke-dasharray: var(--gs-from, 0) 100; } to { stroke-dasharray: 100 100; } }
+@keyframes gs-shrink { from { stroke-dasharray: 100 100; opacity: 1; } 99% { opacity: 1; } to { stroke-dasharray: 0 100; opacity: 0; } }
+@keyframes gs-late { from { opacity: 0; } 60% { opacity: 0; } to { opacity: 1; } }
+.gs-grow { animation: gs-grow 500ms ease-out both; }
+/* Gone when it ends: a dash of length zero with a round cap would leave a dot. */
+.gs-shrink { animation: gs-shrink 500ms ease-out both; }
+/* The dashes of the doubt wait for the tip to get there. */
+.gs-late { animation: gs-late 500ms ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .gs-grow, .gs-late { animation: none; }
+  .gs-shrink { display: none; }
+}

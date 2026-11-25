@@ -3,7 +3,7 @@ import { devtools, persist } from 'zustand/middleware';
 
 // ── Map style definitions ─────────────────────────────────
 
-export type MapStyleId = 'osm' | 'positron' | 'dark' | 'voyager' | 'ign-topo' | 'ign-grey';
+export type MapStyleId = 'positron' | 'dark' | 'voyager' | 'ign-topo' | 'ign-ortho';
 
 /**
  * What the user has picked: one concrete base map, or 'auto', which follows
@@ -32,19 +32,6 @@ export interface MapStyleDef {
 }
 
 export const MAP_STYLES: MapStyleDef[] = [
-  {
-    id: 'osm',
-    name: 'OpenStreetMap',
-    shortName: 'OSM',
-    tiles: [
-      'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    ],
-    tileSize: 256,
-    attribution: '&copy; OpenStreetMap contributors',
-    maxzoom: 19,
-    swatch: ['#aad3df', '#f2efe9'],
-  },
   // CARTO's key-free basemaps ended, and not with a 403 — they answer 200 with a
   // perfectly valid PNG that has "API KEY REQUIRED / carto.com/basemaps/apikey"
   // burned into the image. A status check can never catch that; the giveaway is
@@ -111,53 +98,32 @@ export const MAP_STYLES: MapStyleDef[] = [
     swatch: ['#d4c9a8', '#e8dfc6'],
   },
   {
-    id: 'ign-grey',
-    name: 'IGN Base Gris',
-    shortName: 'Gris',
-    tiles: [
-      // IGNBaseGris -> IGNBase-gris, and it serves jpeg now, not png. The old
-      // name returns 400 "LAYER IGNBaseGris is not known", which the map draws
-      // as nothing at all: a raster source has no error callback.
-      'https://www.ign.es/wmts/ign-base?service=WMTS&request=GetTile&version=1.0.0&format=image/jpeg&layer=IGNBase-gris&style=default&tilematrixset=GoogleMapsCompatible&tilematrix={z}&tilerow={y}&tilecol={x}',
-    ],
+    id: 'ign-ortho',
+    name: 'Foto aérea (IGN PNOA)',
+    shortName: 'Foto',
+    tiles: ['https://www.ign.es/wmts/pnoa-ma?service=WMTS&request=GetTile&version=1.0.0&format=image/jpeg&layer=OI.OrthoimageCoverage&style=default&tilematrixset=GoogleMapsCompatible&tilematrix={z}&tilerow={y}&tilecol={x}'],
     tileSize: 256,
-    attribution: '&copy; IGN España',
-    maxzoom: 17,
-    swatch: ['#c5c5c5', '#e0e0e0'],
+    attribution: '&copy; IGN España, PNOA',
+    maxzoom: 19,
+    swatch: ['#5c6b4f', '#8a8f6c'],
   },
 ];
+
+/** What the menu offers besides Auto. The grey canvases are Auto's: picked by the theme, not by hand. */
+export const PICKABLE_STYLES: MapStyleId[] = ['voyager', 'ign-topo', 'ign-ortho'];
 
 // ── Store ─────────────────────────────────────────────────
 
 interface MapStyleState {
   /** The user's pick; resolve it with `resolveStyleId` before drawing. */
   activeStyleId: MapStyleChoice;
-  /** OpenSeaMap nautical overlay (buoys, lights, seamarks) */
-  showSeamarks: boolean;
-  /** IHM Electronic Navigational Chart overlay */
+  /** IHM nautical chart (coastal sectors) */
   showNauticalChart: boolean;
-  /** IGN MDT hillshade — pre-rendered terrain relief */
-  showIGNHillshade: boolean;
-  /** IGN MDT contour lines — 25m spacing from BTN25 */
-  showIGNContours: boolean;
-  /** IGN PNOA aerial orthophotos — 25cm resolution */
-  showIGNOrtho: boolean;
-  /** Wave coast overlay — coastline colored by exposure + wave height (#56) */
-  showWaveCoast: boolean;
-  /** Upwelling overlay — cold water zones when N/NW wind sustained (#59) */
-  showUpwelling: boolean;
-  /** Convection risk heatmap — spatial CAPE×-LI grid */
-  showConvectionRisk: boolean;
-
+  /** SWAN wave model (coastal sectors) */
+  showSwan: boolean;
   setStyle: (id: MapStyleChoice) => void;
-  toggleSeamarks: () => void;
   toggleNauticalChart: () => void;
-  toggleIGNHillshade: () => void;
-  toggleIGNContours: () => void;
-  toggleIGNOrtho: () => void;
-  toggleWaveCoast: () => void;
-  toggleUpwelling: () => void;
-  toggleConvectionRisk: () => void;
+  toggleSwan: () => void;
 }
 
 export const useMapStyleStore = create<MapStyleState>()(
@@ -165,55 +131,26 @@ export const useMapStyleStore = create<MapStyleState>()(
     persist(
       (set, get) => ({
         activeStyleId: 'auto' as MapStyleChoice,
-        showSeamarks: false,
         showNauticalChart: false,
-        showIGNHillshade: false,
-        showIGNContours: false,
-        showIGNOrtho: false,
-        showWaveCoast: false, // DISABLED by default — #56 v1 has wrong exposure (normals ≠ fetch). Needs redesign
-        showUpwelling: false,
-        showConvectionRisk: false, // opt-in; auto-activates when peak risk score > threshold
+        showSwan: false,
 
         setStyle: (activeStyleId) =>
           set({ activeStyleId }, undefined, 'setStyle'),
 
-        toggleSeamarks: () =>
-          set({ showSeamarks: !get().showSeamarks }, undefined, 'toggleSeamarks'),
-
         toggleNauticalChart: () =>
           set({ showNauticalChart: !get().showNauticalChart }, undefined, 'toggleNauticalChart'),
 
-        toggleIGNHillshade: () =>
-          set({ showIGNHillshade: !get().showIGNHillshade }, undefined, 'toggleIGNHillshade'),
-
-        toggleIGNContours: () =>
-          set({ showIGNContours: !get().showIGNContours }, undefined, 'toggleIGNContours'),
-
-        toggleIGNOrtho: () =>
-          set({ showIGNOrtho: !get().showIGNOrtho }, undefined, 'toggleIGNOrtho'),
-
-        toggleWaveCoast: () =>
-          set({ showWaveCoast: !get().showWaveCoast }, undefined, 'toggleWaveCoast'),
-
-        toggleUpwelling: () =>
-          set({ showUpwelling: !get().showUpwelling }, undefined, 'toggleUpwelling'),
-
-        toggleConvectionRisk: () =>
-          set({ showConvectionRisk: !get().showConvectionRisk }, undefined, 'toggleConvectionRisk'),
+        toggleSwan: () =>
+          set({ showSwan: !get().showSwan }, undefined, 'toggleSwan'),
       }),
       {
         name: 'meteomap-map-style',
-        version: 1,
+        version: 2,
         migrate: migrateMapStyle,
         partialize: (state) => ({
           activeStyleId: state.activeStyleId,
-          showSeamarks: state.showSeamarks,
           showNauticalChart: state.showNauticalChart,
-          showIGNHillshade: state.showIGNHillshade,
-          showIGNContours: state.showIGNContours,
-          showIGNOrtho: state.showIGNOrtho,
-          showWaveCoast: state.showWaveCoast,
-          showUpwelling: state.showUpwelling,
+          showSwan: state.showSwan,
         }),
       },
     ),
@@ -239,9 +176,18 @@ export function resolveStyleId(choice: MapStyleChoice, theme: 'dark' | 'light'):
  * other pick is theirs and stays.
  */
 export function migrateMapStyle(persisted: unknown, version: number): MapStyleState {
-  const state = (persisted ?? {}) as Partial<MapStyleState>;
-  if (version < 1 && state.activeStyleId === 'voyager') {
-    return { ...state, activeStyleId: 'auto' } as MapStyleState;
+  const state = { ...((persisted ?? {}) as Record<string, unknown>) };
+  if (version < 1 && state.activeStyleId === 'voyager') state.activeStyleId = 'auto';
+  if (version < 2) {
+    // v1 -> v2: four base maps. The orthophoto was a layer and is now one of them; a map that is no longer
+    // offered goes back to Auto. The wave model's switch had the name of another overlay.
+    const pick = state.activeStyleId as MapStyleId | 'auto' | undefined;
+    if (state.showIGNOrtho) state.activeStyleId = 'ign-ortho';
+    else if (pick && pick !== 'auto' && !PICKABLE_STYLES.includes(pick)) state.activeStyleId = 'auto';
+    if (state.showUpwelling !== undefined) state.showSwan = state.showUpwelling;
+    for (const gone of ['showSeamarks', 'showIGNHillshade', 'showIGNContours', 'showIGNOrtho', 'showWaveCoast', 'showUpwelling']) {
+      delete state[gone];
+    }
   }
-  return state as MapStyleState;
+  return state as unknown as MapStyleState;
 }

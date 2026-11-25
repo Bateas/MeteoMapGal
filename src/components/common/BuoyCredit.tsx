@@ -24,7 +24,7 @@ export function BuoyCredit({ providers, className }: { providers: readonly BuoyP
             {url && (
               <>
                 {' ('}
-                <a href={url} target="_blank" rel="noopener noreferrer" className="underline decoration-dotted hover:text-slate-300">
+                <a href={url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline', color: 'inherit' }}>
                   {urlLabel ?? url}
                 </a>
                 {')'}

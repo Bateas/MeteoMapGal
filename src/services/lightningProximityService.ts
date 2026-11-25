@@ -265,3 +265,18 @@ export function formatRiskLine(r: SpotLightningRisk): string {
   if (r.approaching) extra += ', acercandose';
   return `${r.spotName}: rayo a ${kmTxt} (${extra})`;
 }
+
+/**
+ * The spot the band names. The list comes worst first, but with a storm over several spots the one the
+ * reader cares about is theirs: the one whose card is open, else their favourite, when it is in the
+ * list at the level of the worst. Never theirs over a worse one: «aviso» in my spot does not go before
+ * «peligro» next door.
+ */
+export function namedFirst<T extends { spotId: string; level?: string }>(list: readonly T[], activeSpotId: string | null | undefined, favoriteSpotId: string | null | undefined): T {
+  const worst = list[0];
+  for (const id of [activeSpotId, favoriteSpotId]) {
+    const mine = id ? list.find((r) => r.spotId === id) : undefined;
+    if (mine && mine.level === worst.level) return mine;
+  }
+  return worst;
+}

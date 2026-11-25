@@ -21,7 +21,7 @@ import { verdictDoubt } from '../src/config/verdictStyles.js';
 export interface ShownVerdict {
   /** As the marker would colour it: 'unknown' while provisional. */
   verdict: SpotVerdict;
-  /** 'sailing-good' when the card would say «entre Navegable y Buen día», else null. */
+  /** 'sailing-good' when the card would say «entre Navegable y Bueno», else null. */
   doubt: string | null;
 }
 

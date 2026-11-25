@@ -4,6 +4,10 @@ interface WindCompassProps {
   direction: number | null;  // degrees (meteorological: where wind comes FROM)
   speed: number | null;      // m/s
   size?: number;             // px, default 48
+  /** Paper and ink, for the V3 cards: the arrow in ink instead of the wind colour */
+  ink?: boolean;
+  /** The card already says the direction in words */
+  hideLabel?: boolean;
 }
 
 /**
@@ -11,10 +15,13 @@ interface WindCompassProps {
  * Shows cardinal marks (N/E/S/W), a ring, and an arrow pointing
  * where the wind is going TO (direction + 180°).
  */
-export function WindCompass({ direction, speed, size = 48 }: WindCompassProps) {
+export function WindCompass({ direction, speed, size = 48, ink = false, hideLabel = false }: WindCompassProps) {
   const half = size / 2;
   const ringR = half - 4;
-  const color = windSpeedColor(speed);
+  const color = ink ? 'var(--g-ink)' : windSpeedColor(speed);
+  const ringColor = ink ? 'var(--g-rule)' : '#334155';
+  const tickColor = ink ? 'var(--g-muted)' : '#64748b';
+  const northColor = ink ? 'var(--g-ink)' : '#94a3b8';
   const hasDirection = direction !== null && speed !== null && speed >= 0.3;
   const hasSpeedOnly = !hasDirection && speed !== null && speed >= 0.3;
 
@@ -29,7 +36,7 @@ export function WindCompass({ direction, speed, size = 48 }: WindCompassProps) {
         <circle
           cx={half} cy={half} r={ringR}
           fill="none"
-          stroke="#334155"
+          stroke={ringColor}
           strokeWidth={1.5}
         />
 
@@ -44,18 +51,22 @@ export function WindCompass({ direction, speed, size = 48 }: WindCompassProps) {
             <line
               key={deg}
               x1={x1} y1={y1} x2={x2} y2={y2}
-              stroke="#64748b"
+              stroke={tickColor}
               strokeWidth={1.5}
               strokeLinecap="round"
             />
           );
         })}
 
-        {/* Cardinal labels */}
-        <text x={half} y={6} textAnchor="middle" fontSize={7} fontWeight={700} fill="#94a3b8">N</text>
-        <text x={size - 3} y={half + 2.5} textAnchor="middle" fontSize={6} fill="#64748b">E</text>
-        <text x={half} y={size - 1} textAnchor="middle" fontSize={6} fill="#64748b">S</text>
-        <text x={3} y={half + 2.5} textAnchor="middle" fontSize={6} fill="#64748b">W</text>
+        {/* Cardinal labels. Not on the cards: at this size they cannot be read, and the words beside it say it */}
+        {!ink && (
+          <>
+            <text x={half} y={6} textAnchor="middle" fontSize={7} fontWeight={700} fill={northColor}>N</text>
+            <text x={size - 3} y={half + 2.5} textAnchor="middle" fontSize={6} fill={tickColor}>E</text>
+            <text x={half} y={size - 1} textAnchor="middle" fontSize={6} fill={tickColor}>S</text>
+            <text x={3} y={half + 2.5} textAnchor="middle" fontSize={6} fill={tickColor}>W</text>
+          </>
+        )}
 
         {hasDirection ? (
           /* Wind arrow */
@@ -84,21 +95,21 @@ export function WindCompass({ direction, speed, size = 48 }: WindCompassProps) {
           </>
         ) : (
           /* No wind: calm indicator */
-          <circle cx={half} cy={half} r={3} fill="#475569" />
+          <circle cx={half} cy={half} r={3} fill={ink ? 'var(--g-muted)' : '#475569'} />
         )}
       </svg>
 
       {/* Text label below */}
-      {hasDirection ? (
-        <div className="text-[11px] font-semibold text-center leading-tight" style={{ color }}>
+      {hideLabel ? null : hasDirection ? (
+        <div className="text-xs font-semibold text-center leading-tight" style={{ color }}>
           {degreesToCardinal(direction!)} {Math.round(direction!)}°
         </div>
       ) : hasSpeedOnly ? (
-        <div className="text-[11px] font-semibold text-center leading-tight" style={{ color }}>
+        <div className="text-xs font-semibold text-center leading-tight" style={{ color }}>
           Sin veleta
         </div>
       ) : (
-        <div className="text-[11px] text-slate-500 text-center">Calma</div>
+        <div className="text-xs text-slate-500 text-center">Calma</div>
       )}
     </div>
   );

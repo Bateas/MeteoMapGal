@@ -1,7 +1,7 @@
 /**
  * Magic Window Detector — rare convergence of optimal sailing signals.
  *
- * T2-2 (S136+3+3) bandera marketing: dispara cuando se alinean condiciones
+ * Dispara cuando se alinean condiciones
  * que el usuario "no quiere perderse". A SAILORS' PERSPECTIVE — no a la
  * meteorólogo. La función vale lo que recomienda HACER:
  *

@@ -3,7 +3,7 @@
  *
  * Desktop: overlay covering the map area (z-50).
  * Mobile: fullscreen overlay above bottom nav.
- * Renders ForecastTimeline in expanded mode for maximum data visibility.
+ * Renders ForecastTimeline, the same view as the side panel's Previsión tab.
  *
  * Opened via: sidebar "Ampliar" button, mobile bottom nav "Previsión",
  * or keyboard shortcut 'P'.
@@ -55,13 +55,13 @@ function ForecastPanelInner() {
       style={isMobile ? { bottom: 'calc(48px + env(safe-area-inset-bottom, 0px))' } : undefined}
       role="dialog"
       aria-modal="true"
-      aria-label="Prevision detallada"
+      aria-label="Previsión detallada"
     >
       {/* Header (V3 style G, tried on this panel only) */}
       <div className="g-head">
         <div style={{ minWidth: 0 }}>
           <h2>Previsión{spotInfo ? ` · ${spotInfo.name}` : ''}</h2>
-          <div className="g-sub">{sectorName} · próximas 48 horas</div>
+          <div className="g-sub">{sectorName} · hoy y los dos próximos días</div>
         </div>
         <div className="g-actions">
           <button type="button" className="g-btn" onClick={close} aria-label="Volver al mapa" title={isMobile ? undefined : 'Volver al mapa (Esc)'}>
@@ -70,9 +70,9 @@ function ForecastPanelInner() {
         </div>
       </div>
 
-      {/* Content — ForecastTimeline in expanded mode */}
+      {/* Content — the forecast view */}
       <div className="g-body min-h-0">
-        <ForecastTimeline expanded spotCoords={spotInfo ? { lat: spotInfo.center[1], lon: spotInfo.center[0] } : undefined} />
+        <ForecastTimeline spotCoords={spotInfo ? { lat: spotInfo.center[1], lon: spotInfo.center[0] } : undefined} wide={!isMobile} />
       </div>
     </div>
   );

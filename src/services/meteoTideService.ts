@@ -166,8 +166,8 @@ export function computeMeteoTide(
  */
 export function formatMeteoTide(t: MeteoTide): string {
   const cm = Math.round(Math.abs(t.residualM) * 100);
-  if (t.level === 'none') return 'Marea segun tabla';
+  if (t.level === 'none') return 'Marea como estaba prevista';
   return t.residualM > 0
-    ? `Agua ${cm} cm por encima de tabla`
-    : `Agua ${cm} cm por debajo de tabla`;
+    ? `Marea ${cm} cm más alta de lo previsto`
+    : `Marea ${cm} cm más baja de lo previsto`;
 }

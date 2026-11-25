@@ -9,15 +9,16 @@
  *     the coords (reuses the existing rate-limited / sanitized / honeypot path).
  *   • "Eliminar" — removes the local pin.
  */
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { Popup } from 'react-map-gl/maplibre';
+import { memo, useCallback, useEffect, useId, useMemo, useState } from 'react';
+import { Ficha, Note, SupportLink } from '../map/Ficha';
+import { Cell } from './Cell';
 import { useUserSpotStore } from '../../store/userSpotStore';
 import { useUIStore } from '../../store/uiStore';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import { type UserSpot, MAX_NAME_CHARS, buildSpotSuggestion } from '../../config/userSpots';
 import { isCoastalSector } from '../../config/sectors';
-import { displayWindDir } from '../../config/verdictStyles';
+import { displayVerdict, displayWindDir, displayWindKt, verdictLabel, fillOf, windToneOver } from '../../config/verdictStyles';
 import { RIAS_TIDE_STATIONS, fetchTidePredictions } from '../../api/tideClient';
 import { fastDistanceKm } from '../../services/idwInterpolation';
 import { msToKnots, degToCardinal8 } from '../../services/windUtils';
@@ -45,10 +46,7 @@ function summarizeWrfNextHours(hourly: HourlyForecast[], now: Date): { kt: numbe
 interface NextTide { type: 'high' | 'low'; time: string; heightM: number }
 
 const VERDICT_FULL: Record<SpotVerdict, string> = {
-  calm: 'Calma', light: 'Flojo', sailing: 'Navegable', good: 'Buen viento', strong: 'Viento fuerte', unknown: 'Sin datos',
-};
-const VERDICT_COLOR: Record<SpotVerdict, string> = {
-  calm: '#94a3b8', light: '#7dd3fc', sailing: '#4ade80', good: '#fde047', strong: '#fdba74', unknown: '#94a3b8',
+  calm: 'Calma', light: 'Flojo', sailing: 'Navegable', good: 'Bueno', strong: 'Fuerte', unknown: 'Sin datos',
 };
 
 interface Props {
@@ -102,21 +100,9 @@ export const UserSpotPopup = memo(function UserSpotPopup({ spot, score: propScor
     return () => { cancelled = true; };
   }, [spot.id, spot.sectorId, spot.center]);
 
+  // Ficha closes it on Escape, except in the rename field: there the key only cancels the edit.
   const close = useCallback(() => selectUserSpot(null), [selectUserSpot]);
-
-  // Escape closes the pin popup, same rules as SpotPopup (capture phase, an
-  // open aria-modal dialog owns the key). The rename field is skipped: there
-  // Escape only cancels the edit, and the popup must stay open.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      if (document.querySelector('[aria-modal="true"]')) return;
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      close();
-    };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, [close]);
+  const titleId = useId();
 
   const startEdit = useCallback(() => {
     setNameInput(spot.name);
@@ -152,163 +138,129 @@ export const UserSpotPopup = memo(function UserSpotPopup({ spot, score: propScor
     removeUserSpot(spot.id);
   }, [removeUserSpot, spot.id]);
 
-  const verdict: SpotVerdict = score?.verdict ?? 'unknown';
-  const windKt = score?.effectiveWindKt ?? score?.wind?.avgSpeedKt ?? null;
+  // The same rule as the marker: while the data settles, neither a verdict nor a figure
+  const verdict: SpotVerdict = displayVerdict(score);
+  const windKt = displayWindKt(score);
   const dir = displayWindDir(score)?.label ?? null;
+  const windDeg = displayWindDir(score)?.deg ?? null;
   const contributions = score?.wind?.contributions ?? [];
   const waveHeight = score?.waves?.waveHeight ?? null;
   const waterTemp = score?.waterTemp ?? null;
 
   return (
-    <Popup
-      longitude={spot.center[0]}
-      latitude={spot.center[1]}
-      anchor="bottom"
-      closeOnClick={false}
-      onClose={close}
-      maxWidth="380px"
-      className="map-dark-scope"
-    >
-      <div className="w-[280px] text-slate-200">
-        {/* Header */}
-        <div className="flex items-center gap-2 mb-2">
-          <div className="flex items-center justify-center w-7 h-7 rounded-full" style={{ border: '2px dashed #a78bfa', background: 'rgba(15,23,42,0.8)', color: '#a78bfa' }}>
-            <WeatherIcon id="map-pin" size={15} />
-          </div>
-          <div className="flex-1 min-w-0">
-            {editing ? (
-              <input
-                autoFocus
-                value={nameInput}
-                onChange={(e) => setNameInput(e.target.value.slice(0, MAX_NAME_CHARS))}
-                onBlur={commitName}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') commitName();
-                  if (e.key === 'Escape') setEditing(false);
-                }}
-                maxLength={MAX_NAME_CHARS}
-                className="w-full text-sm font-bold bg-slate-800 border border-violet-400/50 rounded px-1.5 py-0.5 text-white focus:outline-none focus:border-violet-400"
-                aria-label="Nombre del spot"
-              />
-            ) : (
-              <button
-                onClick={startEdit}
-                className="group flex items-center gap-1 max-w-full text-sm font-bold hover:text-violet-300 transition-colors"
-                title="Cambiar nombre"
-              >
-                <span className="truncate">{spot.name}</span>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 opacity-50 group-hover:opacity-100"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+    <Ficha longitude={spot.center[0]} latitude={spot.center[1]} onClose={close} titleId={titleId}>
+      <div className="gf-head">
+        <div className="gf-titles">
+          {editing ? (
+            <input
+              autoFocus
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value.slice(0, MAX_NAME_CHARS))}
+              onBlur={commitName}
+              onKeyDown={(e) => {
+                // Not while a composition keyboard (Chinese, Japanese, Korean) is still choosing the word: its Enter
+                // confirms the word, not the name.
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing) commitName();
+                if (e.key === 'Escape') setEditing(false);
+              }}
+              maxLength={MAX_NAME_CHARS}
+              className="gf-input gf-namefield"
+              id={titleId}
+              aria-label="Nombre del spot"
+            />
+          ) : (
+            <h2 id={titleId} className="gf-name">
+              <button type="button" onClick={startEdit} className="gf-namebtn" title="Cambiar nombre">
+                <span>{spot.name}</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
               </button>
-            )}
-            <div className="text-[10px] text-slate-500 font-mono">
-              {spot.center[1].toFixed(4)}°N, {Math.abs(spot.center[0]).toFixed(4)}°W
-            </div>
-          </div>
-        </div>
-
-        {/* SIN CALIBRAR banner — unmissable */}
-        <div className="flex items-start gap-1.5 mb-2 px-2 py-1.5 rounded-md" style={{ background: 'rgba(124,58,237,0.15)', border: '1px solid rgba(167,139,250,0.4)' }}>
-          <span style={{ color: '#c4b5fd', marginTop: 1, display: 'flex' }}>
-            <WeatherIcon id="alert-triangle" size={13} />
-          </span>
-          <div className="text-[10.5px] leading-snug text-violet-200">
-            <span className="font-bold">Spot sin calibrar.</span> Estimación con las estaciones del entorno. Puede fallar en zonas con microclima propio.
-          </div>
-        </div>
-
-        {/* Verdict */}
-        <div className="flex items-baseline gap-2 mb-2">
-          <span className="text-lg font-extrabold" style={{ color: VERDICT_COLOR[verdict] }}>
-            {VERDICT_FULL[verdict]}
-          </span>
-          {windKt !== null && verdict !== 'unknown' && (
-            <span className="text-sm font-semibold tabular-nums" style={{ color: VERDICT_COLOR[verdict] }}>
-              {windKt.toFixed(0)}kt{dir ? ` ${dir}` : ''}
-            </span>
+            </h2>
           )}
+          <div className="gf-sub gf-mono">
+            {spot.center[1].toFixed(4).replace('.', ',')}° N, {Math.abs(spot.center[0]).toFixed(4).replace('.', ',')}° O
+          </div>
         </div>
+      </div>
 
-        {/* Raw basis — the stations behind the estimate */}
-        {contributions.length > 0 ? (
-          <div className="mb-2">
-            <div className="text-[10px] uppercase tracking-wider text-slate-500 mb-1">
-              Basado en {contributions.length} {contributions.length === 1 ? 'fuente' : 'fuentes'} cercanas
-            </div>
-            <div className="space-y-0.5">
-              {contributions.slice(0, 3).map((c, i) => (
-                <div key={i} className="flex items-center justify-between text-[11px]">
-                  <span className="truncate text-slate-300 flex-1 mr-2">{c.name}</span>
-                  <span className="tabular-nums text-slate-400 shrink-0">
-                    {c.speedKt.toFixed(0)}kt{c.dir ? ` ${c.dir}` : ''} · {c.distKm.toFixed(1)}km
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="mb-2 text-[11px] text-slate-400">
-            Sin estaciones cercanas con viento. Acerca el pin a la costa o a una zona con sensores.
-          </div>
-        )}
-
-        {/* Marine context if available */}
-        {(waveHeight !== null || waterTemp !== null || nextTide) && (
-          <div className="flex gap-3 flex-wrap mb-2 text-[11px] text-slate-400">
-            {waveHeight !== null && <span>Olas {waveHeight.toFixed(1)}m</span>}
-            {waterTemp !== null && <span>Agua {waterTemp.toFixed(0)}°C</span>}
-            {nextTide && (
-              <span style={{ color: nextTide.type === 'high' ? '#22d3ee' : '#60a5fa' }}>
-                {nextTide.type === 'high' ? '▲ Pleamar' : '▼ Bajamar'} {nextTide.time}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* WRF-MG forecast for the next few hours */}
-        {wrf && (
-          <div className="mb-2 text-[11px]">
-            <span className="text-slate-500">Previsión WRF (próx. horas): </span>
-            <span className="text-slate-200 font-semibold tabular-nums">
-              {Math.round(wrf.kt)}kt{wrf.dir ? ` ${wrf.dir}` : ''}
-            </span>
-          </div>
-        )}
-
-        {/* Actions */}
-        <div className="flex items-center gap-2 pt-1">
-          <button
-            onClick={handleSuggest}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-500 transition-colors"
-          >
-            <WeatherIcon id="message-square" size={13} />
-            Sugerir validación del spot
-          </button>
-          <button
-            onClick={handleDelete}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 border border-slate-600 hover:bg-slate-800 hover:text-white transition-colors"
-            aria-label="Eliminar spot"
-          >
-            Eliminar
-          </button>
-        </div>
-
-        {/* Discreet support link — only when the estimate has real data,
-            never on the "sin datos" moment. */}
-        {contributions.length > 0 && (
-          <div className="flex justify-center mt-2 pt-1.5 border-t border-slate-700/30">
-            <a
-              href="https://ko-fi.com/bateas"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-rose-300 transition-colors rounded px-1.5 py-0.5 hover:bg-slate-800/60"
-              title="Apoyar el proyecto (Ko-fi)"
-            >
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z"/></svg>
-              Apoyar
-            </a>
-          </div>
+      <div className="gf-big">
+        {/* The marker's own shape: a dashed ring, filled with the state */}
+        <svg className="gf-chip" width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
+          <circle cx="15" cy="15" r="12" fill={fillOf(verdict, windToneOver(verdict, windKt))} stroke="var(--g-rule)" strokeWidth="2" strokeDasharray="4 3" />
+        </svg>
+        <span key={`${verdict}-${windKt?.toFixed(0)}`} className="gf-figure">
+          {score?.provisional ? verdictLabel(score) : VERDICT_FULL[verdict]}
+          {windKt !== null && verdict !== 'unknown' && <> · {windKt.toFixed(0)}</>}
+        </span>
+        {windKt !== null && verdict !== 'unknown' && (
+          <span className="gf-side">
+            <b>{windDeg != null ? `nudos del ${dir}` : 'nudos, dirección variable'}</b>
+          </span>
         )}
       </div>
-    </Popup>
+
+      {/* Unmissable: this figure has not been checked against anything */}
+      <div className="gf-note gf-note--block gc-t-riesgo" style={{ display: 'block' }}>
+        <span className="gf-strong">Spot sin calibrar.</span> Estimación con las estaciones del entorno. Puede fallar en zonas con microclima propio.
+      </div>
+
+      {/* The raw basis: the stations behind the estimate */}
+      {contributions.length > 0 ? (
+        <div className="gf-sec">
+          <h3 className="gf-sectitle">
+            Basado en {contributions.length} {contributions.length === 1 ? 'fuente' : 'fuentes'} cercanas
+          </h3>
+          <table className="gf-table">
+            <thead>
+              <tr>
+                <th scope="col">Estación</th>
+                <th scope="col" className="gf-n">kt</th>
+                <th scope="col" style={{ paddingLeft: 8 }}>Del</th>
+                <th scope="col" className="gf-n">Dist.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {contributions.slice(0, 3).map((c, i) => (
+                <tr key={i}>
+                  <td style={{ maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</td>
+                  <td className="gf-n"><b>{c.speedKt.toFixed(0)}</b></td>
+                  <td style={{ paddingLeft: 8 }}>{c.dir || '–'}</td>
+                  <td className="gf-n">{c.distKm.toFixed(1).replace('.', ',')} km</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="gf-notes">
+          <Note icon="info">Sin estaciones cercanas con viento. Acerca el pin a la costa o a una zona con sensores.</Note>
+        </div>
+      )}
+
+      {(waveHeight !== null || waterTemp !== null || nextTide || wrf) && (
+        <dl className="gf-data">
+          {waveHeight !== null && <Cell label="Olas" value={`${waveHeight.toFixed(1).replace('.', ',')} m`} />}
+          {waterTemp !== null && <Cell label="Agua" value={`${waterTemp.toFixed(0)} °C`} />}
+          {nextTide && <Cell label={nextTide.type === 'high' ? 'Próxima pleamar' : 'Próxima bajamar'} value={nextTide.time} />}
+          {wrf && <Cell label="Previsión WRF, próximas horas" value={`${Math.round(wrf.kt)} kt${wrf.dir ? ` ${wrf.dir}` : ''}`} />}
+        </dl>
+      )}
+
+      <div className="gf-actions" style={{ borderTop: '1px solid var(--g-hair)' }}>
+        <button type="button" onClick={handleSuggest} className="gc-btn gc-btn--primary gc-btn--grow">
+          <WeatherIcon id="message-square" size={15} />
+          Sugerir que lo validemos
+        </button>
+        <button type="button" onClick={handleDelete} className="gc-btn" aria-label="Eliminar spot">
+          Eliminar
+        </button>
+      </div>
+
+      {/* Discreet support link: only when the estimate has real data, never on the «sin datos» moment. */}
+      {contributions.length > 0 && (
+        <div className="gf-foot" style={{ borderTop: 0 }}>
+          <SupportLink />
+        </div>
+      )}
+    </Ficha>
   );
 });

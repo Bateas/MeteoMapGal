@@ -225,20 +225,20 @@ describe('buildCrossSeaAlerts', () => {
     expect(alerts[0].icon).toBe('waves');
   });
 
-  it('score scales with severity (critico ≥ 80)', () => {
+  it('its worst case stays at moderate: never examined', () => {
     const alerts = buildCrossSeaAlerts([
       buoy({ stationName: 'Vigo', waveDir: 270, windDir: 180, waveHeight: 1.5, wavePeriod: 6 }),
     ]);
-    expect(alerts[0].score).toBeGreaterThanOrEqual(80);
-    expect(alerts[0].severity).toBe('critical');
+    expect(alerts[0].score).toBeLessThan(55);
+    expect(alerts[0].severity).toBe('moderate');
   });
 
-  it('marks urgent=true for critico level', () => {
+  it('is never urgent, and its worst case does not read as a danger', () => {
     const alerts = buildCrossSeaAlerts([
       buoy({ stationName: 'Vigo', waveDir: 270, windDir: 180, waveHeight: 1.5, wavePeriod: 6 }),
     ]);
-    expect(alerts[0].urgent).toBe(true);
-    expect(alerts[0].title).toBe('MAR CRUZADA PELIGROSA');
+    expect(alerts[0].urgent).toBe(false);
+    expect(alerts[0].title).toBe('Mar cruzada fuerte');
   });
 
   it('marks urgent=false for non-critico levels', () => {

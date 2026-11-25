@@ -310,7 +310,7 @@ const BUOY_NAMES: Record<number, string> = Object.fromEntries(
  *
  * Window 6h (was 2h) tolerates PORTUS publish-lag for REDEXT/CETMAR/REMPOR
  * which publish every 30-60min. The 2h window dropped >half the buoys
- * silently during normal operation (S135+2 lesson). Detectors only need
+ * silently during normal operation. Detectors only need
  * "current state" — 6h-old buoy data is still meaningful for SW synoptic.
  *
  * Phase A (TIER 1 P0): includes water_temp, air_temp, humidity, wave_*
@@ -614,7 +614,7 @@ export async function runAnalysis(): Promise<void> {
     }
   }
 
-  // 4. Magic Window detection (T2-2 S136+3+3, Rías-only sector-wide alert)
+  // 4. Magic Window detection (Rías-only sector-wide alert)
   // Evaluated every cycle but with a 6h cooldown so the alert won't spam
   // during a sustained window where the score oscillates around threshold.
   try {
@@ -699,7 +699,7 @@ async function checkStrongWind(readings: StationReading[], buoys: BuoyWind[], no
     const { due, episode } = windAlertDue(windEpisodes.get(a.sector), a.level, nowMs);
     if (episode) windEpisodes.set(a.sector, episode); else windEpisodes.delete(a.sector);
     if (!due || !a.level || !episode) continue;
-    const { title, message } = formatWindSafetyMessage(a);
+    const { title, message } = formatWindSafetyMessage(a, nowMs);
     if (await dispatchWindSafetyAlert(a.sector, a.level, title, message)) episode.sentLevel = a.level;
   }
 }
@@ -784,7 +784,7 @@ async function checkLightningProximity(strikes: ProximityStrike[]): Promise<void
   }
 }
 
-// ── Magic Window helpers (T2-2 S136+3+3) ───────────────
+// ── Magic Window helpers ─────────────────────────────
 
 /**
  * Compute mouth-of-ría humidity from station readings, for the magic window.
@@ -898,7 +898,7 @@ async function evaluateAndDispatchMagicWindow(
     log.info(`Magic Window near-miss — score=${result.score}/100. ${result.summary}`);
   } else {
     // Heartbeat compact (log.info): every cycle a single ~60-char line so
-    // `tail` always shows the detector ran. Pattern from CLAUDE.md (S136+3+2):
+    // `tail` always shows the detector ran. On purpose:
     // silent-by-design detectors must heartbeat so 'no log' doesn't read as
     // 'code broken'. Prefer log.info over log.debug because INGESTOR_DEBUG
     // is off in prod and the heartbeat would be invisible there.

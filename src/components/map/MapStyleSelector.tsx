@@ -1,62 +1,29 @@
 /**
  * Floating map style selector — lets users switch base map tiles.
  *
- * Positioned top-right on desktop (below NavigationControl),
- * top-right on mobile (below nav control, icon-only trigger).
+ * Positioned top-right on desktop (beside the zoom buttons), and below the zoom buttons on
+ * mobile (icon-only trigger).
  *
- * 6 styles: OSM, Positron (light), Dark Matter, Voyager, IGN Topo, IGN Grey.
- * All free, no API keys needed.
+ * Auto (the grey canvas of the theme), streets, IGN topographic and aerial photo. All free, no API keys.
+ * The layers over the map have their own menu (WeatherLayerSelector).
  */
-import { memo, useState, useCallback, useRef, useEffect } from 'react';
-import { MAP_STYLES, useMapStyleStore, resolveStyleId } from '../../store/mapStyleStore';
+import { memo, useState, useCallback, useRef, type CSSProperties } from 'react';
+import { MAP_STYLES, PICKABLE_STYLES, useMapStyleStore, resolveStyleId } from '../../store/mapStyleStore';
 import type { MapStyleChoice } from '../../store/mapStyleStore';
 import { useThemeStore } from '../../store/themeStore';
 import { useUIStore } from '../../store/uiStore';
-import { useSectorStore } from '../../store/sectorStore';
+import { useDismiss } from '../../hooks/useDismiss';
 import { WeatherIcon } from '../icons/WeatherIcons';
 
 export const MapStyleSelector = memo(function MapStyleSelector() {
   const isMobile = useUIStore((s) => s.isMobile);
-  const isCoastal = useSectorStore((s) => s.activeSector.coastal);
   const activeStyleId = useMapStyleStore((s) => s.activeStyleId);
   const theme = useThemeStore((s) => s.theme);
   const setStyle = useMapStyleStore((s) => s.setStyle);
-  const showSeamarks = useMapStyleStore((s) => s.showSeamarks);
-  const showNauticalChart = useMapStyleStore((s) => s.showNauticalChart);
-  const showCoastal = useMapStyleStore((s) => s.showUpwelling);
-  const toggleCoastal = useMapStyleStore((s) => s.toggleUpwelling);
-  const showConvectionRisk = useMapStyleStore((s) => s.showConvectionRisk);
-  const toggleConvectionRisk = useMapStyleStore((s) => s.toggleConvectionRisk);
-  const toggleSeamarks = useMapStyleStore((s) => s.toggleSeamarks);
-  const toggleNauticalChart = useMapStyleStore((s) => s.toggleNauticalChart);
-  const showIGNHillshade = useMapStyleStore((s) => s.showIGNHillshade);
-  const showIGNContours = useMapStyleStore((s) => s.showIGNContours);
-  const showIGNOrtho = useMapStyleStore((s) => s.showIGNOrtho);
-  const toggleIGNHillshade = useMapStyleStore((s) => s.toggleIGNHillshade);
-  const toggleIGNContours = useMapStyleStore((s) => s.toggleIGNContours);
-  const toggleIGNOrtho = useMapStyleStore((s) => s.toggleIGNOrtho);
-  const bathymetryVisible = useUIStore((s) => s.bathymetryVisible);
-  const toggleBathymetry = useUIStore((s) => s.toggleBathymetry);
-  const sstVisible = useUIStore((s) => s.sstVisible);
-  const toggleSST = useUIStore((s) => s.toggleSST);
-  // Simple mode hides the advanced overlay groups (marine / atmosphere / IGN) —
-  // a casual ("mi tío en la barra") only needs to pick a base map, not 9
-  // technical toggles. They reappear in Avanzado.
-  const simpleMode = useUIStore((s) => s.simpleMode);
   const [open, setOpen] = useState(false);
-  const panelRef = useRef<HTMLDivElement>(null);
-
-  // Close on outside click
-  useEffect(() => {
-    if (!open) return;
-    function handleClick(e: MouseEvent) {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [open]);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+  useDismiss(rootRef, open, close);
 
   const handleSelect = useCallback((id: MapStyleChoice) => {
     setStyle(id);
@@ -72,264 +39,84 @@ export const MapStyleSelector = memo(function MapStyleSelector() {
 
   return (
     <div
-      ref={panelRef}
+      ref={rootRef}
       className={`${isMobile ? `fixed right-2 ${open ? 'z-50 top-[4.5rem]' : 'z-30 top-[12rem]'}` : 'absolute z-30 top-2 right-12'}`}
+      style={isMobile ? { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 } : { top: 'calc(0.5rem + var(--ticker-h, 0px))' }}
     >
-      {/* Trigger button — swatch preview */}
       <button
+        type="button"
+        className="gc-tool"
         onClick={() => setOpen(!open)}
+        aria-expanded={open}
         title={`Mapa base: ${activeLabel}`}
         aria-label={`Cambiar mapa base (actual: ${activeLabel})`}
-        className={`flex items-center gap-1.5 rounded-lg font-semibold
-          border transition-all shadow-md cursor-pointer
-          ${isMobile ? 'min-w-[44px] min-h-[44px] px-2 py-2 justify-center' : 'px-2 py-1.5 text-[11px]'}
-          ${open
-            ? 'bg-blue-600/90 text-white border-blue-500/50'
-            : 'bg-slate-900/80 text-slate-400 border-slate-700/50 hover:text-white hover:bg-slate-800/90 hover:shadow-[0_0_12px_rgba(148,163,184,0.15)] hover:border-slate-500/40'
-          }`}
       >
-        {/* Map icon (mobile) or swatch + name (desktop) */}
-        <WeatherIcon id="layers" size={isMobile ? 18 : 14} className="shrink-0" />
-        {!isMobile && (
-          <>
-            <div
-              className="w-4 h-4 rounded-full border border-slate-600 shrink-0"
-              style={{
-                background: `linear-gradient(135deg, ${activeStyle.swatch[0]} 50%, ${activeStyle.swatch[1]} 50%)`,
-              }}
-            />
-            <span>{activeShort}</span>
-          </>
-        )}
-        <svg
-          className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''} ${isMobile ? 'hidden' : ''}`}
-          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-        >
-          <path strokeLinecap="round" d="M19 9l-7 7-7-7" />
-        </svg>
+        <WeatherIcon id="map" size={isMobile ? 18 : 15} />
+        {!isMobile && <span>Mapa: {activeShort}</span>}
       </button>
 
-      {/* Dropdown panel */}
       {open && (
-        <div className={`mt-1 bg-slate-900/95 backdrop-blur-md border border-slate-700/50 rounded-xl shadow-2xl overflow-hidden overflow-y-auto
-          ${isMobile ? 'w-44 max-h-[calc(100dvh-16rem)]' : 'w-48 max-h-[70vh]'}`}
+        <div
+          className="g-theme gc-popover"
+          style={{
+            width: 280,
+            maxWidth: 'calc(100vw - 16px)',
+            maxHeight: isMobile ? 'calc(100dvh - 16rem)' : '70vh',
+            overflowY: 'auto',
+            marginTop: isMobile ? 0 : 4,
+          }}
         >
-          <div className="px-2 py-1.5 border-b border-slate-700/40">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Mapa base</span>
-          </div>
-          <div className="py-1">
-            {/* Default: grey canvas with place names, light or dark with the theme */}
-            <button
+          <Group label="Mapa base" role="radiogroup">
+            <StyleOption
+              label="Auto"
+              sub="Claro u oscuro, según el tema"
+              swatch={['#e6e5e3', '#2b2b2b']}
+              checked={isAuto}
               onClick={() => handleSelect('auto')}
-              className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-left transition-colors cursor-pointer
-                ${isMobile ? 'min-h-[40px]' : ''}
-                ${isAuto
-                  ? 'bg-blue-600/20 text-blue-300'
-                  : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
-                }`}
-            >
-              <div
-                className={`w-5 h-5 rounded-md border shrink-0 ${isAuto ? 'border-blue-400' : 'border-slate-600'}`}
-                style={{ background: 'linear-gradient(135deg, #e6e5e3 50%, #2b2b2b 50%)' }}
+            />
+            {MAP_STYLES.filter((style) => PICKABLE_STYLES.includes(style.id)).map((style) => (
+              <StyleOption
+                key={style.id}
+                label={style.shortName}
+                sub={style.name}
+                swatch={style.swatch}
+                checked={style.id === activeStyleId}
+                onClick={() => handleSelect(style.id)}
               />
-              <div className="flex flex-col min-w-0">
-                <span className={`text-[11px] font-semibold truncate ${isAuto ? 'text-blue-300' : ''}`}>
-                  Auto
-                </span>
-                <span className="text-[11px] text-slate-500 truncate">Claro u oscuro, según el tema</span>
-              </div>
-              {isAuto && (
-                <svg className="w-3.5 h-3.5 ml-auto text-blue-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              )}
-            </button>
-            {MAP_STYLES.map((style) => {
-              const isActive = style.id === activeStyleId;
-              return (
-                <button
-                  key={style.id}
-                  onClick={() => handleSelect(style.id)}
-                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-left transition-colors cursor-pointer
-                    ${isMobile ? 'min-h-[40px]' : ''}
-                    ${isActive
-                      ? 'bg-blue-600/20 text-blue-300'
-                      : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
-                    }`}
-                >
-                  {/* Swatch */}
-                  <div
-                    className={`w-5 h-5 rounded-md border shrink-0 ${isActive ? 'border-blue-400' : 'border-slate-600'}`}
-                    style={{
-                      background: `linear-gradient(135deg, ${style.swatch[0]} 50%, ${style.swatch[1]} 50%)`,
-                    }}
-                  />
-                  <div className="flex flex-col min-w-0">
-                    <span className={`text-[11px] font-semibold truncate ${isActive ? 'text-blue-300' : ''}`}>
-                      {style.shortName}
-                    </span>
-                    <span className="text-[11px] text-slate-500 truncate">{style.name}</span>
-                  </div>
-                  {isActive && (
-                    <svg className="w-3.5 h-3.5 ml-auto text-blue-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+            ))}
+          </Group>
 
-          {/* ── Marine overlay toggles (Rías sector only — advanced) ── */}
-          {!simpleMode && isCoastal && (
-            <>
-              <div className="border-t border-slate-700/40 px-2 py-1.5">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Capas marinas</span>
-              </div>
-              <div className="pb-1.5 px-1">
-                <OverlayToggle
-                  label="Profundidad del mar"
-                  sublabel="EMODnet — batimetría del fondo"
-                  active={bathymetryVisible}
-                  onClick={toggleBathymetry}
-                  color="#14b8a6"
-                  isMobile={isMobile}
-                  icon={<WeatherIcon id="layers" size={12} />}
-                />
-                <OverlayToggle
-                  label="Temperatura del mar"
-                  sublabel="CMEMS — superficie del mar"
-                  active={sstVisible}
-                  onClick={toggleSST}
-                  color="#f97316"
-                  isMobile={isMobile}
-                  icon={<WeatherIcon id="thermometer" size={12} />}
-                />
-                <OverlayToggle
-                  label="OpenSeaMap"
-                  sublabel="Boyas, faros, marcas"
-                  active={showSeamarks}
-                  onClick={toggleSeamarks}
-                  color="#0ea5e9"
-                  isMobile={isMobile}
-                />
-                <OverlayToggle
-                  label="Carta náutica"
-                  sublabel="IHM — ENC oficial"
-                  active={showNauticalChart}
-                  onClick={toggleNauticalChart}
-                  color="#06b6d4"
-                  isMobile={isMobile}
-                />
-                <OverlayToggle
-                  label="Oleaje SWAN"
-                  sublabel="Olas dentro de las rías (MG)"
-                  active={showCoastal}
-                  onClick={toggleCoastal}
-                  color="#0ea5e9"
-                  isMobile={isMobile}
-                />
-              </div>
-            </>
-          )}
-
-          {/* ── Atmospheric overlays (both sectors — advanced) ── */}
-          {!simpleMode && (
-            <>
-              <div className="border-t border-slate-700/40 px-2 py-1.5">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Atmósfera</span>
-              </div>
-              <div className="pb-1.5 px-1">
-                <OverlayToggle
-                  label="Riesgo de tormenta"
-                  sublabel="CAPE × LI por celda 5 km — dónde puede formarse tormenta"
-                  active={showConvectionRisk}
-                  onClick={toggleConvectionRisk}
-                  color="#dc2626"
-                  isMobile={isMobile}
-                />
-              </div>
-            </>
-          )}
-
-          {/* ── IGN terrain overlay toggles (both sectors — advanced) ── */}
-          {!simpleMode && (
-            <>
-              <div className="border-t border-slate-700/40 px-2 py-1.5">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Capas IGN</span>
-              </div>
-              <div className="pb-1.5 px-1">
-                <OverlayToggle
-                  label="Ortofotos"
-                  sublabel="PNOA — foto aérea 25cm"
-                  active={showIGNOrtho}
-                  onClick={toggleIGNOrtho}
-                  color="#22c55e"
-                  isMobile={isMobile}
-                />
-                <OverlayToggle
-                  label="Sombreado"
-                  sublabel="MDT — relieve del terreno"
-                  active={showIGNHillshade}
-                  onClick={toggleIGNHillshade}
-                  color="#a78bfa"
-                  isMobile={isMobile}
-                />
-                <OverlayToggle
-                  label="Curvas de nivel"
-                  sublabel="MDT — isohipsas 25m"
-                  active={showIGNContours}
-                  onClick={toggleIGNContours}
-                  color="#f59e0b"
-                  isMobile={isMobile}
-                />
-              </div>
-            </>
-          )}
         </div>
       )}
     </div>
   );
 });
 
-// ── Overlay toggle row ────────────────────────────────────
-
-function OverlayToggle({
-  label,
-  sublabel,
-  active,
-  onClick,
-  color,
-  isMobile,
-  icon: _icon,
-}: {
-  label: string;
-  sublabel: string;
-  active: boolean;
-  onClick: () => void;
-  color: string;
-  isMobile: boolean;
-  icon?: React.ReactNode;
-}) {
+function Group({ label, role, children }: { label: string; role?: string; children: React.ReactNode }) {
   return (
-    <button
-      onClick={onClick}
-      className={`w-full flex items-center gap-2 px-1.5 py-1.5 rounded-lg text-left transition-colors cursor-pointer
-        ${isMobile ? 'min-h-[40px]' : ''}
-        ${active
-          ? 'bg-slate-700/40 text-white'
-          : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
-        }`}
-    >
-      {/* Toggle dot */}
-      <div
-        className={`w-3 h-3 rounded-full border-2 shrink-0 transition-colors ${active ? 'border-current' : 'border-slate-600'}`}
-        style={active ? { backgroundColor: color, borderColor: color } : undefined}
-      />
-      <div className="flex flex-col min-w-0">
-        <span className="text-[11px] font-semibold truncate">{label}</span>
-        <span className="text-[11px] text-slate-500 truncate">{sublabel}</span>
-      </div>
+    <div role={role ?? 'group'} aria-label={label} style={{ padding: 4, borderBottom: '1px solid var(--g-hair)' }}>
+      <div className="gc-menu-label">{label}</div>
+      {children}
+    </div>
+  );
+}
+
+function StyleOption({ label, sub, swatch, checked, onClick }: {
+  label: string;
+  sub: string;
+  swatch: readonly [string, string] | string[];
+  checked: boolean;
+  onClick: () => void;
+}) {
+  const style: CSSProperties = { background: `linear-gradient(135deg, ${swatch[0]} 50%, ${swatch[1]} 50%)` };
+  return (
+    <button type="button" role="radio" aria-checked={checked} className="gc-option" onClick={onClick}>
+      <span className="gc-swatch" style={style} />
+      <span className="gc-option-text">
+        <span>{label}</span>
+        <span className="gc-option-sub">{sub}</span>
+      </span>
+      {checked && <WeatherIcon id="check" size={16} />}
     </button>
   );
 }

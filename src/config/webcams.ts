@@ -295,7 +295,7 @@ export const NORTH_WEBCAMS: WebcamStation[] = [
 
 // ── Embalse / Valle Miño cameras (DGT traffic cams — fog validation) ──
 // DGT migrated their image host from `infocar.dgt.es/etraffic/data/camaras/`
-// to `etraffic.dgt.es/camarasEtraffic/` (verified S136+2). The old URL
+// to `etraffic.dgt.es/camarasEtraffic/` (verified). The old URL
 // returns 302 to an HTML landing page, breaking the cameras silently.
 // Camera IDs (1187, 557) remain unchanged.
 const DGT_IMG_BASE = 'https://etraffic.dgt.es/camarasEtraffic';

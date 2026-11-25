@@ -1,7 +1,7 @@
 /**
  * Thermal scoring utilities for forecast points.
  * Extracted from ForecastTimeline.tsx for reuse across
- * ForecastTable, FieldDrawer, and alert checkers.
+ * the forecast, FieldDrawer, and alert checkers.
  */
 
 import type { HourlyForecast } from '../types/forecast';
@@ -248,18 +248,3 @@ export function scoreForecastThermal(
 
 // ── Color helpers ────────────────────────────────────────
 
-export function thermalColor(score: number): string {
-  if (score < 20) return 'transparent';
-  if (score < 40) return '#3b82f6';
-  if (score < 55) return '#f59e0b';
-  if (score < 75) return '#f97316';
-  return '#ef4444';
-}
-
-export function thermalBg(score: number): string {
-  if (score < 20) return 'transparent';
-  if (score < 40) return 'rgba(59,130,246,0.1)';
-  if (score < 55) return 'rgba(245,158,11,0.1)';
-  if (score < 75) return 'rgba(249,115,22,0.15)';
-  return 'rgba(239,68,68,0.18)';
-}

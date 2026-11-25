@@ -2,7 +2,7 @@
 
 /* ── Accessibility: keyboard focus indicator ──────── */
 :focus-visible {
-  outline: 2px solid rgba(59, 130, 246, 0.7);
+  outline: 2px solid var(--g-ink);
   outline-offset: 2px;
 }
 
@@ -160,6 +160,7 @@ body {
 /* Eliminate 300ms mobile tap delay on interactive controls */
 button, a, input, select, textarea, [role="button"] {
   touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent; /* every control draws its own pressed state */
 }
 
 /* ── Mobile viewport height fix ─────────────────────────
@@ -199,68 +200,17 @@ button, a, input, select, textarea, [role="button"] {
   animation: slide-up 0.25s ease-out;
 }
 
-/* Bottom nav "More" menu animation */
-@keyframes fade-in-up {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.animate-fade-in-up {
-  animation: fade-in-up 0.15s ease-out;
-}
-
-/* Header button glow effects */
-@keyframes glow-guide {
-  0%, 100% { box-shadow: 0 0 4px rgba(59, 130, 246, 0.3), inset 0 0 3px rgba(59, 130, 246, 0.08); }
-  50% { box-shadow: 0 0 10px rgba(59, 130, 246, 0.45), inset 0 0 5px rgba(59, 130, 246, 0.12); }
-}
-
-@keyframes glow-panel {
-  0%, 100% { box-shadow: 0 0 4px rgba(16, 185, 129, 0.3), inset 0 0 3px rgba(16, 185, 129, 0.08); }
-  50% { box-shadow: 0 0 10px rgba(16, 185, 129, 0.45), inset 0 0 5px rgba(16, 185, 129, 0.12); }
-}
-
-.btn-guide-glow {
-  animation: glow-guide 3s ease-in-out infinite;
-  border: 1px solid rgba(59, 130, 246, 0.35);
-  color: #93c5fd !important;
-}
-
-.btn-guide-glow:hover {
-  animation: none;
-  box-shadow: 0 0 12px rgba(59, 130, 246, 0.5);
-  border-color: rgba(59, 130, 246, 0.6);
-  color: #60a5fa !important;
-}
-
-.btn-panel-glow {
-  animation: glow-panel 3s ease-in-out infinite;
-  border: 1px solid rgba(16, 185, 129, 0.35);
-  color: #6ee7b7 !important;
-}
-
-.btn-panel-glow:hover {
-  animation: none;
-  box-shadow: 0 0 12px rgba(16, 185, 129, 0.5);
-  border-color: rgba(16, 185, 129, 0.6);
-  color: #34d399 !important;
-}
-
-/* Map label halo (white outline for readability on any background) */
-.map-label-halo {
-  text-shadow: 0 0 4px white, 0 0 4px white, 0 0 4px white, 0 0 4px white;
-}
-
 /* Ensure station markers & popups float above canvas overlays (Wind/Humidity z-index:14-15) */
 /* will-change + contain promote markers to GPU layers for smoother pan/zoom with 90+ markers */
 .maplibregl-marker {
-  z-index: 20 !important;
+  z-index: 20; /* A <Marker style={{ zIndex }}> orders itself: spots 26-28, ring 29. No !important: it cancelled them */
   will-change: transform;
   contain: layout style;
 }
 
 /* Spot markers sit ABOVE station/buoy markers so they're always clickable */
 .maplibregl-marker:has(.spot-marker) {
-  z-index: 25 !important;
+  z-index: 25; /* a floor: the marker's own style (26, 28 for the one selected) goes over it */
 }
 
 /* Station + buoy markers are now GPU symbol layers (no DOM elements).
@@ -268,66 +218,14 @@ button, a, input, select, textarea, [role="button"] {
 .map-panning .maplibregl-marker {
   transition: none !important;
 }
-.map-panning .ticker-scroll {
-  animation-play-state: paused;
-}
 .map-panning .maplibregl-marker {
   visibility: hidden !important;
 }
 
-.maplibregl-popup {
-  z-index: 30 !important;
-}
-
-/* Event mode: fade non-essential map elements to focus on zone + alerts */
-.regatta-active .maplibregl-marker:not([class*="regatta"]) {
-  opacity: 0.4 !important;
-  transition: opacity 0.3s;
-}
-.regatta-active .maplibregl-ctrl-group {
-  opacity: 0.5;
-}
-
-/* MapLibre popup overrides */
-.maplibregl-popup-content {
-  background: var(--color-surface-card, #1e293b) !important;
-  color: var(--color-slate-200, #e2e8f0) !important;
-  border-radius: 8px !important;
-  padding: 12px !important;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important;
-  border: 1px solid var(--color-slate-700, #334155) !important;
-  max-width: 380px !important;
-  word-break: break-word !important;
-}
-
-[data-theme="light"] .maplibregl-popup-content {
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12) !important;
-}
-
-.maplibregl-popup-close-button {
-  color: var(--color-slate-500, #94a3b8) !important;
-  font-size: 16px !important;
-  padding: 4px 8px !important;
-}
-
-@media (max-width: 768px) {
-  .maplibregl-popup-close-button {
-    font-size: 22px !important;
-    padding: 6px 10px !important;
-  }
-  .maplibregl-popup-content {
-    padding: 14px !important;
-  }
-}
-
-.maplibregl-popup-close-button:hover {
-  color: var(--color-slate-200, #f1f5f9) !important;
-  background: transparent !important;
-}
-
-.maplibregl-popup-tip {
-  border-top-color: var(--color-surface-card, #1e293b) !important;
-}
+/* The light theme inverts the slate scale, and 500 and 600 fall to 2.3:1 and 1.4:1 as text on a panel: 42 % of
+   its contrast failures. As text only: the same names as borders and fills are right where they are. The map
+   keeps its dark scope, unless a piece inside says otherwise. */
+[data-theme="light"] .text-slate-500:not(.map-dark-scope *), [data-theme="light"] .gc-lightscope .text-slate-500 { color: #64748b; }
 
 /* Hide scrollbar but keep scrollable (tab bars, horizontal scroll containers) */
 .scrollbar-none {
@@ -356,117 +254,7 @@ button, a, input, select, textarea, [role="button"] {
   background: var(--color-slate-600, #475569);
 }
 
-/* ── Loading screen animations ─────────────────────────── */
-
-@keyframes wind-line-1 {
-  0%, 100% { stroke-dashoffset: 0; opacity: 0.8; }
-  50% { stroke-dashoffset: -20; opacity: 1; }
-}
-
-@keyframes wind-line-2 {
-  0%, 100% { stroke-dashoffset: 0; opacity: 0.5; }
-  50% { stroke-dashoffset: -16; opacity: 0.8; }
-}
-
-@keyframes wind-line-3 {
-  0%, 100% { stroke-dashoffset: 0; opacity: 0.3; }
-  50% { stroke-dashoffset: -12; opacity: 0.6; }
-}
-
-.animate-wind-1 {
-  stroke-dasharray: 80;
-  animation: wind-line-1 3s ease-in-out infinite;
-}
-
-.animate-wind-2 {
-  stroke-dasharray: 80;
-  animation: wind-line-2 3.5s ease-in-out infinite 0.3s;
-}
-
-.animate-wind-3 {
-  stroke-dasharray: 80;
-  animation: wind-line-3 4s ease-in-out infinite 0.6s;
-}
-
-@keyframes wave-sway {
-  0%, 100% { transform: translateX(0); opacity: 0.5; }
-  50% { transform: translateX(3px); opacity: 0.7; }
-}
-
-.animate-wave {
-  animation: wave-sway 5s ease-in-out infinite;
-}
-
-@keyframes float-particle {
-  0% { transform: translate(0, 0) scale(1); opacity: 0; }
-  10% { opacity: 1; }
-  90% { opacity: 1; }
-  100% { transform: translate(60px, -40px) scale(0.5); opacity: 0; }
-}
-
-.animate-float-particle {
-  animation: float-particle 8s ease-in-out infinite;
-}
-
-@keyframes fade-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.animate-fade-in {
-  animation: fade-in 0.5s ease-out;
-}
-
-/* ── Onboarding highlight ring ─────────────────────── */
-
-.onboarding-highlight {
-  outline: 2px solid rgba(59, 130, 246, 0.7);
-  outline-offset: 4px;
-  border-radius: 8px;
-  animation: onboarding-pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes onboarding-pulse {
-  0%, 100% { outline-color: rgba(59, 130, 246, 0.7); box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.3); }
-  50% { outline-color: rgba(59, 130, 246, 1); box-shadow: 0 0 12px 4px rgba(59, 130, 246, 0.25); }
-}
-
-/* ── Conditions ticker ──────────────────────────────── */
-
-@keyframes ticker-scroll {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
-}
-
-.ticker-scroll {
-  animation: ticker-scroll 30s linear infinite;
-  will-change: transform;
-  transform: translateZ(0); /* GPU compositing layer */
-}
-
-.ticker-scroll:hover {
-  animation-play-state: paused;
-}
-
-/* ── Scroll affordance ──────────────────────────────── */
-
-/* Right-edge gradient fade to hint horizontal scrollability */
-.scroll-hint-right {
-  -webkit-mask-image: linear-gradient(to right, black calc(100% - 1.5rem), transparent);
-  mask-image: linear-gradient(to right, black calc(100% - 1.5rem), transparent);
-}
-
 /* ── Interactive effects ──────────────────────────────── */
-
-/* Data freshness pulse — brief glow when a value updates */
-@keyframes data-pulse {
-  0% { background-color: rgba(56, 189, 248, 0.25); }
-  100% { background-color: transparent; }
-}
-
-.animate-data-pulse {
-  animation: data-pulse 1.5s ease-out;
-}
 
 /* Verdict pop — scale bounce on score/verdict changes */
 @keyframes verdict-pop {
@@ -480,146 +268,3 @@ button, a, input, select, textarea, [role="button"] {
   animation: verdict-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* Toast slide-out (exit animation) */
-@keyframes slide-out-down {
-  from { opacity: 1; transform: translateY(0); }
-  to { opacity: 0; transform: translateY(16px) scale(0.95); }
-}
-
-.animate-slide-out-down {
-  animation: slide-out-down 0.2s ease-in forwards;
-}
-
-/* Lightning strike ripple — concentric rings expanding outward over 3s.
-   Triggered per strike id by LightningRippleOverlay. Outer ring leads,
-   inner ring trails (creates a trailing-shockwave feel). */
-@keyframes lightning-ripple-outer {
-  0%   { r: 2; opacity: 0.85; }
-  60%  { r: 38; opacity: 0.55; }
-  100% { r: 56; opacity: 0; }
-}
-@keyframes lightning-ripple-inner {
-  0%   { r: 2; opacity: 0.95; }
-  60%  { r: 22; opacity: 0.65; }
-  100% { r: 42; opacity: 0; }
-}
-@keyframes lightning-ripple-core {
-  0%   { r: 3; opacity: 1; }
-  20%  { r: 5; opacity: 1; }
-  100% { r: 1; opacity: 0; }
-}
-@keyframes lightning-ripple-fade {
-  0%   { opacity: 1; }
-  100% { opacity: 0; }
-}
-
-/* Shimmer sweep — subtle highlight for active GO / critical badges */
-@keyframes shimmer {
-  0% { background-position: -200% center; }
-  100% { background-position: 200% center; }
-}
-
-.badge-shimmer {
-  background-size: 200% 100%;
-  background-image: linear-gradient(
-    110deg,
-    transparent 25%,
-    rgba(255, 255, 255, 0.12) 37%,
-    transparent 50%
-  );
-  animation: shimmer 3s ease-in-out infinite;
-}
-
-/* Stagger children — cascading fade-in for lists */
-@keyframes stagger-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.animate-stagger > * {
-  opacity: 0;
-  animation: stagger-in 0.3s ease-out forwards;
-}
-.animate-stagger > *:nth-child(1) { animation-delay: 0ms; }
-.animate-stagger > *:nth-child(2) { animation-delay: 50ms; }
-.animate-stagger > *:nth-child(3) { animation-delay: 100ms; }
-.animate-stagger > *:nth-child(4) { animation-delay: 150ms; }
-.animate-stagger > *:nth-child(5) { animation-delay: 200ms; }
-.animate-stagger > *:nth-child(6) { animation-delay: 250ms; }
-.animate-stagger > *:nth-child(7) { animation-delay: 300ms; }
-.animate-stagger > *:nth-child(8) { animation-delay: 350ms; }
-
-/* ── Animated gradient border — selected station card ──── */
-@keyframes border-rotate {
-  0% { --border-angle: 0deg; }
-  100% { --border-angle: 360deg; }
-}
-
-@property --border-angle {
-  syntax: "<angle>";
-  initial-value: 0deg;
-  inherits: false;
-}
-
-.card-glow-border {
-  --border-angle: 0deg;
-  border: 1px solid transparent;
-  background:
-    linear-gradient(var(--color-surface-card, #1e293b), var(--color-surface-card, #1e293b)) padding-box,
-    conic-gradient(from var(--border-angle), #3b82f6 0%, #06b6d4 25%, #8b5cf6 50%, #3b82f6 75%, #06b6d4 100%) border-box;
-  animation: border-rotate 4s linear infinite;
-}
-
-/* ── Alert glow pulse — critical/active alerts ─────────── */
-@keyframes alert-glow {
-  0%, 100% { box-shadow: 0 0 8px rgba(239, 68, 68, 0.15); }
-  50% { box-shadow: 0 0 20px rgba(239, 68, 68, 0.35), 0 0 40px rgba(239, 68, 68, 0.1); }
-}
-
-.alert-glow-critical {
-  animation: alert-glow 2s ease-in-out infinite;
-}
-
-@keyframes alert-glow-amber {
-  0%, 100% { box-shadow: 0 0 6px rgba(245, 158, 11, 0.1); }
-  50% { box-shadow: 0 0 16px rgba(245, 158, 11, 0.25), 0 0 30px rgba(245, 158, 11, 0.08); }
-}
-
-.alert-glow-amber {
-  animation: alert-glow-amber 2.5s ease-in-out infinite;
-}
-
-/* ── Card 3D hover lift ────────────────────────────────── */
-.card-lift {
-  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
-}
-
-.card-lift:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(100, 116, 139, 0.15);
-}
-
-.card-lift:active {
-  transform: translateY(0) scale(0.98);
-  box-shadow: none;
-  transition-duration: 0.1s;
-}
-
-/* ── BETA badge ────────────────────────────────────────── */
-.badge-beta {
-  display: inline-flex;
-  align-items: center;
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  padding: 1px 5px;
-  border-radius: 3px;
-  background: rgba(100, 116, 139, 0.15);
-  /* A fixed #64748b was 2.9:1 on the dark panels. The variable follows the
-   * theme: slate-400 in dark, and in light it resolves to the same #64748b. */
-  color: var(--color-slate-400, #94a3b8);
-  border: 1px solid rgba(100, 116, 139, 0.25);
-  line-height: 1.4;
-  text-transform: uppercase;
-  vertical-align: middle;
-}

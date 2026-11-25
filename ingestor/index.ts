@@ -549,7 +549,7 @@ async function start(): Promise<void> {
   });
 
   // FIRMS fetcher — wildfire hotspots persistence.
-  // 60min cadence (bumped from 30min, S136+3+5 audit): FIRMS NRT latency is
+  // 60min cadence (bumped from 30min after an audit): FIRMS NRT latency is
   // ~1h, so 30min polling re-fetched the same hotspots ~half the time. 60min
   // matches the data's real refresh and halves NASA FIRMS API calls. Fire
   // positions don't move fast enough to need sub-hourly refresh.
@@ -583,7 +583,7 @@ async function start(): Promise<void> {
   }, 45 * 60_000);
 
   // ICA fetcher — Xunta air-quality persistence.
-  // 60min cadence (bumped from 30min, S136+3+5 audit): Xunta publishes ICA
+  // 60min cadence (bumped from 30min after an audit): Xunta publishes ICA
   // hourly, so the 30min poll produced ~50% duplicate inserts (ON CONFLICT
   // no-ops). 60min matches the actual publication rate with zero data loss.
   // 210s stagger so it lands after FIRMS to spread Xunta API load.
@@ -596,7 +596,7 @@ async function start(): Promise<void> {
 
   // Convection grid fetcher — spatial CAPE/LI grid persistence.
   // Replaces frontend-direct Open-Meteo multi-point queries (which hit free-tier
-  // burst limit). 120min cadence (bumped 90→120min, S136+3+5 audit): each cycle
+  // burst limit). 120min cadence (bumped 90→120min after an audit): each cycle
   // costs ~600 coordinate-equivalent calls (Open-Meteo charges per coord). This
   // is the single biggest Open-Meteo consumer. History: 30min=~28,800/day
   // (quota blown), 90min=~9,600/day (~90% of the 10k daily limit, too tight

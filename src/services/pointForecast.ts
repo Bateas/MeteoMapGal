@@ -8,7 +8,7 @@
 import type { HourlyForecast } from '../types/forecast';
 import type { MGWarning } from '../api/mgWarningsClient';
 import type { GaugeRain } from '../api/meteoPointStatusClient';
-import { msToKnots, degToCardinal8 } from './windUtils';
+import { msToKnots, degToCardinal8, windTone as windToneOf, type WindTone } from './windUtils';
 
 const TZ = 'Europe/Madrid';
 export const MORNING_FROM_H = 8;
@@ -76,10 +76,9 @@ export function rainLevel(mm: number | null): 0 | 1 | 2 | 3 {
   return mm < 0.5 ? 1 : mm < 2 ? 2 : 3;
 }
 
-/** The map's wind scale: calm, light, sailing, good, strong. */
-export function windTone(kt: number | null): 0 | 1 | 2 | 3 | 4 {
-  const k = Math.round(kt ?? 0);
-  return k < 6 ? 0 : k < 8 ? 1 : k < 12 ? 2 : k < 18 ? 3 : 4;
+/** The app's wind scale (windUtils.windTone), 0 calma to 8 (56 kt and up). Null is calma. */
+export function windTone(kt: number | null): WindTone {
+  return windToneOf(kt ?? 0);
 }
 
 /** «Llueve 7-8, 11-14 y 19-20 h». */
@@ -158,9 +157,8 @@ export function describeNextRain(hours: HourlyForecast[], now: Date): string | n
     return dry ? `Según el modelo llueve ahora. Para ${ends(dry)}` : 'Según el modelo llueve ahora, sin final a la vista';
   }
   const first = ahead.findIndex(wet);
-  if (first < 0) {
-    return `El modelo no da lluvia en las próximas ${Math.round((ahead[ahead.length - 1].time.getTime() - nowMs) / 3_600_000)} h`;
-  }
+  // No rain ahead says nothing: the bands below already read dry (18-nov, only what adds).
+  if (first < 0) return null;
   let end = first;
   while (ahead[end + 1] && wet(ahead[end + 1])) end++;
   const shower = ahead.slice(first, end + 1);

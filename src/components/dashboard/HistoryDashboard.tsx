@@ -1,861 +1,344 @@
 /**
- * HistoryDashboard — Historical data explorer.
- *
- * Queries TimescaleDB via the History API and displays
- * time series charts with station selector, date range,
- * metric toggle, wind rose, and station comparison.
- * Available in both sectors.
+ * Historial: mirar atrás en una estación o una boya. The sentence first and the chart under it; then the
+ * magnitudes that station or buoy really sent, each with its range, and tapping one draws it. What it does
+ * not measure is not offered.
  */
 
-import { memo, useState, useEffect, useCallback, useMemo } from 'react';
-import {
-  LineChart, Line, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, CartesianGrid, Legend,
-} from 'recharts';
-import { WeatherIcon } from '../icons/WeatherIcons';
+import { memo, useState, useEffect, useMemo, useRef } from 'react';
 import {
   fetchHistoryStations,
   fetchReadings,
   fetchCompare,
   fetchBuoyStations,
   fetchBuoyReadings,
-  fetchStationStats,
-  fetchHealth,
   type HistoryStation,
-  type HistoryReading,
-  type HourlyReading,
-  type StationStats,
-  type HealthInfo,
 } from '../../api/historyClient';
-import { WindRoseHistorical } from '../charts/WindRoseHistorical';
-import { SectorSummaryPanel } from './SectorSummaryPanel';
-import { msToKnots } from '../../services/windUtils';
+import { RIAS_BUOY_STATIONS } from '../../api/buoyClient';
+import { isCoastalSector } from '../../config/sectors';
+import { HistoryChart } from '../charts/HistoryChart';
+import {
+  availableMetrics, BUOY_METRICS, GAUGE_METRICS, historySentence, parseDbTime, rangeWords, seriesOf, STATION_METRICS,
+  type HistoryMetric, type HistoryRow,
+} from '../../services/historySeries';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
+import { useBuoyStore } from '../../store/buoyStore';
 import { useSectorStore } from '../../store/sectorStore';
+import { useUIStore } from '../../store/uiStore';
 
-// ── Constants ──────────────────────────────────────────
-
-type Metric = 'temperature' | 'wind_speed' | 'wind_gust' | 'humidity' | 'pressure' | 'dew_point' | 'solar_rad';
 type TimeRange = '24h' | '7d' | '30d' | 'custom';
-type Interval = 'raw' | 'hourly';
-type ViewMode = 'chart' | 'windrose';
-/** Top-level toggle: 'sector' = aggregate analytics (Phase 4), 'station' = per-station explorer */
-type Scope = 'sector' | 'station';
 
-const METRICS: { key: Metric; label: string; unit: string; color: string }[] = [
-  { key: 'temperature', label: 'Temp', unit: '°C', color: '#ef4444' },
-  { key: 'wind_speed', label: 'Viento', unit: 'kt', color: '#3b82f6' },
-  { key: 'wind_gust', label: 'Racha', unit: 'kt', color: '#f97316' },
-  { key: 'humidity', label: 'HR', unit: '%', color: '#22c55e' },
-  { key: 'pressure', label: 'Presión', unit: 'hPa', color: '#a855f7' },
-  { key: 'dew_point', label: 'P. rocío', unit: '°C', color: '#2dd4bf' },
-  { key: 'solar_rad', label: 'Radiación', unit: 'W/m²', color: '#fbbf24' },
+const TIME_RANGES: { key: TimeRange; label: string; hours: number; words: string }[] = [
+  { key: '24h', label: '24 h', hours: 24, words: 'En 24 h' },
+  { key: '7d', label: '7 días', hours: 168, words: 'En 7 días' },
+  { key: '30d', label: '30 días', hours: 720, words: 'En 30 días' },
 ];
+const CUSTOM_WORDS = 'En esas fechas';
+/** Up to two days the readings go one by one; further, the hourly aggregates */
+const RAW_MAX_MS = 2 * 86_400_000;
+/** The aggregates of the buoys keep no salinity: asked in full, the list fits within this */
+const BUOY_RAW_LIMIT = 10_000;
+/** A tide gauge reads every minute: over a day it would not fit, and it has no salinity to lose */
+const MINUTE_BUOY_TYPES = new Set(['REDMAR']);
 
-const TIME_RANGES: { key: TimeRange; label: string; hours: number }[] = [
-  { key: '24h', label: '24h', hours: 24 },
-  { key: '7d', label: '7d', hours: 168 },
-  { key: '30d', label: '30d', hours: 720 },
-];
-
-const COMPARE_COLOR = '#f59e0b'; // amber-500 for second station
-
-/** Format timestamp for chart X axis */
-function formatTime(time: string, range: TimeRange): string {
-  const d = new Date(time);
-  if (range === '24h') return d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
-  if (range === '7d') return d.toLocaleDateString('es', { weekday: 'short', hour: '2-digit' });
-  if (range === 'custom') return d.toLocaleDateString('es', { day: 'numeric', month: 'short', hour: '2-digit' });
-  return d.toLocaleDateString('es', { day: 'numeric', month: 'short' });
+interface Option {
+  id: string;
+  name: string;
 }
 
-/** Extract metric value from a reading, converting wind to knots */
-function getMetricValue(
-  reading: HistoryReading | HourlyReading,
-  metric: Metric
-): number | null {
-  let val: number | null = null;
+const isBuoyId = (id: string) => id.startsWith('buoy_');
+const buoyNumber = (id: string) => parseInt(id.replace('buoy_', ''), 10);
+const isGauge = (id: string) => MINUTE_BUOY_TYPES.has(RIAS_BUOY_STATIONS.find((b) => b.id === buoyNumber(id))?.type ?? '');
 
-  if ('bucket' in reading) {
-    const r = reading as HourlyReading;
-    switch (metric) {
-      case 'temperature': val = r.avg_temp; break;
-      case 'wind_speed': val = r.avg_wind; break;
-      case 'wind_gust': val = (r as any).max_gust; break;
-      case 'humidity': val = r.avg_humidity; break;
-      case 'pressure': val = r.avg_pressure; break;
-      case 'dew_point': val = (r as any).avg_dew_point ?? null; break;
-      case 'solar_rad': val = (r as any).avg_solar_rad ?? null; break;
-    }
-  } else {
-    const r = reading as HistoryReading;
-    switch (metric) {
-      case 'temperature': val = r.temperature; break;
-      case 'wind_speed': val = r.wind_speed; break;
-      case 'wind_gust': val = r.wind_gust; break;
-      case 'humidity': val = r.humidity; break;
-      case 'pressure': val = r.pressure; break;
-      case 'dew_point': val = r.dew_point; break;
-      case 'solar_rad': val = r.solar_rad; break;
-    }
-  }
-
-  if (val == null) return null;
-  if (metric === 'wind_speed' || metric === 'wind_gust') return Math.round(msToKnots(val) * 10) / 10;
-  return Math.round(val * 10) / 10;
-}
-
-// ── Constants ─────────────────────────────────────────
-
-const SOURCE_LABELS: Record<string, string> = {
-  aemet: 'AEMET', meteogalicia: 'MG', meteoclimatic: 'MC',
-  wunderground: 'WU', netatmo: 'NT', skyx: 'SkyX', ipma: 'IPMA',
-  portus: 'PORTUS', obscosteiro: 'OBS',
-};
-
-// ── Component ──────────────────────────────────────────
+const dateOf = (t: number) => new Date(t).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+const timeOf = (t: number) => new Date(t).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+const formatAxis = (t: number, withDay: boolean) => (withDay ? `${dateOf(t)}, ${timeOf(t)}` : timeOf(t));
+const formatAxisDay = (t: number, withDay: boolean) => (withDay ? dateOf(t) : timeOf(t));
 
 export const HistoryDashboard = memo(function HistoryDashboard() {
-  // Listen for external station selection (from popup "Ver historial" or map click)
+  // External selection (popup «Ver historial» or a click on the map)
   const historyStationId = useWeatherSelectionStore((s) => s.historyStationId);
+  const mapStationId = useWeatherSelectionStore((s) => s.selectedStationId);
+  const selectStation = useWeatherSelectionStore((s) => s.selectStation);
+  const selectBuoy = useBuoyStore((s) => s.selectBuoy);
+  const liveStations = useWeatherStore((s) => s.stations);
+  const sectorId = useSectorStore((s) => s.activeSector.id);
+  const coastal = isCoastalSector(sectorId);
 
-  // Sector scope for the Phase 4 summary panel. Narrow string → union so
-  // SectorSummaryPanel's strict prop type accepts it (Sector.id is `string`).
-  const rawSectorId = useSectorStore((s) => s.activeSector.id);
-  const sectorId: 'embalse' | 'rias' = rawSectorId === 'rias' ? 'rias' : 'embalse';
-
-  // Top-level scope toggle. Default: when the user opens the History tab fresh
-  // (no specific station picked), show the sector summary first — answers
-  // "what has the sector done lately?" in 30 seconds. If user clicked "Ver
-  // historial" on a specific station from a popup, jump straight to station view.
-  const [scope, setScope] = useState<Scope>(() => (historyStationId ? 'station' : 'sector'));
-
-  // When an external station selection comes in, switch to station scope.
-  useEffect(() => {
-    if (historyStationId) setScope('station');
-  }, [historyStationId]);
-
-  // Core state
-  const [stations, setStations] = useState<HistoryStation[]>([]);
-  const [selectedStation, setSelectedStation] = useState('');
-  const [metric, setMetric] = useState<Metric>('temperature');
+  const [dbStations, setDbStations] = useState<HistoryStation[]>([]);
+  const [buoys, setBuoys] = useState<HistoryStation[]>([]);
+  const [buoyNames, setBuoyNames] = useState<Map<string, string>>(new Map());
+  const [selected, setSelected] = useState('');
+  const [metricKey, setMetricKey] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState<TimeRange>('24h');
-  const [viewMode, setViewMode] = useState<ViewMode>('chart');
-  const [readings, setReadings] = useState<(HistoryReading | HourlyReading)[]>([]);
-  const [stats, setStats] = useState<StationStats | null>(null);
-  const [health, setHealth] = useState<HealthInfo | null>(null);
+  const [rows, setRows] = useState<HistoryRow[]>([]);
+  const [compareRows, setCompareRows] = useState<HistoryRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [compareOpen, setCompareOpen] = useState(false);
+  const [compareId, setCompareId] = useState('');
 
-  // Custom date range
   const [customFrom, setCustomFrom] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 3);
     return d.toISOString().slice(0, 10);
   });
   const [customTo, setCustomTo] = useState(() => new Date().toISOString().slice(0, 10));
+  /** The range drawn: fixed when the data is asked for, so the axis and the data agree */
+  const [span, setSpan] = useState<{ from: number; to: number }>({ from: 0, to: 0 });
 
-  // Comparison state
-  const [compareMode, setCompareMode] = useState(false);
-  const [compareStation, setCompareStation] = useState('');
-  const [compareReadings, setCompareReadings] = useState<(HistoryReading | HourlyReading)[]>([]);
-
-  // Wind rose raw readings (fetched separately when needed)
-  const [windRoseReadings, setWindRoseReadings] = useState<HistoryReading[]>([]);
-  const [windRoseLoading, setWindRoseLoading] = useState(false);
-
-  // Map station IDs → human names from live weatherStore
-  const liveStations = useWeatherStore((s) => s.stations);
-  const selectStation = useWeatherSelectionStore((s) => s.selectStation);
-  const stationInfo = useMemo(() => {
-    const map = new Map<string, { name: string; source: string }>();
-    for (const s of liveStations) {
-      map.set(s.id, { name: s.name, source: s.source });
-    }
-    return map;
-  }, [liveStations]);
-
-  // Backwards-compat: plain name map for selectors
-  const stationNames = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const [id, info] of stationInfo) map.set(id, info.name);
-    return map;
-  }, [stationInfo]);
-
-  /** Friendly station name with source label */
-  const stationName = useCallback(
-    (id: string) => {
-      const info = stationInfo.get(id);
-      if (!info) return id;
-      const srcLabel = SOURCE_LABELS[info.source] ?? info.source;
-      return `${info.name} (${srcLabel})`;
-    },
-    [stationInfo]
-  );
-
-  // Determine interval: raw for 24h, hourly for longer ranges
-  const interval: Interval = useMemo(() => {
-    if (timeRange === '24h') return 'raw';
-    if (timeRange === 'custom') {
-      const diffMs = new Date(customTo).getTime() - new Date(customFrom).getTime();
-      return diffMs <= 2 * 86400_000 ? 'raw' : 'hourly'; // raw if ≤2 days
-    }
-    return 'hourly';
-  }, [timeRange, customFrom, customTo]);
-
-  // ── Fetch station list on mount ──────────────────
+  // The stations of the sector by name, and the buoys once each: the list has a row per buoy and SOURCE.
   useEffect(() => {
     let cancelled = false;
-
-    async function load() {
-      try {
-        const [stationList, healthData, buoyList] = await Promise.all([
-          fetchHistoryStations(),
-          fetchHealth(),
-          fetchBuoyStations().catch(() => []),
-        ]);
-        if (cancelled) return;
-
-        // Merge buoy stations into the station list with buoy_ prefix
-        const buoyAsStations: HistoryStation[] = buoyList.map(b => ({
-          station_id: `buoy_${b.station_id}`,
-          source: b.source || 'portus',
-          last_reading: b.last_reading,
-          reading_count: b.reading_count,
-        }));
-
-        // Store buoy names for display
-        for (const b of buoyList) {
-          stationInfo.set(`buoy_${b.station_id}`, {
-            name: b.station_name || `Boya ${b.station_id}`,
-            source: b.source || 'portus',
-          });
-        }
-
-        const allStations = [...stationList, ...buoyAsStations];
-        setStations(allStations);
-        setHealth(healthData);
-
-        if (!selectedStation && stationList.length > 0) {
-          const aemet = stationList.find((s) => s.source === 'aemet');
-          setSelectedStation(aemet?.station_id ?? stationList[0].station_id);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError((err as Error).message);
-          console.warn('[HistoryDashboard] Station fetch failed:', (err as Error).message);
-        }
+    Promise.all([
+      fetchHistoryStations(),
+      fetchBuoyStations().catch(() => []),
+    ]).then(([stationList, buoyList]) => {
+      if (cancelled) return;
+      setDbStations(stationList);
+      const merged = new Map<number, HistoryStation>();
+      const names = new Map<string, string>();
+      for (const b of buoyList) {
+        const id = `buoy_${b.station_id}`;
+        names.set(id, b.station_name || `Boya ${b.station_id}`);
+        const prev = merged.get(b.station_id);
+        const lastReading = !prev?.last_reading || (b.last_reading ?? '') > prev.last_reading ? b.last_reading : prev.last_reading;
+        merged.set(b.station_id, { station_id: id, source: b.source, last_reading: lastReading, reading_count: (prev?.reading_count ?? 0) + b.reading_count });
       }
-    }
-
-    load();
+      setBuoys([...merged.values()]);
+      setBuoyNames(names);
+    }).catch((err) => {
+      if (!cancelled) setError((err as Error).message);
+    });
     return () => { cancelled = true; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
-  // ── React to external station selection (popup/map click) ────
+  const stationOptions = useMemo<Option[]>(() => {
+    const inDb = new Set(dbStations.map((s) => s.station_id));
+    return liveStations
+      .filter((s) => inDb.has(s.id))
+      .map((s) => ({ id: s.id, name: s.name }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  }, [dbStations, liveStations]);
+
+  const buoyOptions = useMemo<Option[]>(() => (
+    coastal
+      ? buoys
+          .map((b) => ({ id: b.station_id, name: buoyNames.get(b.station_id) ?? b.station_id }))
+          .sort((a, b) => a.name.localeCompare(b.name, 'es'))
+      : []
+  ), [buoys, buoyNames, coastal]);
+
+  const nameOf = (id: string) => (
+    stationOptions.find((o) => o.id === id)?.name
+    ?? buoyNames.get(id)
+    ?? liveStations.find((s) => s.id === id)?.name
+    ?? id
+  );
+
+  // An external request wins. Otherwise the station chosen on the map, or the first of the sector.
   useEffect(() => {
-    if (historyStationId && stations.length > 0) {
-      // Exact match first, then case-insensitive. No partial matching (causes false positives)
-      const match = stations.find(s => s.station_id === historyStationId)
-        || stations.find(s => s.station_id.toLowerCase() === historyStationId.toLowerCase());
-      // Always set the station — even if not in DB list, fetchData will try to load it
-      setSelectedStation(match ? match.station_id : historyStationId);
-      // Clear the signal after consuming it
-      useWeatherSelectionStore.getState().openHistory('');
-    }
-  }, [historyStationId, stations]);
+    if (!historyStationId) return;
+    setSelected(historyStationId);
+    useWeatherSelectionStore.getState().openHistory('');
+  }, [historyStationId]);
 
-  // ── Fetch readings when station/range changes ────
-  const fetchData = useCallback(async () => {
-    if (!selectedStation) return;
+  useEffect(() => {
+    const known = (id: string) => stationOptions.some((o) => o.id === id) || buoyOptions.some((o) => o.id === id);
+    if (selected && (known(selected) || stationOptions.length === 0)) return;
+    if (historyStationId) return;
+    const pick = mapStationId && known(mapStationId) ? mapStationId : stationOptions[0]?.id ?? buoyOptions[0]?.id;
+    // Only if nobody chose meanwhile: this effect can run right after a choice, still holding the old value
+    if (pick) setSelected((current) => (current === selected ? pick : current));
+  }, [selected, stationOptions, buoyOptions, mapStationId, historyStationId]);
+
+  const isBuoy = isBuoyId(selected);
+  const table = isBuoy ? (isGauge(selected) ? GAUGE_METRICS : BUOY_METRICS) : STATION_METRICS;
+  const compareActive = compareOpen && !isBuoy && !!compareId && compareId !== selected;
+
+  // Ask for the data. A slower answer to an older question does not overwrite a newer one.
+  const requestRef = useRef(0);
+  useEffect(() => {
+    if (!selected) return;
+    const request = ++requestRef.current;
+    const range = TIME_RANGES.find((r) => r.key === timeRange);
+    const to = range ? Date.now() : new Date(`${customTo}T23:59:59`).getTime();
+    const from = range ? to - range.hours * 3_600_000 : new Date(`${customFrom}T00:00:00`).getTime();
+    if (!Number.isFinite(from) || !Number.isFinite(to) || from >= to) {
+      setRows([]);
+      setError('Revisa las fechas: la primera tiene que ser anterior a la segunda.');
+      // The request this one replaces will not clear it (it is no longer the current one): without this the panel
+      // stayed on «Cargando…» and the reason never showed.
+      setLoading(false);
+      return;
+    }
+    const fromIso = new Date(from).toISOString();
+    const toIso = new Date(to).toISOString();
+    const interval = to - from <= RAW_MAX_MS ? 'raw' as const : 'hourly' as const;
+
+    let main: Promise<HistoryRow[]>;
+    if (isBuoyId(selected)) {
+      const hourly = isGauge(selected) && interval === 'hourly';
+      main = fetchBuoyReadings(buoyNumber(selected), fromIso, toIso, hourly ? { interval } : { limit: BUOY_RAW_LIMIT });
+    } else {
+      main = fetchReadings(selected, fromIso, toIso, interval);
+    }
+    const second: Promise<HistoryRow[]> = compareActive
+      ? fetchCompare([selected, compareId], fromIso, toIso, interval)
+          .then((all) => (all as { station_id: string }[]).filter((r) => r.station_id === compareId))
+          .catch(() => [])
+      : Promise.resolve([]);
 
     setLoading(true);
     setError(null);
-
-    try {
-      let from: string, to: string;
-      if (timeRange === 'custom') {
-        from = new Date(customFrom + 'T00:00:00').toISOString();
-        to = new Date(customTo + 'T23:59:59').toISOString();
-      } else {
-        const range = TIME_RANGES.find((r) => r.key === timeRange)!;
-        from = new Date(Date.now() - range.hours * 3600_000).toISOString();
-        to = new Date().toISOString();
-      }
-
-      // Detect buoy vs station
-      const isBuoy = selectedStation.startsWith('buoy_');
-      const buoyId = isBuoy ? parseInt(selectedStation.replace('buoy_', ''), 10) : 0;
-
-      // Parallel fetches — use buoy API for buoys, station API for stations
-      const promises: Promise<any>[] = isBuoy
-        ? [
-            fetchBuoyReadings(buoyId, from, to).then(readings =>
-              // Convert buoy readings to HistoryReading-like shape for chart compatibility
-              readings.map(r => ({
-                time: r.time,
-                station_id: selectedStation,
-                source: r.source,
-                temperature: r.air_temp,
-                humidity: r.humidity,
-                wind_speed: r.wind_speed,
-                wind_gust: r.wind_gust,
-                wind_dir: r.wind_dir,
-                pressure: r.air_pressure,
-                dew_point: r.dew_point,
-                precip: null,
-                solar_rad: null,
-                // Buoy-specific fields stored as extra
-                wave_height: r.wave_height,
-                water_temp: r.water_temp,
-                sea_level: r.sea_level,
-                salinity: r.salinity,
-                current_speed: r.current_speed,
-              }))
-            ),
-            Promise.resolve(null), // no stats for buoys
-          ]
-        : [
-            fetchReadings(selectedStation, from, to, interval),
-            fetchStationStats(selectedStation, from, to),
-          ];
-
-      // If comparison mode, also fetch compare station
-      if (compareMode && compareStation && compareStation !== selectedStation) {
-        promises.push(fetchCompare([selectedStation, compareStation], from, to, interval));
-      }
-
-      const results = await Promise.all(promises);
-
-      setReadings(results[0]);
-      setStats(results[1]);
-
-      // Extract compare readings (filter to only compareStation)
-      if (compareMode && compareStation && results[2]) {
-        const allCompare = results[2] as (HistoryReading | HourlyReading)[];
-        const compareOnly = allCompare.filter((r) => {
-          const sid = 'bucket' in r ? (r as HourlyReading).station_id : (r as HistoryReading).station_id;
-          return sid === compareStation;
-        });
-        setCompareReadings(compareOnly);
-      } else {
-        setCompareReadings([]);
-      }
-    } catch (err) {
+    Promise.all([main, second]).then(([data, other]) => {
+      if (request !== requestRef.current) return;
+      setRows(data);
+      setCompareRows(other);
+      setSpan({ from, to });
+    }).catch((err) => {
+      if (request !== requestRef.current) return;
+      setRows([]);
+      setCompareRows([]);
+      setSpan({ from, to });
       setError((err as Error).message);
-      console.warn('[HistoryDashboard] Data fetch failed:', (err as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedStation, compareStation, compareMode, timeRange, interval, customFrom, customTo]);
+    }).finally(() => {
+      if (request === requestRef.current) setLoading(false);
+    });
+  }, [selected, timeRange, customFrom, customTo, compareActive, compareId]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const metrics = useMemo(() => availableMetrics(rows, table), [rows, table]);
+  // The magnitude asked for if this station has it. Otherwise the first it has: wind, or the sea on a buoy.
+  const metric: HistoryMetric | null = metrics.find((m) => m.key === metricKey) ?? metrics[0] ?? null;
+  const series = useMemo(() => (metric ? seriesOf(rows, metric) : []), [rows, metric]);
+  const compareSeries = useMemo(() => (metric ? seriesOf(compareRows, metric) : []), [compareRows, metric]);
 
-  // ── Fetch raw wind data for wind rose ────────────
-  useEffect(() => {
-    if (viewMode !== 'windrose' || !selectedStation) {
-      setWindRoseReadings([]);
-      return;
-    }
+  const periodWords = TIME_RANGES.find((r) => r.key === timeRange)?.words ?? CUSTOM_WORDS;
+  const sentence = metric ? historySentence(series, metric, periodWords, Date.now()) : null;
+  const sentenceWithName = metric && sentence ? `${metric.label}. ${sentence}` : null;
+  const multiDay = span.to - span.from > 26 * 3_600_000;
 
-    let cancelled = false;
+  const lastReading = (isBuoy ? buoys : dbStations).find((s) => s.station_id === selected)?.last_reading;
 
-    async function loadWindRose() {
-      setWindRoseLoading(true);
-      try {
-        const range = TIME_RANGES.find((r) => r.key === timeRange)!;
-        const from = new Date(Date.now() - range.hours * 3600_000).toISOString();
-        const to = new Date().toISOString();
-        // Always fetch raw for wind rose (need wind_dir)
-        const data = await fetchReadings(selectedStation, from, to, 'raw');
-        if (!cancelled) {
-          setWindRoseReadings(data as HistoryReading[]);
-        }
-      } catch (err) {
-        console.warn('[HistoryDashboard] Wind rose fetch failed:', (err as Error).message);
-        if (!cancelled) setWindRoseReadings([]);
-      } finally {
-        if (!cancelled) setWindRoseLoading(false);
-      }
-    }
-
-    loadWindRose();
-    return () => { cancelled = true; };
-  }, [viewMode, selectedStation, timeRange]);
-
-  // ── Chart data (primary station) ──────────────────
-  const chartData = useMemo(() => {
-    if (compareMode && compareReadings.length > 0) {
-      // Build merged time series with both stations
-      const primaryMap = new Map<string, number | null>();
-      const compareMap = new Map<string, number | null>();
-      const allTimes: string[] = [];
-
-      for (const r of readings) {
-        const time = 'bucket' in r ? (r as HourlyReading).bucket : (r as HistoryReading).time;
-        const formatted = formatTime(time, timeRange);
-        primaryMap.set(formatted, getMetricValue(r, metric));
-        allTimes.push(formatted);
-      }
-
-      for (const r of compareReadings) {
-        const time = 'bucket' in r ? (r as HourlyReading).bucket : (r as HistoryReading).time;
-        const formatted = formatTime(time, timeRange);
-        compareMap.set(formatted, getMetricValue(r, metric));
-        if (!primaryMap.has(formatted)) allTimes.push(formatted);
-      }
-
-      return allTimes
-        .map((time) => ({
-          time,
-          value: primaryMap.get(time) ?? null,
-          compare: compareMap.get(time) ?? null,
-        }))
-        .filter((d) => d.value != null || d.compare != null);
-    }
-
-    // Single station mode
-    return readings
-      .map((r) => {
-        const time = 'bucket' in r ? (r as HourlyReading).bucket : (r as HistoryReading).time;
-        const value = getMetricValue(r, metric);
-        return {
-          time: formatTime(time, timeRange),
-          rawTime: time,
-          value,
-        };
-      })
-      .filter((d) => d.value != null);
-  }, [readings, compareReadings, compareMode, metric, timeRange]);
-
-  // ── Current metric config ────────────────────────
-  const currentMetric = METRICS.find((m) => m.key === metric)!;
-
-  // ── Group stations by source for dropdown ────────
-  const stationsBySource = useMemo(() => {
-    const groups: Record<string, HistoryStation[]> = {};
-    for (const s of stations) {
-      (groups[s.source] ??= []).push(s);
-    }
-    return groups;
-  }, [stations]);
-
-  // ── Render ───────────────────────────────────────
+  const onChoose = (id: string) => {
+    setSelected(id);
+    // On a phone the map is under this panel, and selecting a station closes the panel (AppShell): the
+    // person was choosing what to read here.
+    if (useUIStore.getState().isMobile) return;
+    if (isBuoyId(id)) selectBuoy(buoyNumber(id));
+    else selectStation(id);
+  };
 
   return (
-    <div className="space-y-3">
-      {/* Header + health status */}
-      <div className="rounded-lg border border-amber-600/30 bg-amber-900/20 overflow-hidden">
-        <div className="flex items-center justify-between px-3 py-2">
-          <div className="flex items-center gap-2">
-            <WeatherIcon id="database" size={15} className="text-amber-400" />
-            <span className="text-[11px] font-bold text-amber-300">Historial meteorológico</span>
-          </div>
-          {health && (
-            <span className="text-[11px] text-slate-500">
-              {(health.total_readings / 1000).toFixed(1)}k lecturas
-            </span>
-          )}
-        </div>
-
-        {/* Scope toggle: Sector summary (Phase 4) vs per-station explorer */}
-        <div className="px-3 pb-2">
-          <div className="grid grid-cols-2 gap-1 bg-slate-900/40 p-0.5 rounded text-[11px]">
-            <button
-              onClick={() => setScope('sector')}
-              className={`py-1.5 rounded transition-colors font-medium ${
-                scope === 'sector'
-                  ? 'bg-amber-500/20 text-amber-300'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-              aria-pressed={scope === 'sector'}
-            >
-              Resumen sector
-            </button>
-            <button
-              onClick={() => setScope('station')}
-              className={`py-1.5 rounded transition-colors font-medium ${
-                scope === 'station'
-                  ? 'bg-amber-500/20 text-amber-300'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-              aria-pressed={scope === 'station'}
-            >
-              Por estación
-            </button>
-          </div>
-        </div>
-
-        {/* Station selector — only in station scope */}
-        {scope === 'station' && (
-        <div className="px-3 pb-2">
-          <select
-            value={selectedStation}
-            onChange={(e) => {
-              setSelectedStation(e.target.value);
-              selectStation(e.target.value);
-            }}
-            className="w-full bg-slate-800 text-slate-200 text-[11px] rounded px-2 py-1.5 border border-slate-700 focus:border-amber-500/50 focus:outline-none"
-          >
-            {Object.entries(stationsBySource).map(([source, stns]) => (
-              <optgroup key={source} label={source.toUpperCase()}>
-                {stns.map((s) => {
-                  const name = stationNames.get(s.station_id);
-                  const srcLabel = SOURCE_LABELS[s.source] ?? s.source;
-                  return (
-                    <option key={s.station_id} value={s.station_id}>
-                      {name ? `${name} (${srcLabel})` : s.station_id} — {s.station_id.startsWith('buoy_') ? `${s.reading_count.toLocaleString()} lecturas` : `${s.reading_count.toLocaleString()} lecturas en 7 días`}
-                    </option>
-                  );
-                })}
-              </optgroup>
-            ))}
-          </select>
-        </div>
+    <div className="gc-hist">
+      <select
+        value={selected}
+        onChange={(e) => onChoose(e.target.value)}
+        className="gc-select"
+        aria-label="Estación o boya"
+      >
+        {selected && !stationOptions.some((o) => o.id === selected) && !buoyOptions.some((o) => o.id === selected) && (
+          <option value={selected}>{nameOf(selected)}</option>
         )}
-
-        {/* Compare toggle + second station — only in station scope */}
-        {scope === 'station' && (
-        <div className="px-3 pb-2">
-          <button
-            onClick={() => {
-              setCompareMode(!compareMode);
-              if (compareMode) {
-                setCompareStation('');
-                setCompareReadings([]);
-              }
-            }}
-            className={`w-full text-[11px] font-semibold py-1 rounded transition-colors ${
-              compareMode
-                ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
-                : 'bg-slate-800/40 text-slate-500 border border-slate-700/50 hover:text-slate-300'
-            }`}
-          >
-            {compareMode ? '✕ Quitar comparación' : '⊕ Comparar estaciones'}
-          </button>
-
-          {compareMode && (
-            <select
-              value={compareStation}
-              onChange={(e) => setCompareStation(e.target.value)}
-              className="w-full mt-1 bg-slate-800 text-amber-300 text-[11px] rounded px-2 py-1.5 border border-amber-500/30 focus:border-amber-500/50 focus:outline-none"
-            >
-              <option value="">Seleccionar 2ª estación...</option>
-              {Object.entries(stationsBySource).map(([source, stns]) => (
-                <optgroup key={source} label={source.toUpperCase()}>
-                  {stns
-                    .filter((s) => s.station_id !== selectedStation)
-                    .map((s) => {
-                      const name = stationNames.get(s.station_id);
-                      const srcLabel = SOURCE_LABELS[s.source] ?? s.source;
-                      return (
-                        <option key={s.station_id} value={s.station_id}>
-                          {name ? `${name} (${srcLabel})` : s.station_id}
-                        </option>
-                      );
-                    })}
-                </optgroup>
-              ))}
-            </select>
-          )}
-        </div>
+        {stationOptions.length > 0 && (
+          <optgroup label="Estaciones">
+            {stationOptions.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+          </optgroup>
         )}
-
-        {/* Time range buttons — only in station scope */}
-        {scope === 'station' && (
-        <div className="flex gap-1 px-3 pb-2">
-          {TIME_RANGES.map((r) => (
-            <button
-              key={r.key}
-              onClick={() => setTimeRange(r.key)}
-              className={`flex-1 text-[11px] font-bold py-1 rounded transition-colors ${
-                timeRange === r.key
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                  : 'bg-slate-800/60 text-slate-500 border border-slate-700/50 hover:text-slate-300'
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
-          <button
-            onClick={() => setTimeRange('custom')}
-            className={`flex-1 text-[11px] font-bold py-1 rounded transition-colors ${
-              timeRange === 'custom'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                : 'bg-slate-800/60 text-slate-500 border border-slate-700/50 hover:text-slate-300'
-            }`}
-          >
-            Rango
-          </button>
-          <span className="text-[11px] text-slate-600 self-center ml-1">
-            {interval === 'hourly' ? 'horario' : '5min'}
-          </span>
-        </div>
+        {buoyOptions.length > 0 && (
+          <optgroup label="Boyas">
+            {buoyOptions.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+          </optgroup>
         )}
+      </select>
 
-        {/* Custom date range picker */}
-        {scope === 'station' && timeRange === 'custom' && (
-          <div className="flex gap-1.5 px-3 pb-2 items-center">
-            <input
-              type="date"
-              value={customFrom}
-              onChange={(e) => setCustomFrom(e.target.value)}
-              className="flex-1 bg-slate-800 text-slate-200 text-[11px] rounded px-1.5 py-1 border border-slate-700 focus:border-amber-500/50 focus:outline-none"
-            />
-            <span className="text-[11px] text-slate-500">→</span>
-            <input
-              type="date"
-              value={customTo}
-              onChange={(e) => setCustomTo(e.target.value)}
-              className="flex-1 bg-slate-800 text-slate-200 text-[11px] rounded px-1.5 py-1 border border-slate-700 focus:border-amber-500/50 focus:outline-none"
-            />
-          </div>
-        )}
-
-        {/* Metric toggle + Wind Rose button — only in station scope */}
-        {scope === 'station' && (
-        <div className="flex gap-1 px-3 pb-2">
-          {METRICS.map((m) => (
-            <button
-              key={m.key}
-              onClick={() => {
-                setMetric(m.key);
-                setViewMode('chart');
-              }}
-              className={`flex-1 text-[11px] font-semibold py-1 rounded transition-colors ${
-                metric === m.key && viewMode === 'chart'
-                  ? 'text-white border'
-                  : 'bg-slate-800/40 text-slate-500 border border-transparent hover:text-slate-300'
-              }`}
-              style={
-                metric === m.key && viewMode === 'chart'
-                  ? { borderColor: m.color + '60', backgroundColor: m.color + '15', color: m.color }
-                  : undefined
-              }
-            >
-              {m.label}
-            </button>
-          ))}
-
-          {/* Wind Rose toggle */}
-          <button
-            onClick={() => setViewMode(viewMode === 'windrose' ? 'chart' : 'windrose')}
-            className={`flex-1 text-[11px] font-semibold py-1 rounded transition-colors ${
-              viewMode === 'windrose'
-                ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30'
-                : 'bg-slate-800/40 text-slate-500 border border-transparent hover:text-slate-300'
-            }`}
-          >
-            Rosa
-          </button>
-        </div>
-        )}
+      <div className="gc-seg gc-seg--fill" role="group" aria-label="Periodo">
+        {TIME_RANGES.map((r) => (
+          <button key={r.key} type="button" aria-pressed={timeRange === r.key} onClick={() => setTimeRange(r.key)}>{r.label}</button>
+        ))}
+        <button type="button" aria-pressed={timeRange === 'custom'} onClick={() => setTimeRange('custom')}>Fechas</button>
       </div>
 
-      {/* ── Sector summary panel (Phase 4) ── */}
-      {scope === 'sector' && (
-        <div className="rounded-lg border border-slate-700/50 bg-slate-900/40 p-3">
-          <SectorSummaryPanel sector={sectorId} days={30} />
+      {timeRange === 'custom' && (
+        <div className="gc-histdates">
+          <label>Desde<input type="date" className="gc-field" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} /></label>
+          <label>Hasta<input type="date" className="gc-field" value={customTo} onChange={(e) => setCustomTo(e.target.value)} /></label>
         </div>
       )}
 
-      {/* Chart / Wind Rose — only in station scope */}
-      {scope === 'station' && (
-      <div className="rounded-lg border border-slate-700/50 bg-slate-900/50 p-2">
-        {viewMode === 'windrose' ? (
-          // ── Wind Rose view ──
-          windRoseLoading ? (
-            <div className="flex items-center justify-center h-[260px] text-slate-500 text-[11px]">
-              <WeatherIcon id="wind" size={14} className="animate-pulse mr-2" />
-              Cargando rosa de vientos...
-            </div>
-          ) : (
-            <WindRoseHistorical
-              readings={windRoseReadings}
-              size={260}
-            />
-          )
-        ) : (
-          // ── Line chart view ──
+      <div className="gc-histbody" aria-busy={loading}>
+        {loading && rows.length === 0 && <p className="gc-small" role="status">Cargando…</p>}
+
+        {!loading && error && <p className="gc-histline" role="alert" title={error}>No se pudo cargar el historial. Prueba en un rato.</p>}
+
+        {!loading && !error && selected && rows.length > 0 && metrics.length === 0 && (
+          <p className="gc-histline">{nameOf(selected)} no ha enviado ningún dato útil en este periodo.</p>
+        )}
+
+        {!loading && !error && selected && rows.length === 0 && (
+          <div className="gc-histempty">
+            <p className="gc-histline">{nameOf(selected)} no ha enviado datos en este periodo.</p>
+            <p className="gc-small">
+              {lastReading
+                ? `Su última lectura es del ${dateOf(parseDbTime(lastReading))}, a las ${timeOf(parseDbTime(lastReading))}.`
+                : 'No consta ninguna lectura suya en los últimos 7 días.'}
+            </p>
+          </div>
+        )}
+
+        {metric && sentence && (
           <>
-            {loading && (
-              <div className="flex items-center justify-center h-[180px] text-slate-500 text-[11px]">
-                <WeatherIcon id="clock" size={14} className="animate-pulse mr-2" />
-                Cargando datos...
-              </div>
-            )}
-
-            {error && !loading && (
-              <div className="flex items-center justify-center h-[180px] text-red-400 text-[11px]">
-                <WeatherIcon id="alert-triangle" size={14} className="mr-2" />
-                {error}
-              </div>
-            )}
-
-            {!loading && !error && chartData.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-[180px] text-slate-500 text-[11px] gap-1">
-                <span>Sin datos para este rango</span>
-                {stats?.last_reading && (
-                  <span className="text-slate-600">
-                    Ultima lectura: {new Date(stats.last_reading).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                )}
-                {!stats?.last_reading && selectedStation && (
-                  <span className="text-slate-600">Prueba a ampliar el rango (7d, 30d)</span>
-                )}
-              </div>
-            )}
-
-            {!loading && !error && chartData.length > 0 && (
-              <ResponsiveContainer width="100%" height={180}>
-                <LineChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                  <XAxis
-                    dataKey="time"
-                    tick={{ fontSize: 8, fill: '#64748b' }}
-                    interval="preserveStartEnd"
-                    tickCount={6}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 8, fill: '#64748b' }}
-                    domain={['auto', 'auto']}
-                    width={40}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#1e293b',
-                      border: '1px solid #334155',
-                      borderRadius: '6px',
-                      fontSize: '10px',
-                    }}
-                    labelStyle={{ color: '#94a3b8', fontSize: '9px' }}
-                    formatter={(value: number | string | undefined, name: string) => {
-                      if (name === 'compare') {
-                        return [`${value} ${currentMetric.unit}`, stationName(compareStation)];
-                      }
-                      return [`${value} ${currentMetric.unit}`, stationName(selectedStation)];
-                    }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="value"
-                    stroke={currentMetric.color}
-                    strokeWidth={1.5}
-                    dot={false}
-                    activeDot={{ r: 3, fill: currentMetric.color }}
-                    name={currentMetric.label}
-                  />
-                  {compareMode && compareStation && (
-                    <Line
-                      type="monotone"
-                      dataKey="compare"
-                      stroke={COMPARE_COLOR}
-                      strokeWidth={1.5}
-                      dot={false}
-                      activeDot={{ r: 3, fill: COMPARE_COLOR }}
-                      name="compare"
-                      strokeDasharray="4 2"
-                    />
-                  )}
-                  {compareMode && compareStation && (
-                    <Legend
-                      wrapperStyle={{ fontSize: '9px' }}
-                      formatter={(value) => {
-                        if (value === 'compare') return stationName(compareStation);
-                        return stationName(selectedStation);
-                      }}
-                    />
-                  )}
-                </LineChart>
-              </ResponsiveContainer>
+            <p className="gc-histline"><b>{metric.label}.</b> {sentence}</p>
+            <HistoryChart
+              series={series}
+              compare={compareActive ? compareSeries : []}
+              metric={metric}
+              fromMs={span.from}
+              toMs={span.to}
+              label={sentenceWithName ?? metric.label}
+              formatTime={multiDay ? formatAxisDay : formatAxis}
+            />
+            {compareActive && (
+              <p className="gc-small">Línea de puntos: {nameOf(compareId)}{compareSeries.length === 0 ? ', sin este dato en el periodo' : ''}.</p>
             )}
           </>
         )}
+
+        {metrics.length > 0 && (
+          <ul className="gc-list" aria-label="Lo que mide">
+            {metrics.map((m) => {
+              const words = rangeWords(seriesOf(rows, m), m);
+              return (
+                <li key={m.key} className="gc-listrow" data-current={m.key === metric?.key ? '' : undefined}>
+                  <button type="button" className="gc-rowbtn gc-rowbtn--metric" aria-pressed={m.key === metric?.key} onClick={() => setMetricKey(m.key)}>
+                    <span className="gc-rowname">{m.label}</span>
+                    <span className="gc-rowval">{words}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
-      )}
 
-      {/* Compare legend (when wind rose + compare are both on) — station only */}
-      {scope === 'station' && viewMode === 'windrose' && compareMode && compareStation && (
-        <div className="text-center text-[11px] text-slate-500">
-          Rosa de vientos solo muestra la estación principal
+      {/* The rarer question, at the end. Only stations: the service compares those. */}
+      {!isBuoy && selected && (
+        <div className="gc-histcompare">
+          <button
+            type="button"
+            className="gc-btn gc-btn--plain"
+            aria-expanded={compareOpen}
+            onClick={() => { setCompareOpen((v) => !v); setCompareId(''); }}
+          >
+            {compareOpen ? 'Quitar la comparación' : 'Comparar con otra estación'}
+          </button>
+          {compareOpen && (
+            <select value={compareId} onChange={(e) => setCompareId(e.target.value)} className="gc-select" aria-label="Segunda estación">
+              <option value="">Elige la segunda estación</option>
+              {stationOptions.filter((o) => o.id !== selected).map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </select>
+          )}
         </div>
       )}
-
-      {/* Stats summary — station only */}
-      {scope === 'station' && stats && !loading && viewMode === 'chart' && (
-        <div className="rounded-lg border border-slate-700/50 bg-slate-900/50">
-          <div className="grid grid-cols-4 gap-px bg-slate-700/30">
-            <StatCell
-              label="Lecturas"
-              value={stats.count.toLocaleString()}
-            />
-            <StatCell
-              label="T media"
-              value={stats.avg_temp != null ? `${stats.avg_temp}°C` : '—'}
-            />
-            <StatCell
-              label="T rango"
-              value={
-                stats.min_temp != null && stats.max_temp != null
-                  ? `${stats.min_temp}–${stats.max_temp}°C`
-                  : '—'
-              }
-            />
-            <StatCell
-              label="Ráfaga máx"
-              value={
-                stats.max_gust != null
-                  ? `${Math.round(msToKnots(stats.max_gust))} kt`
-                  : '—'
-              }
-            />
-          </div>
-          <div className="grid grid-cols-4 gap-px bg-slate-700/30">
-            <StatCell
-              label="HR media"
-              value={stats.avg_humidity != null ? `${stats.avg_humidity}%` : '—'}
-            />
-            <StatCell
-              label="Viento medio"
-              value={
-                stats.avg_wind != null
-                  ? `${Math.round(msToKnots(stats.avg_wind * 10)) / 10} kt`
-                  : '—'
-              }
-            />
-            <StatCell
-              label="Presión"
-              value={stats.avg_pressure != null ? `${stats.avg_pressure} hPa` : '—'}
-            />
-            <StatCell
-              label="Precip"
-              value={stats.total_precip != null ? `${stats.total_precip} mm` : '—'}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Refresh button */}
-      <button
-        onClick={fetchData}
-        disabled={loading || !selectedStation}
-        className="w-full text-[11px] font-semibold py-1.5 rounded bg-slate-800 text-slate-400 border border-slate-700/50 hover:text-slate-200 hover:border-amber-500/30 transition-colors disabled:opacity-40"
-      >
-        {loading ? 'Actualizando...' : 'Actualizar datos'}
-      </button>
     </div>
   );
 });
-
-// ── Sub-components ─────────────────────────────────────
-
-function StatCell({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="bg-slate-900/80 px-2 py-1.5 text-center">
-      <div className="text-[11px] text-slate-500 uppercase tracking-wider">{label}</div>
-      <div className="text-[11px] font-bold text-slate-200 mt-0.5">{value}</div>
-    </div>
-  );
-}

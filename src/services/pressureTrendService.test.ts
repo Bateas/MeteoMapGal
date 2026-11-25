@@ -201,25 +201,24 @@ describe('buildPressureTrendAlerts', () => {
     expect(buildPressureTrendAlerts(cur, hist)).toEqual([]);
   });
 
-  it('emits critical alert for ≥4 hPa median drop', () => {
+  it('a ≥4 hPa median drop stays at moderate and not urgent: one variable, never examined', () => {
     const { cur, hist } = dropping(3, -4);
     const alerts = buildPressureTrendAlerts(cur, hist);
     expect(alerts).toHaveLength(1);
     expect(alerts[0].id).toBe('pressure-trend');
     expect(alerts[0].category).toBe('pressure');
-    expect(alerts[0].severity).toBe('critical');
-    expect(alerts[0].score).toBeGreaterThanOrEqual(75);
+    expect(alerts[0].severity).toBe('moderate');
+    expect(alerts[0].score).toBeLessThan(55);
     expect(alerts[0].title).toBe('Caída barométrica rápida');
-    expect(alerts[0].urgent).toBe(true);
+    expect(alerts[0].urgent).toBe(false);
   });
 
-  it('emits high-severity alert for ≥3 hPa median drop', () => {
+  it('a ≥3 hPa median drop stays at moderate too', () => {
     const { cur, hist } = dropping(3, -3);
     const alerts = buildPressureTrendAlerts(cur, hist);
     expect(alerts).toHaveLength(1);
-    expect(alerts[0].severity).toBe('high');
-    expect(alerts[0].score).toBeGreaterThanOrEqual(50);
-    expect(alerts[0].score).toBeLessThan(75);
+    expect(alerts[0].severity).toBe('moderate');
+    expect(alerts[0].score).toBe(50);
     expect(alerts[0].title).toBe('Presión en descenso');
     expect(alerts[0].urgent).toBe(false);
   });

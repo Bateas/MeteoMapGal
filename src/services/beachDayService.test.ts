@@ -41,6 +41,9 @@ describe('assessBeachDay — hard "mal día" gates', () => {
     const r = assessBeachDay(opts({ cloudCoverPct: 0, airTempC: 18, windKt: 5, waterTempC: 18 }));
     expect(r.verdict).toBe('poor');
     expect(r.reasons[0]).toMatch(/[Ff]río/);
+    // Cold alone is out of season: the card says nothing; rain or fog in summer still say «mal día».
+    expect(r.outOfSeason).toBe(true);
+    expect(assessBeachDay(opts({ rainingNow: true })).outOfSeason).toBeUndefined();
   });
 
   it('overcast and gusty is a bad day by the sum (29-sep Cesantes: 12 kt, gusts 32, front)', () => {

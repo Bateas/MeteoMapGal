@@ -163,7 +163,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Chunk | Size | Gzipped |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|-----:|--------:|" >> $GITHUB_STEP_SUMMARY
-          for f in dist/assets/main-*.js dist/assets/maplibre-*.js dist/assets/recharts-*.js; do
+          for f in dist/assets/main-*.js dist/assets/maplibre-*.js; do
             if [ -f "$f" ]; then
               name=$(basename "$f" | sed 's/-[A-Za-z0-9_-]*\.js$//')
               size=$(stat -c%s "$f" | numfmt --to=iec)

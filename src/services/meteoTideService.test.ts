@@ -101,7 +101,7 @@ describe('computeMeteoTide', () => {
   it('reads a lower-than-predicted sea as a negative surge', () => {
     const t = computeMeteoTide(0.60, observedAt, vigoSeries(), now);
     expect(t!.residualM).toBeLessThan(0);
-    expect(formatMeteoTide(t!)).toContain('por debajo');
+    expect(formatMeteoTide(t!)).toContain('más baja');
   });
 
   it('accepts the PORTUS publication lag — the gauges arrive ~2h old by design', () => {
@@ -148,7 +148,7 @@ describe('surgeLevel / formatMeteoTide', () => {
     expect(surgeLevel(-0.10)).toBe('none');
     expect(formatMeteoTide({
       residualM: 0.05, astronomicalM: 1, observedM: 1.05, level: 'none', ageMin: 1,
-    })).toBe('Marea segun tabla');
+    })).toBe('Marea como estaba prevista');
   });
 
   it('escalates by magnitude regardless of sign', () => {
@@ -163,6 +163,6 @@ describe('surgeLevel / formatMeteoTide', () => {
     const up = formatMeteoTide({
       residualM: 0.42, astronomicalM: 1, observedM: 1.42, level: 'high', ageMin: 2,
     });
-    expect(up).toBe('Agua 42 cm por encima de tabla');
+    expect(up).toBe('Marea 42 cm más alta de lo previsto');
   });
 });

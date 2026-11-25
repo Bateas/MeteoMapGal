@@ -133,7 +133,7 @@ describe('knots seen (observers with a personal link)', () => {
     expect(ktRangeLabel(12, 16)).toBe('12-16 kt');
     expect(ktRangeLabel(20, 30)).toBe('más de 20 kt');
     expect(observerReportWhat({ time: 0, spotId: 'cesantes', windVsApp: 1, waterState: 2, dirSeen: 225, ktLo: 12, ktHi: 16, appWindKt: 9.6 }))
-      .toBe('12-16 kt · algo de espuma · del SO · la app decía 10');
+      .toBe('12-16 kt · algo de espuma · del SW · la app decía 10');
     expect(observerReportWhat({ time: 0, spotId: 'vao', windVsApp: -1, waterState: null, dirSeen: null, ktLo: null, ktHi: null, appWindKt: null }))
       .toBe('menos viento que la app');
   });

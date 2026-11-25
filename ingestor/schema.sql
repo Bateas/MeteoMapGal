@@ -105,7 +105,7 @@ CREATE INDEX IF NOT EXISTS stations_coords_idx
   ON stations (latitude, longitude);
 
 -- ── Alerts hypertable ────────────────────────────────
--- ⚠️ RESERVED / NOT WIRED (S136+3+5 audit): no writer or reader anywhere
+-- ⚠️ RESERVED / NOT WIRED: no writer or reader anywhere
 -- in ingestor or frontend. Designed for alert persistence but the pipeline
 -- dispatches via webhook (alertDispatcher) without DB logging. Kept empty
 -- intentionally — do NOT re-flag as "dead" without deciding to build the
@@ -241,7 +241,7 @@ BEGIN
 END $$;
 
 -- ── Alert evaluation log (for validation & calibration) ──
--- ⚠️ RESERVED / NOT WIRED (S136+3+5 audit): no writer or reader yet. Designed
+-- ⚠️ RESERVED / NOT WIRED: no writer or reader yet. Designed
 -- for the alert thumbs-up/down validation feature (analogous to
 -- prediction_outcomes for storms) but never built. Kept empty intentionally.
 -- Records every alert evaluation with input parameters so the user
@@ -327,7 +327,7 @@ SELECT create_hypertable('storm_predictions', 'time', if_not_exists => TRUE);
 -- Written by analyzer.ts persistSpotScores() every 5min poll.
 -- Read by api.ts /api/v1/spots/scores → SpotHistoryChart (24h history).
 -- NOTE: this table was created out-of-band on DB server before being added
--- here (S136+3+5 audit). The ALTER below adds the detector-boost columns
+-- here. The ALTER below adds the detector-boost columns
 -- to pre-existing deployments idempotently.
 CREATE TABLE IF NOT EXISTS spot_scores (
   time             TIMESTAMPTZ     NOT NULL,
@@ -340,7 +340,7 @@ CREATE TABLE IF NOT EXISTS spot_scores (
   score            SMALLINT        DEFAULT 0,   -- reserved (analyzer emits verdict, not 0-100)
   station_count    SMALLINT,
   inferred_dir     TEXT,
-  -- Detector boost provenance (S136+3+5) — enables auditing Cesantes
+  -- Detector boost provenance — enables auditing Cesantes
   -- canalization + Bocana terral activation against real conditions.
   raw_wind_kt      REAL,                        -- measured avg before any boost
   boosted_by       TEXT,                        -- 'cesantes-canalization' | 'bocana-terral' | NULL
@@ -857,7 +857,7 @@ CREATE INDEX IF NOT EXISTS idx_outcomes_eval_at
 
 GRANT SELECT, INSERT ON prediction_outcomes TO meteomap_app;
 
--- ── Magic Window detections (T2-2 S136+3+3) ──────────
+-- ── Magic Window detections ────────────────────────
 -- One row per minute per sector when the magic-window detector fires.
 -- Append-only; low volume (~1 row per hour at most).
 --

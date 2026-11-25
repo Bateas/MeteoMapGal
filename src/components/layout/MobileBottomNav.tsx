@@ -3,31 +3,24 @@
  * Replaces hamburger menu with direct tab access.
  * Desktop: never rendered (gated by isMobile in AppShell).
  */
-import { memo, useState, useCallback, useEffect } from 'react';
+import { memo, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { useUIStore } from '../../store/uiStore';
-import { useSectorStore } from '../../store/sectorStore';
 import { WeatherIcon } from '../icons/WeatherIcons';
 import type { IconId } from '../icons/WeatherIcons';
-import { isSimpleTab } from '../../config/simpleTabs';
+import { visibleSidebarTabs } from '../../config/simpleTabs';
+import { useBackCloses } from '../../hooks/useBackCloses';
+import { CONDITIONS_LEVEL_WORD } from '../../config/levelWords';
 
-type BottomTab = 'map' | 'spots' | 'datos' | 'prevision' | 'mas';
-// 'simple' is a quick-action toggle in the bottom nav, not a real tab —
-// pressing it flips simpleMode (no view change). 'datos' lives in the
-// "Más" menu instead of the primary bar (UX iteration).
-type BottomNavId = BottomTab | 'simple';
+// 'datos' is the Condiciones panel. The Simple/Avanzado switch lives in the "Más" menu.
+type BottomTab = 'map' | 'spots' | 'prevision' | 'datos' | 'mas';
 
-// ── "Más" menu items ────────────────────────────────────
+const MENU_ICON = (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+    <line x1="4" y1="7" x2="20" y2="7" /><line x1="4" y1="12" x2="20" y2="12" /><line x1="4" y1="17" x2="20" y2="17" />
+  </svg>
+);
 
-interface MenuItem {
-  icon: IconId;
-  label: string;
-  tab?: string;          // sidebar tab to open
-  action?: () => void;   // custom action instead of sidebar tab
-  embalseOnly?: boolean;
-  highlight?: string;    // text color class for prominent items
-}
-
-function MobileBottomNavInner() {
+function MobileBottomNavInner({ fieldAlertLevel = 'none' }: { fieldAlertLevel?: 'none' | 'riesgo' | 'moderado' | 'alto' | 'critico' }) {
   const activeTab = useUIStore((s) => s.activeBottomTab) ?? 'map';
   const setActiveTab = useUIStore((s) => s.setActiveBottomTab);
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
@@ -38,16 +31,24 @@ function MobileBottomNavInner() {
   const setFeedbackOpen = useUIStore((s) => s.setFeedbackOpen);
   const simpleMode = useUIStore((s) => s.simpleMode);
   const toggleSimpleMode = useUIStore((s) => s.toggleSimpleMode);
-  const sectorId = useSectorStore((s) => s.activeSector.id);
 
   const [moreOpen, setMoreOpen] = useState(false);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLElement>(null);
 
-  // Escape closes the "Más" menu, same as tapping its backdrop. The items that
-  // open a modal (Guía, Feedback) close the menu first, so this never takes
-  // the Escape that belongs to a dialog.
+  useBackCloses(moreOpen, () => setMoreOpen(false), 'menu');
+
+  // Escape closes the "Más" menu, same as tapping its backdrop, and puts the focus back on the
+  // button that opened it. The items that open a modal (Guía, Opinión) close the menu first, so
+  // this never takes the Escape that belongs to a dialog.
   useEffect(() => {
     if (!moreOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMoreOpen(false); };
+    menuRef.current?.querySelector<HTMLElement>('button, a')?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setMoreOpen(false);
+      moreButtonRef.current?.focus();
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [moreOpen]);
@@ -59,15 +60,14 @@ function MobileBottomNavInner() {
   // with the menu still open. Closing the menu hands it back to the real view.
   const currentTab: BottomTab = moreOpen ? 'mas' : activeTab;
 
-  // Primary bottom nav entries. 'simple' is a quick-action toggle in the
-  // central slot — pressing it flips simpleMode without changing the view.
-  // Icon + label reflect the current state.
-  const TABS: { id: BottomNavId; label: string; icon: IconId }[] = [
+  // Primary bottom nav entries.
+  const TABS: { id: BottomTab; label: string; icon: IconId | ReactNode }[] = [
     { id: 'map', label: 'Mapa', icon: 'map' },
-    { id: 'spots', label: 'Spots', icon: 'map-pin' },
-    { id: 'simple', label: simpleMode ? 'Avanzado' : 'Simple', icon: simpleMode ? 'eye-off' : 'eye' },
+    // Simple mode: no list of spots, they are on the map (same rule as the side panel, simpleTabs.ts)
+    ...(simpleMode ? [] : [{ id: 'spots' as BottomTab, label: 'Spots', icon: 'map-pin' as IconId }]),
     { id: 'prevision', label: 'Previsión', icon: 'cloud-sun' },
-    { id: 'mas', label: 'Más', icon: 'layers' },
+    { id: 'datos', label: 'Condiciones', icon: 'activity' },
+    { id: 'mas', label: 'Más', icon: MENU_ICON },
   ];
 
   const openSidebarTab = useCallback((tab: string, navTab: BottomTab) => {
@@ -78,14 +78,8 @@ function MobileBottomNavInner() {
     setMoreOpen(false);
   }, [setRequestedTab, setSidebarOpen, setFieldDrawerOpen, setActiveTab]);
 
-  const handleTab = useCallback((id: BottomNavId) => {
+  const handleTab = useCallback((id: BottomTab) => {
     setMoreOpen(false);
-
-    if (id === 'simple') {
-      // Quick-action toggle — no view switch, no activeTab change.
-      toggleSimpleMode();
-      return;
-    }
 
     // The forecast overlay (z-50) covers everything except this bar: the
     // sidebar (z-40), the FieldDrawer and the "Más" menu (z-[45]) all open
@@ -102,11 +96,12 @@ function MobileBottomNavInner() {
     }
 
     if (id === 'spots') {
-      openSidebarTab('stations', 'spots');
+      openSidebarTab('spots', 'spots');
       return;
     }
 
     if (id === 'datos') {
+      setSidebarOpen(false);
       setFieldDrawerOpen(true);
       setActiveTab('datos');
       return;
@@ -127,108 +122,84 @@ function MobileBottomNavInner() {
       setMoreOpen(!moreOpen);
       return;
     }
-  }, [setSidebarOpen, setFieldDrawerOpen, setActiveTab, openSidebarTab, setForecastPanelOpen, toggleSimpleMode, moreOpen]);
+  }, [setSidebarOpen, setFieldDrawerOpen, setActiveTab, openSidebarTab, setForecastPanelOpen, moreOpen]);
 
-  const menuItems: MenuItem[] = [
-    { icon: 'book-open', label: 'Guía MeteoMapGal', action: () => { toggleGuide(); setMoreOpen(false); }, highlight: 'text-sky-400' },
-    { icon: 'message-square', label: 'Enviar Feedback', action: () => { setFeedbackOpen(true); setMoreOpen(false); }, highlight: 'text-emerald-400' },
-    // "Datos" moved here from the primary nav so the Simple/Avanzado toggle
-    // can occupy the central slot (UX iteration).
-    { icon: 'activity', label: 'Datos del panel', action: () => { setFieldDrawerOpen(true); setActiveTab('datos'); setMoreOpen(false); } },
-    { icon: 'activity', label: 'Gráfica', tab: 'chart' },
-    { icon: 'compass', label: 'Comparar', tab: 'compare' },
-    { icon: 'layers', label: 'Rankings', tab: 'rankings' },
-    { icon: 'clock', label: 'Historial', tab: 'history' },
-    { icon: 'flame', label: 'Térmico', tab: 'thermal', embalseOnly: true },
-  ];
+  // Spots and Previsión have their own place on the bar. The rest of the panel's tabs, under the
+  // same names as on a desktop, and only those the panel shows right now (no silent bounce).
+  const panelTabs = visibleSidebarTabs(simpleMode)
+    .filter((t) => t.id !== 'spots' && t.id !== 'forecast');
 
   return (
     <>
-      {/* "More" menu popover */}
       {moreOpen && (
         <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 z-[44]"
-            onClick={() => setMoreOpen(false)}
-          />
-          {/* Menu panel */}
-          <div
-            className="fixed z-[45] right-2 w-52 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-1.5 animate-fade-in-up"
-            style={{ bottom: 'calc(48px + env(safe-area-inset-bottom, 0px) + 4px)' }}
+          <div className="fixed inset-0 z-[44]" onClick={() => setMoreOpen(false)} />
+          <nav
+            ref={menuRef}
+            aria-label="Más opciones"
+            className="g-theme gc-menu"
+            style={{ bottom: 'calc(50px + env(safe-area-inset-bottom, 0px) + 4px)' }}
           >
-            {menuItems
-              .filter((item) => !item.embalseOnly || sectorId === 'embalse')
-              // simpleMode: only offer sidebar tabs the Sidebar actually shows
-              // (shared SIMPLE_TABS source of truth — avoids silent bounce).
-              // Items with a custom action (Guía, Feedback, Datos) don't route
-              // through the Sidebar, so they stay available.
-              .filter((item) => !simpleMode || !item.tab || isSimpleTab(item.tab))
-              .map((item) => (
-                <button
-                  key={item.label}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-800 transition-colors text-left min-h-[44px] ${item.highlight ?? 'text-slate-300 hover:text-white'}`}
-                  onClick={() => {
-                    if (item.action) {
-                      item.action();
-                    } else if (item.tab) {
-                      openSidebarTab(item.tab, 'mas');
-                    }
-                  }}
-                >
-                  <WeatherIcon id={item.icon} size={16} className="text-slate-400 shrink-0" />
-                  <span className="text-[13px] font-medium">{item.label}</span>
-                </button>
-              ))}
-            {/* Donation link */}
-            <a
-              href="https://ko-fi.com/bateas"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-emerald-400 hover:bg-emerald-500/10 transition-colors min-h-[44px]"
+            {panelTabs.map((t) => (
+              <button key={t.id} type="button" className="gc-option" onClick={() => openSidebarTab(t.id, 'mas')}>
+                <WeatherIcon id={t.icon} size={18} />
+                <span>{t.label}</span>
+              </button>
+            ))}
+            {panelTabs.length > 0 && <div className="gc-menu-rule" />}
+            {/* An action, not a place: its label says where it takes you. */}
+            <button
+              type="button"
+              className="gc-option"
+              aria-label={simpleMode ? 'Pasar a modo avanzado' : 'Pasar a modo simple'}
+              onClick={() => { toggleSimpleMode(); setMoreOpen(false); }}
             >
-              <WeatherIcon id="anchor" size={16} className="shrink-0" />
-              <span className="text-[13px] font-medium">Apoyar</span>
+              <WeatherIcon id={simpleMode ? 'eye' : 'eye-off'} size={18} />
+              <span>{simpleMode ? 'Avanzado' : 'Simple'}</span>
+            </button>
+            <button type="button" className="gc-option" onClick={() => { toggleGuide(); setMoreOpen(false); }}>
+              <WeatherIcon id="book-open" size={18} />
+              <span>Guía</span>
+            </button>
+            <button type="button" className="gc-option" onClick={() => { setFeedbackOpen(true); setMoreOpen(false); }}>
+              <WeatherIcon id="message-square" size={18} />
+              <span>Opinión</span>
+            </button>
+            <a href="https://ko-fi.com/bateas" target="_blank" rel="noopener noreferrer" className="gc-option">
+              <WeatherIcon id="anchor" size={18} />
+              <span>Apoyar el proyecto</span>
             </a>
-          </div>
+          </nav>
         </>
       )}
 
-      {/* Bottom nav bar */}
-      <nav
-        className="fixed bottom-0 inset-x-0 z-40 bg-slate-900 border-t border-slate-700/50"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
-      >
-        <div className="flex items-stretch justify-around">
-          {TABS.map(({ id, label, icon }) => {
-            // 'simple' is a toggle (highlighted when simpleMode active, amber);
-            // other ids are tabs (highlighted when active, sky).
-            const isActive = id === 'simple' ? simpleMode : currentTab === id;
-            const activeColor = id === 'simple' ? 'text-amber-300' : 'text-sky-400';
-            return (
-              <button
-                key={id}
-                data-tour={id === 'simple' ? 'simple-toggle' : undefined}
-                className={`flex-1 flex flex-col items-center justify-center gap-0.5 min-h-[48px] pt-1.5 pb-1 transition-colors ${
-                  isActive ? activeColor : 'text-slate-400'
-                }`}
-                onClick={() => handleTab(id)}
-                // 'simple' is an ACTION, not a state: its label says where it
-                // takes you ('Avanzado' while simple mode is on). An aria-pressed
-                // switch read "Avanzado, activado" right under the "Modo simple
-                // activo" banner; the banner carries the state.
-                aria-label={id === 'simple' ? (simpleMode ? 'Pasar a modo avanzado' : 'Pasar a modo simple') : label}
-                // Same rule as the highlight, so a screen reader hears what is
-                // shown. 'simple' is an action, never a page.
-                aria-current={id !== 'simple' && isActive ? 'page' : undefined}
-                aria-expanded={id === 'mas' ? moreOpen : undefined}
-              >
-                <WeatherIcon id={icon} size={20} />
-                <span className="text-[10px] font-medium leading-none">{label}</span>
-              </button>
-            );
-          })}
-        </div>
+      <nav className="g-theme gc-bottomnav" aria-label="Navegación principal">
+        {TABS.map(({ id, label, icon }) => {
+          // Each one is a place, marked while it is on screen.
+          const isActive = currentTab === id;
+          return (
+            <button
+              key={id}
+              ref={id === 'mas' ? moreButtonRef : undefined}
+              type="button"
+              data-tour={id === 'spots' ? 'sidebar' : id === 'datos' ? 'panel' : id === 'mas' ? 'guide simple-toggle' : undefined}
+              className={simpleMode && id === 'prevision' ? 'gc-navitem gc-navitem--lead' : 'gc-navitem'}
+              onClick={() => handleTab(id)}
+              // The dot says the level by colour only: the name says it in words, like the header
+              aria-label={id === 'datos' && fieldAlertLevel !== 'none' ? `${label}.${CONDITIONS_LEVEL_WORD[fieldAlertLevel]}` : label}
+              // Same rule as the highlight, so a screen reader hears what is shown.
+              aria-current={isActive ? 'page' : undefined}
+              aria-expanded={id === 'mas' ? moreOpen : undefined}
+            >
+              <span style={{ position: 'relative', display: 'flex' }}>
+                {typeof icon === 'string' ? <WeatherIcon id={icon as IconId} size={20} /> : icon}
+                {/* The level AppShell passes for the Condiciones panel: what lights it is decided there, not here */}
+                {id === 'datos' && fieldAlertLevel !== 'none' && <span className={`gc-dot gc-t-${fieldAlertLevel}`} style={{ position: 'absolute', top: -2, right: -5 }} />}
+              </span>
+              <span>{label}</span>
+            </button>
+          );
+        })}
       </nav>
     </>
   );

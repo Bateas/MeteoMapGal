@@ -6,7 +6,7 @@
  * spots that wind direction favours + real marine obs. POSTs to n8n webhook
  * for Telegram delivery.
  *
- * Design (S136+3+7 alert audit, phase 2): the forecast in the ingestor is one
+ * Design (alert audit, phase 2): the forecast in the ingestor is one
  * model point PER SECTOR (not per spot), so the honest forecast granularity is
  * a per-sector outlook — faking per-spot forecast precision would be
  * unreliable data, which we avoid. We DO name the spots the outlook direction

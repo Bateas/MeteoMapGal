@@ -66,13 +66,16 @@ describe('official warnings follow the sector on screen', () => {
     expect(zonesShown()).toEqual(['Sur de Ourense']);
   });
 
-  it('the IPMA list follows too', () => {
+  it('an IPMA warning stays out of a sector none of whose spots it reaches (18-nov: Viana and Braga in the Interior)', () => {
     const vct = { districtCode: 'VCT' } as unknown as IpmaWarning;
     const vrl = { districtCode: 'VRL' } as unknown as IpmaWarning;
+    // No spot of either sector is within 15 km of the border today
     useWarningsStore.getState().setDownloaded([], [vct, vrl], 'embalse');
-    expect(useWarningsStore.getState().ipmaSectorWarnings).toHaveLength(2);
+    expect(useWarningsStore.getState().ipmaSectorWarnings).toEqual([]);
     useWarningsStore.getState().pickSector('rias');
-    expect(useWarningsStore.getState().ipmaSectorWarnings).toEqual([vct]);
+    expect(useWarningsStore.getState().ipmaSectorWarnings).toEqual([]);
+    // The download itself is kept: a spot near the Miño would bring them back without a new request
+    expect(useWarningsStore.getState().allIpmaWarnings).toHaveLength(2);
   });
 });
 

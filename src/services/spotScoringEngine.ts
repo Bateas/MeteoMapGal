@@ -25,7 +25,7 @@ import { BUOY_COORDS_MAP } from '../api/buoyClient';
 import type { SailingSpot, SpotId } from '../config/spots';
 import { patternHours, getSpotsForSector } from '../config/spots';
 import { madridHour, sunHour } from './localTime';
-import { msToKnots, degToCardinal8, angleDifference } from './windUtils';
+import { msToKnots, degToCardinal8, angleDifference, windStep } from './windUtils';
 import { isBuoyFresh, isLandStationCopy, isOpenWaterWind, LAND_STATION_BUOY_COPIES, BUOY_STALE_MAX_MIN, BUOY_WAVE_MAX_MIN } from './buoyUtils';
 import { fastDistanceKm, computeBearing } from './idwInterpolation';
 import { STALE_THRESHOLD_MIN } from '../config/constants';
@@ -110,6 +110,9 @@ export interface SpotScore {
   verdict: SpotVerdict;
   score: number; // 0-100
   summary: string;
+  /** What the card adds to its head: the reason alone, without the state, the figure, the sources or the
+   *  water, which are all on the same card. Absent on a hard gate, whose summary is the message. */
+  reason?: string;
   wind: SpotWindConsensus | null;
   waves: SpotWaveConditions | null;
   /** Water temperature from nearest buoy */
@@ -502,7 +505,7 @@ function computeWeightedMedian(entries: { speedKt: number; weight: number }[]): 
  *
  * Last audit: 2026-05-27 (30-day window vs buoy 3221+2248).
  * Audit method: ratio of station hourly avg vs buoy hourly avg, when
- * buoy_ms > 1.5. See `memory/monthly-station-bias-audit.md`.
+ * buoy_ms > 1.5 (monthly bias audit in the project notes).
  * Re-evaluate monthly.
  */
 const WIND_BLACKLIST = new Set([
@@ -950,17 +953,10 @@ function fmtM(m: number): string {
  * This is the PRIMARY driver — score adjustments are secondary.
  */
 function windVerdict(spd: number, _spotId: SpotId): SpotVerdict {
-  // Round to integer — same as displayed value, avoids "CALMA 8kt" incoherence
-  const kt = Math.round(spd);
-
   // One scale for every spot: the same figure is the same colour on the map. Cíes-Ría had its own
   // (9 kt «FLOJO» beside 8 kt «NAVEG.» elsewhere, 26-oct). The open sea is told by the wave gate
-  // (waveBuoys + maxWaveHeight), not by a hidden scale.
-  if (kt < 6) return 'calm';
-  if (kt < 8) return 'light';
-  if (kt < 12) return 'sailing';
-  if (kt < 18) return 'good';
-  return 'strong'; // ≥18kt
+  // (waveBuoys + maxWaveHeight), not by a hidden scale. Rounded like the figure, so no «CALMA 8kt».
+  return (['calm', 'light', 'sailing', 'good', 'strong'] as const)[windStep(spd)];
 }
 
 // ── Per-Spot Scoring ─────────────────────────────────────────
@@ -1185,7 +1181,7 @@ function scoreSpot(
   regimeVeto?: RegimeVeto | null,
   /** Map only: holds the verdict through noise on a threshold line (verdictHold.ts). */
   settle?: (raw: SpotVerdict, effectiveKt: number) => SpotVerdict,
-): { score: number; verdict: SpotVerdict; hardGate: string | null; summary: string; thermalBoosted: boolean; effectiveWindKt: number | null; humiditySignal: string | null; thetaVGradient: number | null; channelingPossibleKt?: number | null } {
+): { score: number; verdict: SpotVerdict; hardGate: string | null; summary: string; reason?: string; thermalBoosted: boolean; effectiveWindKt: number | null; humiditySignal: string | null; thetaVGradient: number | null; channelingPossibleKt?: number | null } {
   // ── Hard gates (instant danger override) ──────────────
   if (wind && spot.hardGates.maxWindKt && wind.avgSpeedKt > spot.hardGates.maxWindKt) {
     return {
@@ -1459,8 +1455,9 @@ function scoreSpot(
   // Pass effectiveSpd so summary reflects boosted/canalized wind, not raw stations.
   let summary = buildSpotSummary(spot, verdict, wind, waves, waterTemp, thermalBoosted, thermalData, effectiveSpd);
   if (bocanaSignal) summary += ' · ' + bocanaSignal;
+  const reason = [verdictReason(verdict, effectiveSpd), bocanaSignal].filter(Boolean).join(' ');
 
-  return { score, verdict, hardGate: null, summary, thermalBoosted, effectiveWindKt: Math.round(effectiveSpd * 10) / 10, humiditySignal: precursor.signal ?? bocanaSignal, thetaVGradient: precursor.thetaVGradient, channelingPossibleKt };
+  return { score, verdict, hardGate: null, summary, reason, thermalBoosted, effectiveWindKt: Math.round(effectiveSpd * 10) / 10, humiditySignal: precursor.signal ?? bocanaSignal, thetaVGradient: precursor.thetaVGradient, channelingPossibleKt };
 }
 
 /**
@@ -1476,6 +1473,20 @@ export function isClearlyPastLine(shown: SpotVerdict | undefined, raw: SpotVerdi
 }
 
 // ── Summary Builder ──────────────────────────────────────────
+
+/**
+ * The line under the state in the card, only when it adds to the word: «Navegable» needs no «viento
+ * justo, condiciones limitadas» and «Calma» no «sin condiciones» (18-nov: phrases that say
+ * nothing). Empty = no line. Pure.
+ */
+export function verdictReason(verdict: SpotVerdict, spd: number): string {
+  switch (verdict) {
+    case 'good': return spd >= 15 ? 'Hay viento para todas las modalidades.' : '';
+    case 'strong': return 'Requiere experiencia.';
+    case 'light': return 'Insuficiente para navegar.';
+    default: return '';
+  }
+}
 
 function buildSpotSummary(
   spot: SailingSpot,
@@ -1657,16 +1668,32 @@ function gustInRange(s: GustSource, nowMs: number, maxAltitudeM: number): boolea
 function countedGustIndexes(sources: GustSource[], nowMs: number, maxAltitudeM: number): number[] {
   const sensorOf = (i: number) => sources[i].sensorId ?? `source-${i}`;
   const inRange = sources.map((_, i) => i).filter((i) => gustInRange(sources[i], nowMs, maxAltitudeM));
+  const backed = (i: number) => inRange.some((j) => sensorOf(j) !== sensorOf(i)
+    && (sources[j].gustKt as number) >= GUST_CORROBORATION_RATIO * (sources[i].gustKt as number));
+  const hasOther = (i: number) => inRange.some((j) => sensorOf(j) !== sensorOf(i));
   return inRange.filter((i) => {
     const s = sources[i];
     const gust = s.gustKt as number;
-    if (gustIsPlausible(s.meanKt, gust)) return true;
+    if (gustIsPlausible(s.meanKt, gust)) {
+      // A hobby station sets the gust alone only when it is the one instrument around the spot.
+      return !isHobbySensor(s.sensorId) || !hasOther(i) || backed(i);
+    }
     const mean = s.meanKt as number;
     if (mean < GUST_CORROBORATION_MIN_MEAN_KT) return false;
     if (gust > Math.max(GUST_CORROBORATED_MAX_RATIO * mean, mean + GUST_CORROBORATED_MAX_EXCESS_KT)) return false;
-    return inRange.some((j) => sensorOf(j) !== sensorOf(i)
-      && (sources[j].gustKt as number) >= GUST_CORROBORATION_RATIO * gust);
+    return backed(i);
   });
+}
+
+/**
+ * Stations of the hobby networks (Netatmo, Weather Underground, Meteoclimatic). Their gust needs
+ * another instrument around the spot at GUST_CORROBORATION_RATIO of it, like a gust above its
+ * ratio does. 24-nov: A Lanzada read «racha 17» from a Netatmo in Cambados, 6.5 km away on the
+ * other shore, while the official station 900 m from the beach gusted 7; over 30 days that one
+ * station set the gust of A Lanzada and Illa de Arousa in most of their calm hours.
+ */
+export function isHobbySensor(sensorId: string | undefined): boolean {
+  return sensorId != null && /^(nt|wu|mc)_/.test(sensorId);
 }
 
 /**
@@ -1996,7 +2023,7 @@ export function scoreAllSpots(
         }
       : undefined;
     const gustLatch = verdictHold?.states.get(spot.id)?.gustGate;
-    let { score, verdict, hardGate, summary, thermalBoosted, effectiveWindKt, humiditySignal, thetaVGradient, channelingPossibleKt } = scoreSpot(spot, wind, waves, waterTemp, spotThermal, buoyData, stationData, channelingPrediction, rainVeto, regimeVeto, settle);
+    let { score, verdict, hardGate, summary, reason, thermalBoosted, effectiveWindKt, humiditySignal, thetaVGradient, channelingPossibleKt } = scoreSpot(spot, wind, waves, waterTemp, spotThermal, buoyData, stationData, channelingPrediction, rainVeto, regimeVeto, settle);
     let gustGate = verdictHold && hardGate !== null && isGustGate(hardGate)
       ? { hardGate, summary, atMs: verdictHold.nowMs }
       : undefined;
@@ -2006,6 +2033,7 @@ export function scoreAllSpots(
       verdict = 'strong';
       hardGate = gustLatch.hardGate;
       summary = gustLatch.summary;
+      reason = undefined;
       gustGate = gustLatch;
     }
     // Early returns of scoreSpot (danger gates, no wind) never reach settle: they are shown at once
@@ -2054,6 +2082,7 @@ export function scoreAllSpots(
         if (isFrontalDir) {
           score = Math.min(100, score + 8);
           summary += ` · Viento ${upKt.toFixed(0)}kt detectado en costa`;
+          if (reason) reason += ` Viento de ${upKt.toFixed(0)} kt en la costa.`;
           break;
         }
       }
@@ -2135,6 +2164,7 @@ export function scoreAllSpots(
       verdict,
       score,
       summary,
+      reason,
       wind,
       waves,
       waterTemp,

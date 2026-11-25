@@ -1,16 +1,19 @@
 /**
  * Field (campo) alert builder — converts FieldAlerts into UnifiedAlert[].
  *
- * Handles frost, rain/hail, fog, and drone alerts from agricultural
- * and operational field conditions.
+ * Handles frost, rain/hail and fog from the field conditions.
  */
 
 import type { FieldAlerts, AlertLevel as CampoAlertLevel } from '../../types/campo';
 import type { TeleconnectionIndex } from '../../api/naoClient';
 import type { UnifiedAlert } from './types';
 import { severityFromScore } from './riskEngine';
+import { dayWord } from './whenText';
+import { msToKnots } from '../windUtils';
 
 // ── Helpers ──────────────────────────────────────────────────
+
+const FROST_SCORE_CAP = 50;
 
 export function campoLevelToScore(level: CampoAlertLevel): number {
   switch (level) {
@@ -34,14 +37,18 @@ export function buildFieldAlerts(
 
   // Frost
   if (field.frost.level !== 'none') {
-    const score = campoLevelToScore(field.frost.level);
+    // One forecast point, and it warns of 23 % of the frosts measured at Ourense stations: it goes in
+    // the folded «En el campo» without alert colours, so it never lights the red band nor turns urgent.
+    // Reopen at the end of the shadow exam (31-mar, POD >= 0.70, FAR <= 0.20).
+    const score = Math.min(campoLevelToScore(field.frost.level), FROST_SCORE_CAP);
     const tempStr = field.frost.minTemp != null ? `${field.frost.minTemp.toFixed(1)}°C` : '?';
-    // Show time window so user knows it's tonight, not now
+    // The coldest hour with its day: it can be another night, not always tonight.
     const tw = field.frost.timeWindow;
-    const timeStr = tw
-      ? ` · Esta noche ${tw.from.getHours()}:00–${tw.to.getHours()}:00h`
-      : '';
-    let frostDetail = `Mín prevista ${tempStr}${timeStr}`;
+    const coldest = tw ? new Date((tw.from.getTime() + tw.to.getTime()) / 2) : null;
+    const timeStr = coldest ? ` · ${dayWord(coldest, now)} hacia las ${coldest.getHours()} h` : '';
+    const cloudStr = field.frost.cloudCover != null ? ` · nubes ${field.frost.cloudCover.toFixed(0)} %` : '';
+    const windStr = field.frost.windSpeed != null ? ` · viento ${msToKnots(field.frost.windSpeed).toFixed(0)} kt` : '';
+    let frostDetail = `Mín prevista ${tempStr}${timeStr}${cloudStr}${windStr}`;
     // NAO/AO context: negative phases amplify and sustain cold events
     if (nao && nao.value < -1) frostDetail += ' · NAO−: patrón frío persistente';
     else if (ao && ao.value < -1) frostDetail += ' · AO−: aire ártico activo';
@@ -51,9 +58,9 @@ export function buildFieldAlerts(
       severity: severityFromScore(score),
       score,
       icon: 'snowflake',
-      title: field.frost.level === 'critico' ? 'HELADA SEVERA' : 'Riesgo de helada',
+      title: field.frost.level === 'critico' ? 'Helada fuerte prevista' : 'Riesgo de helada',
       detail: frostDetail,
-      urgent: field.frost.level === 'critico',
+      urgent: false,
       updatedAt: now,
     });
   }
@@ -141,29 +148,6 @@ export function buildFieldAlerts(
       },
     });
   }
-
-  // Drone — meteo conditions (score scales with reason count)
-  if (!field.drone.flyable) {
-    const droneReasons = field.drone.reasons.length;
-    const droneScore = Math.min(100, 30 + droneReasons * 15); // 1 reason=45, 2=60, 3=75
-    results.push({
-      id: 'drone-nogo',
-      category: 'drone',
-      severity: severityFromScore(droneScore),
-      score: droneScore,
-      icon: 'drone',
-      title: 'Dron: Precaución',
-      detail: field.drone.reasons.slice(0, 2).join(' · '),
-      urgent: false,
-      updatedAt: now,
-    });
-  }
-
-  // Drone — airspace restrictions: shown only in FieldDrawer Dron panel, not in general AlertPanel
-  // (broad zone coverage doesn't warrant a persistent map-center alert)
-
-  // Wind propagation: shown as ETA badge in Header bar, not in AlertPanel
-  // (ETA is actionable time info that fits better in the persistent top bar)
 
   return results;
 }

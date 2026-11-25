@@ -12,6 +12,7 @@ import { useMemo, memo } from 'react';
 import { Source, Layer } from 'react-map-gl/maplibre';
 import { useWeatherStore } from '../../store/weatherStore';
 import { analyzeWindTrend } from '../../services/windTrendService';
+import { isWindBlacklisted } from '../../services/spotScoringEngine';
 
 const RAPID_THRESHOLD_KT = 6;
 
@@ -25,6 +26,7 @@ export const WindRampOverlay = memo(function WindRampOverlay() {
     const features: GeoJSON.Feature[] = [];
 
     for (const station of stations) {
+      if (isWindBlacklisted(station.id)) continue;
       const history = readingHistory.get(station.id);
       const current = currentReadings.get(station.id);
       if (!history || history.length < 3) continue;

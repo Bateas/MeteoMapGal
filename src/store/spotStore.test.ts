@@ -12,9 +12,10 @@
  * only points inside the two-hour window the chart claims to show.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useSpotStore, WIND_HISTORY_MAX_AGE_MS, type SpotWindSnapshot } from './spotStore';
 import type { SpotScore } from '../services/spotScoringEngine';
+import { windDrift } from '../services/windTrendService';
 
 const scoreWith = (kt: number) =>
   new Map([['cesantes', { wind: { avgSpeedKt: kt } } as SpotScore]]);
@@ -32,7 +33,7 @@ describe('spot wind history', () => {
     // subscribed ever re-renders.
     useSpotStore.getState().setScores(scoreWith(8));
     const first = history();
-    useSpotStore.setState({ windHistory: new Map([['cesantes', [{ ts: Date.now() - 120_000, kt: 8 }]]]) });
+    useSpotStore.setState({ windHistory: new Map([['cesantes', [{ ts: Date.now() - 6 * 60_000, kt: 8 }]]]) });
     useSpotStore.getState().setScores(scoreWith(11));
     expect(history()).not.toBe(first);
   });
@@ -43,6 +44,24 @@ describe('spot wind history', () => {
     useSpotStore.getState().setScores(scoreWith(8));
     useSpotStore.getState().setScores(scoreWith(9));
     expect(history()).toHaveLength(1);
+  });
+
+  it('scored every 30 s for two hours, the trend can still say «sube» (P3 review, 19-nov)', () => {
+    // One point per minute and a 24-point cap kept only the last ~36 min at this cadence,
+    // so the 75 min before the last 45 never had a figure and the trend never spoke.
+    vi.useFakeTimers();
+    try {
+      const start = new Date(2026, 10, 19, 12, 0).getTime();
+      for (let t = 0; t <= 120 * 60_000; t += 30_000) {
+        vi.setSystemTime(start + t);
+        useSpotStore.getState().setScores(scoreWith(6 + (t / 60_000) * 0.08));
+      }
+      const points = history()!.map((p) => ({ t: p.ts, kt: p.kt }));
+      expect(points[points.length - 1].t - points[0].t).toBeGreaterThan(100 * 60_000);
+      expect(windDrift(points, start + 120 * 60_000)).toBe('sube');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

@@ -9,7 +9,7 @@
  *
  * Here the store holds ONE cache entry, built by the same function the hook
  * uses, and the surfaces are rendered from it: marker, list row and header,
- * ticker (simple mode), the popup and the mobile pill. They must print the
+ * the popup and the mobile pill (the ticker no longer names spots). They must print the
  * same label and the same height, say the height is a model value, none may
  * state a firm verdict while the spot's wind is still pending, and over the
  * engine's hard gate all of them must read the engine's danger verdict — never
@@ -131,15 +131,12 @@ function seed(opts: ScoreOpts | null, readingsArriving = false) {
 /** Render every surface from the store and return their text. */
 function renderSurfaces() {
   const marker = render(<SpotMarkers />);
-  const markerText = marker.container.textContent ?? '';
+  // The figure is inside the shape; the word, only on the selected one and in the title and the accessible name
+  const markerText = [marker.container.textContent, ...[...marker.container.querySelectorAll('[title]')].map((e) => e.getAttribute('title'))].join(' ');
 
   const list = render(<SpotSelector />);
-  // Expand: the header is the button that carries the Beta badge.
-  const header = list.container.querySelector('button');
-  fireEvent.click(header!);
   const row = within(list.container).getAllByRole('button')
-    .find((b) => b !== header && /Corrubedo/.test(b.textContent ?? ''));
-  const headerText = header!.textContent ?? '';
+    .find((b) => /Corrubedo/.test(b.textContent ?? ''));
   const rowText = row?.textContent ?? '';
 
   const ticker = render(<ConditionsTicker simple />);
@@ -149,15 +146,17 @@ function renderSurfaces() {
   const popup = render(<SpotPopup spot={CORRUBEDO} />);
   const popupText = popup.container.textContent ?? '';
 
+  // The pill speaks only with no card open, and only of the best spot of the sector: with a card
+  // open the sheet below says it (11-nov). So it is read here as it is before a spot is chosen.
+  useSpotStore.setState({ activeSpotId: '' });
   const pill = render(<MobileSailingBanner />);
   const pillText = pill.container.textContent ?? '';
 
-  return { markerText, headerText, rowText, tickerText, popupText, pillText };
+  return { markerText, rowText, tickerText, popupText, pillText };
 }
 
 beforeEach(() => {
-  // Daytime: the ticker only promotes surf to simple mode by day. 12:00Z is
-  // daytime in UTC (CI) and in CEST (dev machine). Only Date is faked.
+  // Daytime, in UTC (CI) and in CEST (dev machine). Only Date is faked.
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date('2026-09-27T12:00:00Z'));
   vi.stubGlobal('fetch', vi.fn(pending));
@@ -184,19 +183,18 @@ describe('surf verdict: one answer on marker, list, ticker, popup and pill', () 
     const h = formatSurfWave(entry.waveHeight!); // «~1,1 m»
     const s = renderSurfaces();
 
-    expect(s.markerText).toContain(`SURF OK ${h}`);
+    expect(s.markerText).toContain(h); // inside the pentagon
+    expect(s.markerText).toContain('SURF OK'); // under the name
     expect(s.rowText).toContain('SURF OK');
     expect(s.rowText).toContain(`${h} (modelo)`);
-    expect(s.headerText).toContain(`SURF OK ${h} (modelo)`);
-    expect(s.headerText).toContain(entry.verdict!.summary);
-    expect(s.tickerText).toContain(`Corrubedo: SURF OK ${h} (modelo)`);
+    expect(s.tickerText).not.toContain('Corrubedo:'); // V3: the line under the header says no spot verdicts
     expect(s.popupText).toContain('SURF OK');
     expect(s.popupText).toContain(`${h} (modelo)`);
-    expect(s.pillText).toContain(`SURF OK·${h}`); // compact: «~» on screen, «modelo» in its aria-label
+    expect(s.pillText).toContain(`SURF OK${h}`); // compact: «~» on screen, «modelo» in its aria-label
 
     // The wind verdict, the tide gauge and the sailing window are gone.
     expect(s.rowText).not.toMatch(/Olas 0\.0m/);
-    for (const t of [s.rowText, s.headerText, s.pillText]) expect(t).not.toMatch(/Calma/);
+    for (const t of [s.rowText, s.pillText]) expect(t).not.toMatch(/Calma/);
   });
 
   it('onshore wind from the consensus: all of them drop to PEQUE together', () => {
@@ -205,36 +203,37 @@ describe('surf verdict: one answer on marker, list, ticker, popup and pill', () 
     const h = formatSurfWave(entry.waveHeight!);
     const s = renderSurfaces();
 
-    expect(s.markerText).toContain(`PEQUE ${h}`);
+    expect(s.markerText).toContain(h);
+    expect(s.markerText).toContain('PEQUE');
     expect(s.rowText).toContain('PEQUE');
     expect(s.rowText).toContain(`${h} (modelo)`);
     expect(s.tickerText).not.toContain('Corrubedo:'); // simple mode: only SURF OK and up
     expect(s.popupText).toContain('PEQUE');
     expect(s.popupText).toMatch(/onshore/);
-    expect(s.pillText).toContain('PEQUE');
+    // Small waves are nobody's «best spot»: the pill says nothing rather than something else.
+    expect(s.pillText).toBe('');
     for (const t of [s.markerText, s.rowText, s.popupText, s.pillText]) expect(t).not.toContain('SURF OK');
   });
 
-  it('no wind consensus yet while the readings arrive: none of them states a verdict, the header included', () => {
+  it('no wind consensus yet while the readings arrive: none of them states a verdict', () => {
     const entry = seed({ dirDeg: null }, true);
     expect(entry.windPending).toBe(true);
     const s = renderSurfaces();
 
-    for (const t of [s.markerText, s.rowText, s.headerText, s.tickerText, s.popupText, s.pillText]) {
+    for (const t of [s.markerText, s.rowText, s.tickerText, s.popupText, s.pillText]) {
       expect(t).not.toMatch(SURF_LABELS);
       expect(t).not.toMatch(SURF_SUMMARIES);
     }
     expect(s.rowText).toContain('Calculando');
-    expect(s.headerText).toContain('Esperando el viento de las estaciones');
     // The waves are in; what the card waits for is the wind.
     expect(s.popupText).toContain('esperando el viento de las estaciones');
-    expect(s.pillText).toContain('Calculando');
+    expect(s.pillText).toBe('');
   });
 
   it('no score at all (cold load): «Calculando» everywhere, no verdict', () => {
     seed(null);
     const s = renderSurfaces();
-    for (const t of [s.markerText, s.rowText, s.headerText, s.tickerText, s.popupText, s.pillText]) {
+    for (const t of [s.markerText, s.rowText, s.tickerText, s.popupText, s.pillText]) {
       expect(t).not.toMatch(SURF_LABELS);
       expect(t).not.toMatch(SURF_SUMMARIES);
     }
@@ -273,17 +272,17 @@ describe('surf verdict: one answer on marker, list, ticker, popup and pill', () 
     seed({ dirDeg: 315, kt: 30, hardGate: 'Viento 30kt > 25kt' });
     const s = renderSurfaces();
 
-    expect(s.markerText).toContain('FUERTE 30kt');
-    expect(s.rowText).toContain('Fuerte 30kt');
+    expect(s.markerText).toContain('30');
+    expect(s.rowText).toContain('Fuerte');
+    expect(s.rowText).toContain('30 kt');
     expect(s.rowText).toContain('Viento 30kt > 25kt');
-    expect(s.headerText).toContain('Fuerte 30kt');
-    expect(s.headerText).toContain('Peligroso');
     expect(s.popupText).toContain('FUERTE');
     expect(s.popupText).toContain('Peligroso');
-    expect(s.pillText).toContain('Fuerte');
+    // A beach closed by its limit is never named as the best.
+    expect(s.pillText).toBe('');
     // Simple mode never promotes a gated beach.
     expect(s.tickerText).not.toContain('Corrubedo:');
-    for (const t of [s.markerText, s.rowText, s.headerText, s.popupText, s.pillText]) {
+    for (const t of [s.markerText, s.rowText, s.popupText, s.pillText]) {
       expect(t).not.toMatch(SURF_LABELS);
     }
   });

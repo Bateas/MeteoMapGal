@@ -496,17 +496,6 @@ function parseVisionResponse(raw: string): ParsedVisionResponse {
 
 // ── Beaufort Utilities (exported for UI) ─────────────────
 
-export function beaufortToColor(force: number): string {
-  if (force <= 0) return '#94a3b8';  // grey — calm
-  if (force <= 1) return '#22d3ee';  // cyan — light air
-  if (force <= 2) return '#4ade80';  // green — light breeze
-  if (force <= 3) return '#bef264';  // lime — gentle
-  if (force <= 4) return '#facc15';  // yellow — moderate
-  if (force <= 5) return '#fb923c';  // orange — fresh
-  if (force <= 6) return '#ef4444';  // red — strong
-  return '#dc2626';                  // dark red — near gale
-}
-
 export function beaufortToKnots(force: number): { min: number; max: number; mid: number } {
   const entry = BEAUFORT_SCALE[Math.max(0, Math.min(7, force))] ?? BEAUFORT_SCALE[0];
   return { min: entry.minKt, max: entry.maxKt, mid: (entry.minKt + entry.maxKt) / 2 };

@@ -5,6 +5,11 @@ import App from './App.tsx'
 import { APP_VERSION } from './config/version'
 import { installIdleAnimations } from './services/idleAnimations'
 import { captureObserverCodeFromUrl } from './api/fieldReportClient'
+import { useThemeStore } from './store/themeStore'
+
+// Before the first render, so the saved theme does not arrive one frame late (AppShell keeps it in
+// step afterwards). The V3 tokens hang from this attribute.
+document.documentElement.setAttribute('data-theme', useThemeStore.getState().theme)
 
 // One-shot cleanup of legacy localStorage keys.
 // - `meteomap_station_log`: frontend CSV log of every station reading, kept

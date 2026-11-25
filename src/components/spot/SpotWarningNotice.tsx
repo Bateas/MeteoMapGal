@@ -20,8 +20,9 @@
 
 import { useMemo, useState } from 'react';
 import { WeatherIcon } from '../icons/WeatherIcons';
+import { Chevron } from '../map/Ficha';
 import { useWarningsStore } from '../../hooks/useWarnings';
-import { warningLevelColor, type MGWarning } from '../../api/mgWarningsClient';
+import {  type MGWarning } from '../../api/mgWarningsClient';
 import {
   buildSportWarningNotice,
   createSimulatedWarning,
@@ -104,86 +105,52 @@ export function SpotWarningNotice({
 
   if (!notice) return null;
 
-  const color = warningLevelColor(notice.level);
   // Safety gate: values over the threshold or a red warning are never a
   // tap away — they render open and the toggle disappears entirely.
   const forceOpen = notice.comparison === 'above' || notice.level === 3;
   const isOpen = forceOpen || expanded;
+  const toneClass = notice.level === 3 ? 'gc-t-critico' : notice.level === 2 ? 'gc-t-alto' : 'gc-t-moderado';
 
   const headlineRow = (
     <>
-      <span className="flex shrink-0">
-        <WeatherIcon id="alert-triangle" size={11} />
+      <span className="flex shrink-0" style={{ color: 'var(--tone)', marginTop: 2 }}>
+        <WeatherIcon id="alert-triangle" size={14} />
       </span>
-      <span className="shrink-0">{notice.headline}</span>
-      {!isOpen && notice.bindingText && (
-        <span className="min-w-0 truncate font-normal text-slate-400">
-          {'—'} {notice.bindingText}
-        </span>
-      )}
+      <span className="min-w-0" style={{ flex: forceOpen ? undefined : 1 }}>
+        {notice.headline}
+        {!isOpen && notice.bindingText && (
+          <small style={{ display: 'block', fontWeight: 400 }}>{notice.bindingText}</small>
+        )}
+      </span>
     </>
   );
 
   return (
-    <div
-      className={`text-[11px] mb-1.5 px-1.5 py-1 rounded border ${className ?? ''}`}
-      style={{ borderColor: `${color}55`, backgroundColor: `${color}14` }}
-    >
+    <div className={`gf-note gf-note--block ${toneClass} ${className ?? ''}`} style={{ display: 'block' }}>
       {forceOpen ? (
-        <div className="flex items-center gap-1 font-semibold" style={{ color }}>
+        <div className="flex items-start gf-strong" style={{ gap: 6 }}>
           {headlineRow}
         </div>
       ) : (
-        <button
-          type="button"
-          onClick={() => setExpanded((e) => !e)}
-          aria-expanded={isOpen}
-          className="flex items-center gap-1 w-full text-left font-semibold"
-          style={{ color }}
-        >
+        <button type="button" onClick={() => setExpanded((e) => !e)} aria-expanded={isOpen}>
           {headlineRow}
-          <span className="ml-auto shrink-0 text-[10px] text-slate-500" aria-hidden="true">
-            {isOpen ? '▴' : '▾'}
-          </span>
+          <Chevron open={isOpen} />
         </button>
       )}
 
       {isOpen && (
-        <>
-          {notice.thresholdText && (
-            <div className="mt-0.5 text-slate-300">{notice.thresholdText}</div>
-          )}
-
-          {notice.currentText && (
-            <div className="mt-0.5 font-mono text-slate-200">{notice.currentText}</div>
-          )}
-
-          {notice.bindingText && (
-            <div className="mt-0.5 text-slate-300">{notice.bindingText}</div>
-          )}
-
-          {notice.statusText && (
-            <div className="mt-0.5" style={{ color }}>{notice.statusText}</div>
-          )}
-
-          <div className="mt-1 flex items-center gap-1 text-[10px] text-slate-500">
-            <span className="flex shrink-0">
-              <WeatherIcon id="info" size={9} />
-            </span>
-            <span>{notice.sourceText}</span>
-          </div>
-
+        <div className="flex flex-col" style={{ gap: 3, marginTop: 4 }}>
+          {notice.thresholdText && <div>{notice.thresholdText}</div>}
+          {notice.currentText && <div className="gf-mono gf-strong">{notice.currentText}</div>}
+          {notice.bindingText && <div>{notice.bindingText}</div>}
+          {notice.statusText && <div className="gf-strong">{notice.statusText}</div>}
+          <div className="gf-hint">{notice.sourceText}</div>
           {notice.link && (
-            <a
-              href={notice.link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-0.5 inline-block text-[10px] text-slate-400 underline hover:text-slate-200"
-            >
+            <a href={notice.link} target="_blank" rel="noopener noreferrer" className="gf-link">
               Aviso oficial de MeteoGalicia
             </a>
           )}
-        </>
+        </div>
       )}
     </div>
   );

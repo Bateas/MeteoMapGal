@@ -59,18 +59,6 @@ export interface HourlyForecast {
   swellPeriod?: number | null;
 }
 
-/** Supported forecast model identifiers */
-export type ForecastModel = 'best_match' | 'icon_eu' | 'gfs_seamless' | 'ecmwf_ifs025' | 'meteosix_wrf';
-
-/** Model display metadata — only Auto + WRF-MG shown to users.
- *  ICON/GFS/ECMWF removed from UI (niche, no system depends on them).
- *  Auto provides CAPE/CIN/LI/gusts for storm predictor + alerts.
- *  WRF-MG provides 1km resolution wind/temp for Galicia. */
-export const FORECAST_MODELS: { id: ForecastModel; label: string; short: string; desc: string }[] = [
-  { id: 'meteosix_wrf', label: 'WRF MeteoGalicia', short: 'WRF-MG', desc: 'Modelo regional 1km Galicia, MeteoGalicia' },
-  { id: 'best_match', label: 'Auto (Open-Meteo)', short: 'Auto', desc: 'Modelo global + CAPE, rachas, visibilidad' },
-];
-
 /**
  * Forecast data state for the timeline component.
  */
@@ -79,5 +67,4 @@ export interface ForecastState {
   fetchedAt: Date | null;
   isLoading: boolean;
   error: string | null;
-  activeModel: ForecastModel;
 }

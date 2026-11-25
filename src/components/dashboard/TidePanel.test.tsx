@@ -104,7 +104,7 @@ describe('TidePanel', () => {
     expect(screen.queryByText(/Se vuelve a intentar solo/)).toBeNull();
     expect(screen.getByText(/al recargar la página/)).toBeDefined();
     expect(screen.getByText(/Nivel medido ahora/)).toBeDefined();
-    expect(screen.getByText('2.60 m')).toBeDefined();
+    expect(screen.getByText('2,60 m')).toBeDefined();
     expect(screen.getByText(/no se puede calcular la resaca/)).toBeDefined();
   });
 

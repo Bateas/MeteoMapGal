@@ -63,45 +63,19 @@ export const SourceStatusBanner = memo(function SourceStatusBanner() {
   if (!shouldShow || dismissed) return null;
 
   const isMultiple = downSources.length > 1;
-  const mainLabel = isMultiple
-    ? `${downSources.length} fuentes sin respuesta`
-    : `${SOURCE_NAMES[downSources[0].source]} sin respuesta`;
+  const names = downSources.map((d) => SOURCE_NAMES[d.source]);
+  // What is missing, by name: a count says nothing to someone who does not know how many there are
+  const mainLabel = `Faltan datos de ${names.length > 1 ? `${names.slice(0, -1).join(', ')} y ${names[names.length - 1]}` : names[0]}`;
 
   return (
-    <div
-      className="flex items-center gap-2 px-3 py-1 bg-amber-950/40 border-b border-amber-500/20 text-amber-300 text-[11px]"
-      role="alert"
-      aria-live="polite"
-    >
-      {/* Warning icon */}
-      <svg className="w-3.5 h-3.5 shrink-0 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
-        <line x1="12" y1="9" x2="12" y2="13" />
-        <line x1="12" y1="17" x2="12.01" y2="17" />
-      </svg>
-
-      <span className="flex-1 truncate">
-        <span className="font-bold">{mainLabel}</span>
-        {isMultiple && (
-          <span className="text-amber-400/60 ml-1.5">
-            ({downSources.map((d) => SOURCE_NAMES[d.source]).join(', ')})
-          </span>
-        )}
-        {!isMultiple && downSources[0]?.message && (
-          <span className="text-amber-400/60 ml-1.5">
-            — {downSources[0].message}
-          </span>
-        )}
+    <div className="g-theme gc-notice" role="alert" aria-live="polite">
+      <span className="gc-dot gc-t-alto" />
+      <span className="gc-notice-text">
+        <b>{mainLabel}</b>
+        {!isMultiple && downSources[0]?.message && <span className="gc-note">{downSources[0].message}</span>}
       </span>
-
-      <span className="text-amber-500/50 text-[11px] shrink-0">Datos parciales</span>
-
-      <button
-        onClick={() => setDismissed(true)}
-        className="ml-1 text-amber-500/40 hover:text-amber-300 transition-colors shrink-0"
-        aria-label="Cerrar aviso"
-      >
-        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+      <button type="button" onClick={() => setDismissed(true)} className="gc-btn gc-btn--plain gc-btn--icon" aria-label="Cerrar aviso">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
           <path d="M18 6 6 18M6 6l12 12" />
         </svg>
       </button>

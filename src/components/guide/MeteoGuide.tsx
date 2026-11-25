@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useRef, useState, memo } from 'react';
+import { useEffect, useMemo, useRef, useState, memo, type MouseEvent } from 'react';
 import { useSectorStore } from '../../store/sectorStore';
 import { useUIStore } from '../../store/uiStore';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { WeatherIcon } from '../icons/WeatherIcons';
+import type { IconId } from '../icons/WeatherIcons';
+import { Ico, type Tone } from './guideParts';
+import { QuickStartSection } from './sections/QuickStartSection';
 import { ReadingMapSection } from './sections/ReadingMapSection';
 import { SpotScoringSection } from './sections/SpotScoringSection';
 import { ThermalCastreloSection } from './sections/ThermalCastreloSection';
@@ -19,7 +22,10 @@ import {
   parseGuideTarget,
   guideShareUrl,
 } from '../../config/guideRoute';
-import { approxStationCount, SPOT_COUNT, SAILING_SPOT_COUNT, SURF_SPOT_COUNT, BUOY_COUNT } from '../../config/networkStats';
+import '../charts/forecastG.css';
+import '../../styles/archivoFonts.css';
+import './guide.css';
+import { useBackCloses } from '../../hooks/useBackCloses';
 
 // Section list and URL shape both live in config/guideRoute so that the boot
 // path (useDeepLink) can read them without importing this lazy chunk.
@@ -28,9 +34,31 @@ const ALL_SECTIONS = GUIDE_SECTIONS;
 /** Single generic title — sector details go in the intro content */
 const GUIDE_TITLE = 'Guía MeteoMapGal';
 
+const NAV_ICON: Record<string, [IconId, Tone]> = {
+  intro: ['clock', 'sea'],
+  datos: ['database', 'rain'],
+  reading: ['map-pin', 'fire'],
+  spots: ['sailboat', 'wind'],
+  thermal: ['thermal-wind', 'fire'],
+  'rias-winds': ['waves', 'sea'],
+  panels: ['activity', 'storm'],
+  history: ['clock', 'air'],
+  glossary: ['book-open', 'field'],
+  roadmap: ['compass', 'wind'],
+  legal: ['info', 'fog'],
+};
+
 export const MeteoGuide = memo(function MeteoGuide() {
   const open = useUIStore((s) => s.guideOpen);
   const setOpen = useUIStore((s) => s.setGuideOpen);
+  // The back button closes the guide. Declared before the effect that writes the guide's address, so that
+  // address lands on the guide's own history entry and not on the map's. Arriving by /guia, the entry
+  // underneath still says /guia once the guide is closed: it is put back to the map's.
+  useBackCloses(open, () => setOpen(false), 'guide', {
+    onReleased: () => {
+      if (window.location.pathname.toLowerCase().startsWith(GUIDE_PATH)) history.replaceState(null, '', `/${window.location.search}`);
+    },
+  });
   // Deep-linking: /guia/<seccion> or the older #guia/<seccion>.
   const [activeSection, setActiveSection] = useState(
     () => parseGuideTarget(window.location.pathname, window.location.hash).section,
@@ -38,18 +66,12 @@ export const MeteoGuide = memo(function MeteoGuide() {
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const isMobile = useUIStore((s) => s.isMobile);
 
-  // Filter sections for current sector
+  // Sections of the current sector, plus the one on screen: a /guia/thermal link has to open what it
+  // says even if the reader's saved zone is the other one, not jump to the first page.
   const sections = useMemo(
-    () => ALL_SECTIONS.filter((s) => !s.sectorOnly || s.sectorOnly.includes(sectorId)),
-    [sectorId],
+    () => ALL_SECTIONS.filter((s) => !s.sectorOnly || s.sectorOnly.includes(sectorId) || s.id === activeSection),
+    [sectorId, activeSection],
   );
-
-  // Reset to intro if current section is hidden after sector switch
-  useEffect(() => {
-    if (!sections.find((s) => s.id === activeSection)) {
-      setActiveSection('intro');
-    }
-  }, [sections, activeSection]);
 
   // Keep the URL in step with what is on screen, so whatever the reader is
   // looking at can be copied and sent. Two shapes on purpose: arriving by
@@ -79,6 +101,8 @@ export const MeteoGuide = memo(function MeteoGuide() {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (!open && document.querySelector('[aria-modal="true"]')) return;
       if (e.key.toLowerCase() === 'g') setOpen(!open);
       if (e.key === 'Escape' && open) setOpen(false);
     }
@@ -88,102 +112,89 @@ export const MeteoGuide = memo(function MeteoGuide() {
 
   const focusTrapRef = useFocusTrap<HTMLDivElement>(open);
 
+  // A new section starts at its top, and a screen reader is told where it landed: on the heading of the
+  // section, so reading goes on from there into the text. On the whole box (a region with a name) a screen
+  // reader said the name and stopped, and the next swipe could land back on the list of sections. Only after
+  // the reader picks one: opening the guide leaves the focus where the dialog puts it.
+  const contentRef = useRef<HTMLDivElement>(null);
+  const activeLinkRef = useRef<HTMLAnchorElement>(null);
+  const pickedRef = useRef(false);
+  useEffect(() => {
+    if (!pickedRef.current) return;
+    pickedRef.current = false;
+    const content = contentRef.current;
+    content?.scrollTo?.(0, 0);
+    const heading = content?.querySelector<HTMLElement>('h2');
+    if (heading) heading.tabIndex = -1;
+    (heading ?? content)?.focus({ preventScroll: true });
+  }, [activeSection]);
+
+  // On a phone the bar scrolls sideways: the current section must not be left out of sight.
+  useEffect(() => {
+    if (open && isMobile) activeLinkRef.current?.scrollIntoView?.({ inline: 'center', block: 'nearest' });
+  }, [open, isMobile, activeSection]);
+
+  const pick = (e: MouseEvent<HTMLAnchorElement>, id: string) => {
+    // Real links, so a section can be opened in a new tab or have its address copied.
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault();
+    if (id === activeSection) return;
+    pickedRef.current = true;
+    setActiveSection(id);
+  };
+
   if (!open) return null;
 
+  const activeLabel = sections.find((s) => s.id === activeSection)?.label ?? GUIDE_TITLE;
+
   return (
-    <div ref={focusTrapRef} className="fixed inset-0 z-50 bg-slate-950/98 overflow-hidden flex flex-col max-w-full" role="dialog" aria-modal="true" aria-label="Guía MeteoMapGal">
-      {/* Header bar */}
-      <div className="flex items-center justify-between px-3 sm:px-6 py-3 border-b border-slate-800 bg-slate-950/90 backdrop-blur-sm shrink-0 max-w-full overflow-hidden">
-        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-          <span className="shrink-0"><WeatherIcon id="thermal-wind" size={isMobile ? 22 : 20} /></span>
-          <h2 className="text-base sm:text-lg font-bold text-white tracking-tight truncate">
-            {GUIDE_TITLE}
-          </h2>
+    <div ref={focusTrapRef} className="g-theme gg-shell" role="dialog" aria-modal="true" aria-labelledby="gg-title">
+      <div className="gg-top">
+        <div className="gg-title">
+          <span className="gg-title-icon" aria-hidden="true"><WeatherIcon id="thermal-wind" size={22} /></span>
+          <h2 id="gg-title">{GUIDE_TITLE}</h2>
         </div>
-        <button
-          onClick={() => setOpen(false)}
-          className="shrink-0 ml-2 text-slate-500 hover:text-white transition-colors text-sm px-3 py-2 rounded hover:bg-slate-800 min-h-[44px] min-w-[44px] active:bg-slate-700 flex items-center gap-1"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
-          {!isMobile && (
-            <>
-              Volver <kbd className="ml-1 text-[11px] px-1 py-0.5 rounded bg-slate-800 border border-slate-700 font-mono">G</kbd>
-            </>
-          )}
+        <button type="button" onClick={() => setOpen(false)} className="g-btn" aria-label="Volver al mapa">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+          {!isMobile && <>Volver al mapa <kbd className="gg-kbd">G</kbd></>}
         </button>
       </div>
 
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-        {/* Sidebar nav — horizontal scroll on mobile, vertical on desktop */}
-        {isMobile ? (
-          <div className="shrink-0 bg-slate-950/95 border-b border-slate-800 overflow-x-auto scrollbar-none">
-            <div className="flex gap-1 px-2 py-2 min-w-max">
-              {sections.map((s, i) => (
-                <button
-                  key={s.id}
-                  onClick={() => setActiveSection(s.id)}
-                  className={`shrink-0 px-3 py-2 rounded-lg text-[11px] font-medium transition-all min-h-[36px] whitespace-nowrap ${
-                    activeSection === s.id
-                      ? 'bg-blue-600/15 text-blue-400 font-semibold'
-                      : 'text-slate-500 active:bg-slate-800'
-                  }`}
-                >
-                  <span className="text-[11px] font-mono text-slate-600 mr-1">{i + 1}</span>
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <nav className="w-56 shrink-0 border-r border-slate-800 py-4 overflow-y-auto">
-            {sections.map((s, i) => (
-              <button
-                key={s.id}
-                onClick={() => setActiveSection(s.id)}
-                className={`w-full text-left px-4 py-2.5 text-xs transition-all flex items-center gap-2 ${
-                  activeSection === s.id
-                    ? 'bg-blue-600/10 text-blue-400 border-r-2 border-blue-500 font-semibold'
-                    : 'text-slate-500 hover:text-slate-300 hover:bg-slate-900'
-                }`}
-              >
-                <span className="text-[11px] font-mono text-slate-600 w-4">{i + 1}</span>
-                {s.label}
-              </button>
-            ))}
-            {/* Ko-fi support — prominent card below nav */}
-            <div className="mt-6 mx-3 p-4 rounded-xl bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20">
-              <div className="flex items-center gap-2.5 mb-2">
-                <div className="w-8 h-8 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
-                  <svg className="w-4 h-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>
-                </div>
-                <span className="text-xs font-bold text-amber-400">Apoya el proyecto</span>
-              </div>
-              <p className="text-[11px] text-slate-500 leading-relaxed mb-3">
-                MeteoMapGal es gratuito y open source. Si te resulta útil, puedes apoyar su desarrollo.
-                Las donaciones son <strong className="text-slate-400">voluntarias y sin contraprestación</strong>:
-                cubren coste de servidor + tiempo. La app y los datos seguirán siendo libres y gratuitos.
+      <div className="gg-layout">
+        <nav className={isMobile ? 'gg-nav gg-nav-bar' : 'gg-nav'} aria-label="Secciones de la guía">
+          <ul>
+            {sections.map((s) => {
+              const current = activeSection === s.id;
+              return (
+                <li key={s.id}>
+                  <a
+                    ref={current ? activeLinkRef : undefined}
+                    href={guideShareUrl(s.id, '')}
+                    aria-current={current ? 'page' : undefined}
+                    onClick={(e) => pick(e, s.id)}
+                  >
+                    {!isMobile && NAV_ICON[s.id] && <Ico id={NAV_ICON[s.id][0]} tone={NAV_ICON[s.id][1]} />}
+                    {s.label}
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+          {!isMobile && (
+            <div className="gg-support">
+              <p><b>Apoya el proyecto</b></p>
+              <p>
+                MeteoMapGal es gratuito y open source. Las donaciones son voluntarias y sin contraprestación:
+                cubren coste de servidor y tiempo. La app y los datos seguirán siendo libres y gratuitos.
               </p>
-              <a
-                href="https://ko-fi.com/bateas"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-1.5 w-full py-2 rounded-lg
-                  bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[11px] font-bold
-                  hover:bg-amber-500/25 hover:border-amber-400/50 transition-all"
-              >
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>
-                ko-fi.com/bateas
-              </a>
+              <a href="https://ko-fi.com/bateas" target="_blank" rel="noopener noreferrer">ko-fi.com/bateas</a>
             </div>
-          </nav>
-        )}
+          )}
+        </nav>
 
-        {/* Content area */}
-        <div className={`flex-1 min-w-0 overflow-y-auto py-4 sm:py-6 ${isMobile ? 'px-3' : 'px-6'}`}>
-          <div className="max-w-3xl mx-auto">
-            {activeSection === 'intro' && (
-              sectorId === 'embalse' ? <IntroSection /> : <RiasIntroSection />
-            )}
+        <div ref={contentRef} className="gg-content" tabIndex={0} role="region" aria-label={activeLabel}>
+          <div className="gg-column">
+            {activeSection === 'intro' && <QuickStartSection />}
             {activeSection === 'datos' && <DataSection />}
             {activeSection === 'reading' && <ReadingMapSection />}
             {activeSection === 'spots' && <SpotScoringSection />}
@@ -200,134 +211,3 @@ export const MeteoGuide = memo(function MeteoGuide() {
     </div>
   );
 });
-
-/* ─── Intro Section (Embalse) — Generic overview, NOT thermal-specific ───── */
-function IntroSection() {
-  return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-white">Interior sur de Galicia</h2>
-
-      <p className="text-slate-400 leading-relaxed">
-        MeteoMapGal monitoriza en tiempo real las condiciones meteorológicas del embalse de Castrelo
-        de Miño y su entorno (radio 35 km) y, en prueba, del embalse de Belesar en la Ribeira Sacra.
-        Diseñada para navegantes, kitesurfistas, windsurfistas
-        y cualquier persona que necesite datos fiables de viento, temperatura y condiciones.
-      </p>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
-          <h3 className="text-sm font-bold text-emerald-400 mb-2 flex items-center gap-1.5">
-            <WeatherIcon id="wind" size={16} /> Datos en tiempo real
-          </h3>
-          <p className="text-xs text-slate-500 leading-relaxed">
-            7 fuentes meteorológicas combinadas: AEMET, MeteoGalicia, Meteoclimatic,
-            Weather Underground, Netatmo, SkyX e IPMA (Portugal), con {approxStationCount()} estaciones
-            en toda Galicia y la frontera del Miño. El detalle por provincia y por red está en
-            «Roadmap y fuentes».
-          </p>
-        </div>
-        <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
-          <h3 className="text-sm font-bold text-amber-400 mb-2 flex items-center gap-1.5">
-            <WeatherIcon id="sun" size={16} /> Viento térmico
-          </h3>
-          <p className="text-xs text-slate-500 leading-relaxed">
-            Detección automática de vientos térmicos del W/SW, con scoring
-            basado en datos históricos AEMET. Ver sección "El térmico de Castrelo".
-          </p>
-        </div>
-        <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
-          <h3 className="text-sm font-bold text-sky-400 mb-2 flex items-center gap-1.5">
-            <WeatherIcon id="alert-triangle" size={16} /> Alertas inteligentes
-          </h3>
-          <p className="text-xs text-slate-500 leading-relaxed">
-            Avisos automáticos de condiciones adversas: tormentas, niebla,
-            inversiones térmicas, rachas fuertes y más. Notificaciones por Telegram.
-          </p>
-        </div>
-        <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
-          <h3 className="text-sm font-bold text-violet-400 mb-2 flex items-center gap-1.5">
-            <WeatherIcon id="thermometer" size={16} /> Spots de navegación
-          </h3>
-          <p className="text-xs text-slate-500 leading-relaxed">
-            {SPOT_COUNT} spots monitorizados en los dos sectores ({SAILING_SPOT_COUNT} vela + {SURF_SPOT_COUNT} surf);
-            en el interior, Castrelo y Belesar (en prueba). Vela: scoring calma/flojo/navegable/bueno/fuerte.
-            Surf: FLAT/PEQUE/SURF OK/CLÁSICO/GRANDE. Pronóstico 48h y ventanas de navegación.
-          </p>
-        </div>
-      </div>
-
-      <div className="bg-gradient-to-r from-blue-900/20 to-emerald-900/20 rounded-lg p-4 border border-slate-700">
-        <p className="text-xs text-slate-400">
-          <strong className="text-slate-300">Tip:</strong> Esta guía tiene secciones específicas
-          para cada tema. Consulta "El térmico de Castrelo" para entender los vientos
-          térmicos del embalse en detalle.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-/* ─── Rías Baixas Intro Section ──────────────────────────────── */
-function RiasIntroSection() {
-  return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-white flex items-center gap-2"><WeatherIcon id="waves" size={24} /> Monitorización costera — Rías Baixas</h2>
-
-      <p className="text-slate-400 leading-relaxed">
-        El sector Rías Baixas cubre la costa pontevedresa desde Vigo hasta Vilagarcía de Arousa,
-        incluyendo las rías de Vigo, Pontevedra y Arousa. Esta zona presenta una dinámica eólica
-        dominada por los vientos atlánticos y la brisa costera.
-      </p>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
-          <h3 className="text-sm font-bold text-cyan-400 mb-2 flex items-center gap-1.5"><WeatherIcon id="thermal-wind" size={16} /> Vientos dominantes</h3>
-          <p className="text-xs text-slate-500 leading-relaxed">
-            Componente N/NW predominante (nortada atlántica), especialmente en verano.
-            Las rías canalizan el viento, amplificando su efecto en las bocas.
-          </p>
-        </div>
-        <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-800">
-          <h3 className="text-sm font-bold text-emerald-400 mb-2 flex items-center gap-1.5"><WeatherIcon id="beach" size={16} /> Brisa costera</h3>
-          <p className="text-xs text-slate-500 leading-relaxed">
-            Ciclo térmico tierra-mar: brisa de mar (W) por la tarde,
-            terral (E) nocturno. Más suave que los térmicos de valle.
-          </p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
-          <span className="text-2xl"><WeatherIcon id="radar" size={24} /></span>
-          <p className="text-xs text-slate-400 mt-1 font-medium">Estaciones en tiempo real</p>
-          <p className="text-[11px] text-slate-600">AEMET, MeteoGalicia, Meteoclimatic, Netatmo</p>
-        </div>
-        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
-          <span className="text-2xl"><WeatherIcon id="anchor" size={24} /></span>
-          <p className="text-xs text-slate-400 mt-1 font-medium">Boyas marinas</p>
-          <p className="text-[11px] text-slate-600">Oleaje, viento, T agua, humedad de {BUOY_COUNT} boyas</p>
-        </div>
-        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
-          <span className="text-2xl"><WeatherIcon id="map" size={24} /></span>
-          <p className="text-xs text-slate-400 mt-1 font-medium">Capas interactivas</p>
-          <p className="text-[11px] text-slate-600">Viento, humedad, radar, rayos, corrientes, oleaje SWAN</p>
-        </div>
-        <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800 text-center">
-          <span className="text-2xl"><WeatherIcon id="alert-triangle" size={24} /></span>
-          <p className="text-xs text-slate-400 mt-1 font-medium">Alertas automáticas</p>
-          <p className="text-[11px] text-slate-600">Viento, tormentas, visibilidad</p>
-        </div>
-      </div>
-
-      <div className="bg-gradient-to-r from-cyan-900/20 to-blue-900/20 rounded-lg p-4 border border-slate-700">
-        <p className="text-xs text-slate-400 italic">
-          <strong className="text-slate-300">Modo Rías Baixas:</strong> Este sector se centra en la
-          monitorización del viento costero, oleaje y condiciones marinas. Incluye boyas marinas
-          (Puertos del Estado + Observatorio Costeiro da Xunta) en el mapa y mareas de 5 puertos. El scoring de spots
-          y las alertas de navegación funcionan en ambos sectores. Las zonas térmicas y el análisis
-          térmico de valle son exclusivos del sector Interior (Castrelo).
-        </p>
-      </div>
-    </div>
-  );
-}

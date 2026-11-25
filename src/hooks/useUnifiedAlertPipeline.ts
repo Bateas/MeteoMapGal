@@ -1,34 +1,32 @@
 /**
  * useUnifiedAlertPipeline — centralized alert aggregation pipeline.
  *
- * Extracted from AppShell.tsx (TIER 2 A2-5 refactor, S136+3+2) — the
+ * Extracted from AppShell.tsx — the
  * 3-effect chain (lapseRate → fieldAlerts → unified aggregation) lived
  * in the AppShell render scope with 12+ store subscriptions, causing
  * re-renders of the entire shell whenever any input changed.
  *
- * Now isolated in this hook: AppShell only subscribes to whatever the
- * hook RETURNS (currently `fieldAlerts` for the Header badge). The 11
+ * Now isolated in this hook: it writes to the stores and returns nothing,
+ * so AppShell does not re-render with it. The 11
  * alert builders + thermal profile computation + webcam/AEMET fog
  * integration all stay here. Re-renders are scoped to this hook's
  * consumers.
  *
  * Effects (in order — each depends on the previous via stores):
  *   1. Thermal lapse rate (debounce 500ms) → useTemperatureOverlayStore
- *   2. Field alerts (debounce 500ms) → local state, returned to AppShell
+ *   2. Field alerts (debounce 500ms) → local state, fed to the aggregation
  *   3. Unified aggregation (debounce 500ms + signature-hash skip) →
  *      useAlertStore + notification dispatch
  */
 import { useEffect, useRef, useState, useMemo } from 'react';
 import type { MutableRefObject } from 'react';
 import type { NormalizedStation } from '../types/station';
-import type { AirspaceCheck } from '../services/airspaceService';
 import type { TeleconnectionIndex } from '../api/naoClient';
 import { useAlertStore } from '../store/alertStore';
 import { useBuoyStore } from '../store/buoyStore';
 import { useLightningStore } from './useLightningData';
 import { useNotificationStore } from '../store/notificationStore';
 import { useSectorStore } from '../store/sectorStore';
-import { useUIStore } from '../store/uiStore';
 import { isCoastalSector } from '../config/sectors';
 import { useStormShadowStore } from './useStormShadow';
 import { useTemperatureOverlayStore } from '../store/temperatureOverlayStore';
@@ -36,7 +34,7 @@ import { useWeatherStore } from '../store/weatherStore';
 import { useRainNowStore } from '../store/rainNowStore';
 import { useWebcamStore } from '../store/webcamStore';
 import { useForecastStore } from './useForecastTimeline';
-import { aggregateAllAlerts, computeCompositeRisk } from '../services/alertService';
+import { aggregateAllAlerts } from '../services/alertService';
 import { checkAllFieldAlerts } from '../services/fieldAlertEngine';
 import {
   extractStationTemps,
@@ -54,25 +52,20 @@ import { summarizeFogBySite, camerasForSector, sunInView, isUsableVision, type C
 
 interface PipelineParams {
   stations: NormalizedStation[];
-  airspaceCheck: AirspaceCheck | null;
-  seasonGDD: { accumulated: number; days: number } | null;
   teleconnectionsRef: MutableRefObject<TeleconnectionIndex[]>;
 }
 
 export function useUnifiedAlertPipeline({
   stations,
-  airspaceCheck,
-  seasonGDD,
   teleconnectionsRef,
-}: PipelineParams): ReturnType<typeof checkAllFieldAlerts> | null {
+}: PipelineParams): void {
   // ── Inputs from stores ───────────────────────────────
   const sectorId = useSectorStore((s) => s.activeSector.id);
   const sectorCenter = useSectorStore((s) => s.activeSector.center);
   const sectorRadiusKm = useSectorStore((s) => s.activeSector.radiusKm);
-  const alphaMode = useUIStore((s) => s.alphaMode);
   const convectionData = useForecastStore((s) => s.convectionData);
   const hourly = useForecastStore((s) => s.hourly);
-  // Audit S136+3 #16: separate selectors + useMemo prevents ternary from
+  // Separate selectors + useMemo prevents ternary from
   // returning a new reference each render (causing the consumer effects to
   // re-fire on every parent re-render).
   const forecastHourly = useMemo(
@@ -99,7 +92,7 @@ export function useUnifiedAlertPipeline({
   forecastRef.current = forecastHourly;
 
   // ── Effect 1: Thermal lapse rate (writes to store) ───────
-  // Audit S136+3 #10: debounce 500ms — currentReadings mutates on every
+  // Debounce 500ms — currentReadings mutates on every
   // weather poll (~5min) but the lapse rate doesn't change meaningfully
   // within seconds. The debounce batches multi-station updates that arrive
   // in quick succession during a single poll cycle.
@@ -114,7 +107,7 @@ export function useUnifiedAlertPipeline({
     return () => clearTimeout(t);
   }, [stations, currentReadings, setThermalProfile]);
 
-  // ── Effect 2: Field alerts (returned for Header consumption) ──
+  // ── Effect 2: Field alerts ──
   const [fieldAlerts, setFieldAlerts] = useState<ReturnType<typeof checkAllFieldAlerts> | null>(null);
   useEffect(() => {
     const t = setTimeout(() => {
@@ -122,20 +115,17 @@ export function useUnifiedAlertPipeline({
         setFieldAlerts(checkAllFieldAlerts(
           forecastHourly,
           readingHistory,
-          stations,
           currentReadings,
           sectorCenter,
-          airspaceCheck ?? undefined,
-          seasonGDD,
         ));
       }
     }, 500);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- historyEpoch is a stable proxy for readingHistory changes
-  }, [forecastHourly, historyEpoch, stations, currentReadings, sectorCenter, airspaceCheck, seasonGDD]);
+  }, [forecastHourly, historyEpoch, currentReadings, sectorCenter]);
 
   // ── Effect 3: Unified aggregation + notifications ─────
-  // Audit S136+3 #6: signature-hash skip — the 500ms debounce only batches
+  // Signature-hash skip — the 500ms debounce only batches
   // updates WITHIN a single render tick, but useEffect still fires whenever
   // any dep changes. Compare a cheap signature (counts + key timestamps)
   // against last run; if identical, skip the 11 alert builders entirely.
@@ -172,7 +162,7 @@ export function useUnifiedAlertPipeline({
       // Cheap input-signature check — skip if nothing relevant changed
       // (Map.size + history epoch + storm timestamp + forecast fetchedAt
       // are the high-signal axes for "is this rebuild meaningful?").
-      // S136+3+2: fixed pre-existing TS errors (detectedAt / lapseRate didn't
+      // Fixed pre-existing TS errors (detectedAt / lapseRate didn't
       // exist on the types — were silently typed `any` in some configs).
       // Replaced with real fields that signal "this shadow/profile is different".
       const sig = [
@@ -185,9 +175,6 @@ export function useUnifiedAlertPipeline({
         forecastFetchedAt ?? 0,
         buoys.length,
         thermalProfile?.overallLapseRate ?? 0,
-        // alphaMode gates the drone alert filter below — a toggle must
-        // invalidate the cache or the list stays stale until data moves
-        alphaMode ? 1 : 0,
         // Digest of the GATED visibility set, so the fog alert can be both
         // raised (new AEMET batch) and cleared (last batch ageing out) on its
         // own — neither moves any of the axes above.
@@ -221,7 +208,7 @@ export function useUnifiedAlertPipeline({
         // it's a regional fog event — webcams in low-confidence partly-cloudy
         // state should be counted as evidence even if the IA didn't trip
         // fogVisible (moondream often misclassifies blanket marine fog as
-        // 'good visibility partly_cloudy' — confirmed S136+3 Cíes case).
+        // 'good visibility partly_cloudy' — confirmed at Cíes).
         // Uses the gated subset: only fresh readings from near this sector.
         // Not when the report puts the low visibility down to rain (as the alert itself does).
         let regionalAemetFog = false;
@@ -344,24 +331,15 @@ export function useUnifiedAlertPipeline({
         regionalVisibility: relevantVisibility.size > 0 ? relevantVisibility : undefined,
         fogClearCameras,
       });
-      // Drone surfaces are Alpha-gated (FieldDrawer tab hidden without
-      // alphaMode) — the drone meteo alert must follow, or "Dron: Precaución"
-      // keeps showing in alert lists with no drone tab to act on.
-      const visibleAlerts = alphaMode ? alerts : alerts.filter((a) => a.category !== 'drone');
-      // The light is computed from the alerts that are shown: from the full list, a hidden drone
-      // alert lit «AVISO 1» next to «Sin alertas · todo en orden» (20-oct).
-      const visibleRisk = alphaMode ? risk : computeCompositeRisk(visibleAlerts);
-      setUnifiedAlerts(visibleAlerts, visibleRisk);
+      setUnifiedAlerts(alerts, risk);
       // Trigger notifications for new/escalated alerts
-      processAlertNotifications(visibleAlerts, visibleRisk, notifConfig);
+      processAlertNotifications(alerts, risk, notifConfig);
     }, 500);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- historyEpoch is a stable proxy for readingHistory
   }, [
     stormAlert, stormShadow, thermalProfile, fieldAlerts, forecastFetchedAt,
     setUnifiedAlerts, notifConfig, currentReadings, historyEpoch,
-    buoys, stations, sectorId, teleconnectionsRef, alphaMode, rainSummary,
+    buoys, stations, sectorId, teleconnectionsRef, rainSummary,
   ]);
-
-  return fieldAlerts;
 }

@@ -194,3 +194,65 @@ export function analyzeSpotWindTrend(
     signal,
   };
 }
+
+/** The conclusion someone wants from a run of wind figures, without doing the sum. */
+export type WindDrift = 'sube' | 'baja' | 'estable';
+
+export interface WindPoint {
+  t: number;
+  kt: number;
+}
+
+const DRIFT_RECENT_MS = 45 * 60_000;
+/** Recent plus before fit the two hours the spots keep (WIND_HISTORY_MAX_AGE_MS). */
+const DRIFT_BEFORE_MS = 75 * 60_000;
+const DRIFT_MIN_POINTS = 2;
+const DRIFT_MIN_KT = 2;
+/** At 30 kt a change of 2 is noise. */
+const DRIFT_MIN_SHARE = 0.15;
+/** Going from nothing to almost nothing is still calm. */
+const DRIFT_CALM_KT = 3;
+
+const meanOf = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+
+/**
+ * Compares means, not the two ends of the run, so one gust does not turn into «sube». Says nothing with too few
+ * readings at either side, which leaves out a station that reports hourly: better silent than wrong.
+ */
+export function windDrift(points: readonly WindPoint[], now: number = Date.now()): WindDrift | null {
+  const recent: number[] = [];
+  const before: number[] = [];
+  for (const p of points) {
+    const age = now - p.t;
+    if (age < 0 || !Number.isFinite(p.kt)) continue;
+    if (age <= DRIFT_RECENT_MS) recent.push(p.kt);
+    else if (age <= DRIFT_RECENT_MS + DRIFT_BEFORE_MS) before.push(p.kt);
+  }
+  if (recent.length < DRIFT_MIN_POINTS || before.length < DRIFT_MIN_POINTS) return null;
+
+  const now_ = meanOf(recent);
+  const then = meanOf(before);
+  if (now_ < DRIFT_CALM_KT && then < DRIFT_CALM_KT) return 'estable';
+  const diff = now_ - then;
+  const needed = Math.max(DRIFT_MIN_KT, then * DRIFT_MIN_SHARE);
+  if (diff >= needed) return 'sube';
+  if (diff <= -needed) return 'baja';
+  return 'estable';
+}
+
+/** Past this a trend is about a wind long gone: no word about it, whatever the readings said. */
+export const TREND_MAX_AGE_MIN = 90;
+
+/**
+ * For a spot: its stations moving together win (analyzeSpotWindTrend); otherwise the run of figures the card
+ * itself has shown, which can never contradict the number beside it.
+ */
+export function spotWindDrift(
+  trend: WindTrend | null | undefined,
+  points: readonly WindPoint[],
+  now: number = Date.now(),
+): WindDrift | null {
+  if (trend?.signal === 'dropping') return 'baja';
+  if (trend?.signal === 'building' || trend?.signal === 'rapid') return 'sube';
+  return windDrift(points, now);
+}

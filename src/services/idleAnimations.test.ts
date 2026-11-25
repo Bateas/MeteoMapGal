@@ -1,8 +1,20 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { installIdleAnimations, IDLE_MS } from './idleAnimations';
+import { installIdleAnimations, pageIsIdle, IDLE_MS } from './idleAnimations';
 
 describe('installIdleAnimations', () => {
   afterEach(() => { vi.useRealTimers(); });
+
+  it('tells the loops run from script what it told the stylesheet', () => {
+    vi.useFakeTimers();
+    const root = document.createElement('div');
+    const remove = installIdleAnimations(root, () => Date.now());
+    expect(pageIsIdle(root)).toBe(false);
+    vi.advanceTimersByTime(IDLE_MS + 60_000);
+    expect(pageIsIdle(root)).toBe(true);
+    window.dispatchEvent(new Event('pointerdown'));
+    expect(pageIsIdle(root)).toBe(false);
+    remove();
+  });
 
   it('marks the page idle after IDLE_MS without activity and wakes it on a gesture', () => {
     vi.useFakeTimers();

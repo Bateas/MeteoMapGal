@@ -18,10 +18,9 @@ interface UIState {
   sidebarOpen: boolean;
   guideOpen: boolean;
   isMobile: boolean;
-  droneTabActive: boolean;
-  bathymetryVisible: boolean;
-  sstVisible: boolean;
   flyToTarget: FlyToTarget | null;
+  /** Where the row of the side panel under the pointer or the keyboard is (not persisted) */
+  listHover: { lon: number; lat: number; offsetX?: number } | null;
   feedbackOpen: boolean;
   /** Transient pre-fill consumed by FeedbackModal on open (not persisted). */
   feedbackPrefill: FeedbackPrefill | null;
@@ -53,14 +52,12 @@ interface UIState {
   toggleGuide: () => void;
   setGuideOpen: (open: boolean) => void;
   setIsMobile: (mobile: boolean) => void;
-  setDroneTabActive: (active: boolean) => void;
-  toggleBathymetry: () => void;
-  toggleSST: () => void;
   setFlyToTarget: (target: FlyToTarget | null) => void;
+  setListHover: (target: { lon: number; lat: number; offsetX?: number } | null) => void;
   setOnboardingStep: (step: number | null) => void;
   completeOnboarding: () => void;
   resetOnboarding: () => void;
-  /** Alpha mode: enables experimental features (Regatta, etc.). Persisted. */
+  /** Alpha mode: marks a device of the team; nothing opens behind it today. Persisted. */
   alphaMode: boolean;
   toggleAlphaMode: () => void;
   setAlphaMode: (v: boolean) => void;
@@ -75,6 +72,9 @@ interface UIState {
   simpleMode: boolean;
   toggleSimpleMode: () => void;
   setSimpleMode: (v: boolean) => void;
+  /** «En el campo» in Condiciones starts open: asked for in the welcome assistant, or left open last time. Persisted. */
+  campoOpen: boolean;
+  setCampoOpen: (v: boolean) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -83,10 +83,8 @@ export const useUIStore = create<UIState>()(
       sidebarOpen: false,
       guideOpen: false,
       isMobile: typeof window !== 'undefined' ? window.innerWidth < 768 : false,
-      droneTabActive: false,
-      bathymetryVisible: false,
-      sstVisible: false,
       flyToTarget: null,
+      listHover: null,
       feedbackOpen: false,
       feedbackPrefill: null,
       setFeedbackPrefill: (prefill) => set({ feedbackPrefill: prefill }),
@@ -122,10 +120,8 @@ export const useUIStore = create<UIState>()(
       toggleGuide: () => set((s) => ({ guideOpen: !s.guideOpen })),
       setGuideOpen: (open) => set({ guideOpen: open }),
       setIsMobile: (mobile) => set({ isMobile: mobile }),
-      setDroneTabActive: (active) => set({ droneTabActive: active }),
-      toggleBathymetry: () => set((s) => ({ bathymetryVisible: !s.bathymetryVisible })),
-      toggleSST: () => set((s) => ({ sstVisible: !s.sstVisible })),
       setFlyToTarget: (target) => set({ flyToTarget: target }),
+      setListHover: (listHover) => set({ listHover }),
       setOnboardingStep: (step) => set({ onboardingStep: step }),
       completeOnboarding: () => set({ onboardingStep: null, onboardingCompleted: true }),
       resetOnboarding: () => set({ onboardingStep: 0, onboardingCompleted: false }),
@@ -141,15 +137,16 @@ export const useUIStore = create<UIState>()(
       simpleMode: true,
       toggleSimpleMode: () => set((s) => ({ simpleMode: !s.simpleMode })),
       setSimpleMode: (v) => set({ simpleMode: v }),
+      campoOpen: false,
+      setCampoOpen: (v) => set({ campoOpen: v }),
     }),
     {
       name: 'meteomap-ui',
       partialize: (state) => ({
         onboardingCompleted: state.onboardingCompleted,
-        bathymetryVisible: state.bathymetryVisible,
-        sstVisible: state.sstVisible,
         alphaMode: state.alphaMode,
         simpleMode: state.simpleMode,
+        campoOpen: state.campoOpen,
       }),
     },
   ),

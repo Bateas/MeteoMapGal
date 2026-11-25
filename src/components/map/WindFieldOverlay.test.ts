@@ -1,13 +1,20 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { validateStyleMin } from '@maplibre/maplibre-gl-style-spec';
 import type { NormalizedStation, NormalizedReading } from '../../types/station';
+import type { BuoyReading } from '../../api/buoyClient';
+import { isWindBlacklisted } from '../../services/spotScoringEngine';
 import {
   speedToLevel,
   buildWindFieldGeoJSON,
   SPEED_LEVELS,
   WIND_ARROW_ICON_SIZE_REGULAR,
   WIND_ARROW_ICON_SIZE_COMPACT,
+  registerWindArrowIcons,
 } from './WindFieldOverlay';
+import { MUTED_ARROW_SCALE, MUTED_ARROW_OPACITY, arrowSize, arrowOpacity } from './windArrowStyle';
+import { WIND_TONES_ON_DARK, WIND_TONES_ON_LIGHT } from '../../services/windUtils';
+import { useMapStyleStore } from '../../store/mapStyleStore';
+import { useThemeStore } from '../../store/themeStore';
 
 function mockStation(id: string, lon = -8.7, lat = 42.2, over: Partial<NormalizedStation> = {}): NormalizedStation {
   return {
@@ -32,26 +39,118 @@ function mockReading(stationId: string, speed: number | null, dir: number | null
     windGust: speed ? speed * 1.3 : null,
     windDirection: dir,
     precipitation: 0,
+    solarRadiation: null,
+    dewPoint: null,
   };
 }
 
-describe('speedToLevel', () => {
-  it('maps wind speeds to correct discrete speed levels', () => {
-    expect(speedToLevel(0)).toBe(0);     // calm
-    expect(speedToLevel(0.4)).toBe(0);   // calm (<0.5)
-    expect(speedToLevel(1.5)).toBe(1);   // flojo (0.5-3.0)
-    expect(speedToLevel(3.5)).toBe(2);   // gentle (3.0-4.5)
-    expect(speedToLevel(5.0)).toBe(3);   // moderate (4.5-6.5)
-    expect(speedToLevel(7.5)).toBe(4);   // fresh (6.5-9.0)
-    expect(speedToLevel(10.5)).toBe(5);  // strong (9.0-12.0)
-    expect(speedToLevel(13.5)).toBe(6);  // gale (12.0-15.0)
-    expect(speedToLevel(25.0)).toBe(7);  // extreme (15.0+)
+describe('buildWindFieldGeoJSON, buoys', () => {
+  const buoy = (stationId: number, ageMin = 10, windSpeed: number | null = 5): BuoyReading => ({
+    stationId,
+    stationName: 'x',
+    windSpeed,
+    windDir: 90,
+    timestamp: new Date(Date.now() - ageMin * 60_000).toISOString(),
+  } as BuoyReading);
+
+  it('draws a live buoy', () => {
+    expect(buildWindFieldGeoJSON([], new Map(), [buoy(1250)]).features).toHaveLength(6);
   });
 
-  it('has 8 speed levels matching color palette', () => {
-    expect(SPEED_LEVELS.length).toBe(8);
+  it('has the same age ceiling as the stations: a buoy that stopped publishing goes', () => {
+    expect(buildWindFieldGeoJSON([], new Map(), [buoy(1250, 89)]).features).toHaveLength(6);
+    expect(buildWindFieldGeoJSON([], new Map(), [buoy(1250, 91)]).features).toHaveLength(0);
+  });
+
+  it('fades an old reading like a station does', () => {
+    const [fresh] = buildWindFieldGeoJSON([], new Map(), [buoy(1250, 10)]).features;
+    const [old] = buildWindFieldGeoJSON([], new Map(), [buoy(1250, 60)]).features;
+    expect(old.properties?.opacity).toBeLessThan(fresh.properties?.opacity);
+  });
+
+  it('a land station set aside for bad wind does not come back as a buoy (Lourizán)', () => {
+    expect(isWindBlacklisted('mg_10064')).toBe(true);
+    expect(buildWindFieldGeoJSON([], new Map(), [buoy(4271, 10, 0)]).features).toHaveLength(0);
+  });
+
+  it('the copy of a land anemometer draws no second set of arrows (Ons, Cabo Udra)', () => {
+    expect(buildWindFieldGeoJSON([], new Map(), [buoy(4272), buoy(4273)]).features).toHaveLength(0);
+  });
+});
+
+describe('registerWindArrowIcons: a change of map goes by style diff, and the images survive it', () => {
+  type Painted = { fills: string[] };
+  let painted: Painted;
+  const fakeMap = () => {
+    const images = new Set<string>();
+    return {
+      hasImage: (id: string) => images.has(id),
+      addImage: vi.fn((id: string) => { images.add(id); }),
+      updateImage: vi.fn(),
+    };
+  };
+
+  beforeEach(() => {
+    painted = { fills: [] };
+    const ctx = new Proxy({}, {
+      get: () => vi.fn(),
+      set: (_t, key, value) => { if (key === 'fillStyle') painted.fills.push(String(value)); return true; },
+    });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => ctx as never);
+    vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/png;base64,');
+    vi.stubGlobal('Image', class {
+      onload: (() => void) | null = null;
+      set src(_: string) { queueMicrotask(() => this.onload?.()); }
+    });
+    useMapStyleStore.setState({ activeStyleId: 'auto' } as never);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    useThemeStore.setState({ theme: 'dark' } as never);
+  });
+
+  it('paints the tones of the dark map once, and does nothing while they hold', async () => {
+    useThemeStore.setState({ theme: 'dark' } as never);
+    const map = fakeMap();
+    await registerWindArrowIcons(map as never);
+    expect(map.addImage).toHaveBeenCalledTimes(WIND_TONES_ON_DARK.length);
+    for (const tone of WIND_TONES_ON_DARK) expect(painted.fills).toContain(tone);
+    painted.fills.length = 0;
+    await registerWindArrowIcons(map as never);
+    expect(map.updateImage).not.toHaveBeenCalled();
+    expect(painted.fills).toHaveLength(0);
+  });
+
+  it('repaints them when the map under them changes: no arrow keeps the palette of the map before', async () => {
+    useThemeStore.setState({ theme: 'dark' } as never);
+    const map = fakeMap();
+    await registerWindArrowIcons(map as never);
+    painted.fills.length = 0;
+    useThemeStore.setState({ theme: 'light' } as never);
+    await registerWindArrowIcons(map as never);
+    expect(map.updateImage).toHaveBeenCalledTimes(WIND_TONES_ON_LIGHT.length);
+    for (const tone of WIND_TONES_ON_LIGHT) expect(painted.fills).toContain(tone);
+  });
+});
+
+describe('speedToLevel', () => {
+  const kt = (k: number) => k / 1.94384;
+  it('follows the map scale, the same cuts as a spot', () => {
+    expect(speedToLevel(0)).toBe(0);
+    expect(speedToLevel(kt(5))).toBe(0);
+    expect(speedToLevel(kt(6))).toBe(1);
+    expect(speedToLevel(kt(8))).toBe(2);
+    expect(speedToLevel(kt(12))).toBe(3);
+    expect(speedToLevel(kt(18))).toBe(4);
+    // Past the verdict, two more (18-nov): 22 kt and 34 kt
+    expect(speedToLevel(kt(22))).toBe(5);
+    expect(speedToLevel(kt(40))).toBe(6);
+  });
+
+  it('one icon per step', () => {
+    expect(SPEED_LEVELS.length).toBe(9);
     expect(SPEED_LEVELS[0].id).toBe('wind-arrow-0');
-    expect(SPEED_LEVELS[0].color).toBe('#64748b'); // slate calm
   });
 });
 
@@ -191,6 +290,54 @@ describe('buildWindFieldGeoJSON', () => {
 
     const fcZoom9 = buildWindFieldGeoJSON(stations, readings, undefined, false, 9.0);
     expect(fcZoom9.features.length).toBe(6);
+  });
+});
+
+describe('simple mode: smaller and fainter arrows, with their colour', () => {
+  it('only fades them: the colour of the speed stays', () => {
+    const muted = arrowOpacity(true) as unknown[];
+    expect(muted[0]).toBe('*');
+    expect(muted[1]).toBe(MUTED_ARROW_OPACITY);
+    expect(muted[2]).toEqual(arrowOpacity(false));
+    expect(MUTED_ARROW_OPACITY).toBeLessThan(1);
+  });
+
+  it('scales every stop of the zoom curve, and leaves the curve outermost', () => {
+    const muted = arrowSize(WIND_ARROW_ICON_SIZE_REGULAR, true) as unknown[];
+    const base = WIND_ARROW_ICON_SIZE_REGULAR as unknown[];
+    expect(muted.slice(0, 3)).toEqual(base.slice(0, 3));
+    for (let i = 3; i < base.length; i += 2) {
+      expect(muted[i]).toBe(base[i]);
+      expect(muted[i + 1]).toEqual(['*', MUTED_ARROW_SCALE, base[i + 1]]);
+    }
+    expect(arrowSize(WIND_ARROW_ICON_SIZE_REGULAR, false)).toBe(WIND_ARROW_ICON_SIZE_REGULAR);
+  });
+
+  it('is a valid style in both modes and both densities', () => {
+    for (const muted of [false, true]) {
+      for (const base of [WIND_ARROW_ICON_SIZE_REGULAR, WIND_ARROW_ICON_SIZE_COMPACT]) {
+        const errors = validateStyleMin({
+          version: 8,
+          sources: { 'wind-field': { type: 'geojson', data: { type: 'FeatureCollection', features: [] } } },
+          layers: [{
+            id: 'wind-field-arrows',
+            type: 'symbol',
+            source: 'wind-field',
+            minzoom: 8,
+            layout: {
+              'icon-image': ['concat', 'wind-arrow-', ['to-string', ['get', 'speedLevel']]],
+              'icon-rotate': ['get', 'rotation'],
+              'icon-size': arrowSize(base, muted),
+              'icon-allow-overlap': true,
+              'icon-ignore-placement': true,
+              'icon-rotation-alignment': 'map',
+            },
+            paint: { 'icon-opacity': arrowOpacity(muted) },
+          }],
+        } as never);
+        expect(errors.map((e) => e.message)).toEqual([]);
+      }
+    }
   });
 });
 

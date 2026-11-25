@@ -260,14 +260,16 @@ export function buildCrossSeaAlerts(buoys: BuoyReading[]): UnifiedAlert[] {
   // reading as the sea inside the ría (the harbour gauges measure port agitation, not swell).
   const openSea = risk.sourceBuoy != null && OCEAN_BUOYS.has(risk.sourceBuoy);
 
+  // Never examined: at most yellow and never urgent, like the inversion. It used to reach the red
+  // band from a single buoy. The score stays under the «high» band for the same reason.
   const levelToScore: Record<AlertLevel, number> = {
-    none: 0, riesgo: 30, alto: 55, critico: 80,
+    none: 0, riesgo: 30, alto: 45, critico: 50,
   };
   // A moderate cross sea 50 km out decides nothing inside the ría: it goes with the notices, below
   // what is measured here (20-oct it headed the panel during rain).
   const openSeaNotice = openSea && effectiveLevel === 'riesgo';
   const score = openSeaNotice ? 20 : levelToScore[effectiveLevel];
-  const severity = openSeaNotice ? 'info' : score >= 80 ? 'critical' : score >= 50 ? 'high' : score >= 25 ? 'moderate' : 'info';
+  const severity = openSeaNotice ? 'info' as const : score >= 25 ? 'moderate' as const : 'info' as const;
 
   const angleStr = risk.angleDelta !== null ? `${risk.angleDelta.toFixed(0)}°` : '';
   const buoyStr = risk.sourceBuoy
@@ -275,7 +277,7 @@ export function buildCrossSeaAlerts(buoys: BuoyReading[]): UnifiedAlert[] {
     : '';
   const waveStr = risk.waveHeight !== null ? `Hm0 ${risk.waveHeight.toFixed(1)}m` : '';
   const baseTitle = effectiveLevel === 'critico'
-    ? 'MAR CRUZADA PELIGROSA'
+    ? 'Mar cruzada fuerte'
     : effectiveLevel === 'alto'
       ? 'Mar cruzada significativa'
       : 'Mar cruzada moderada';
@@ -283,12 +285,10 @@ export function buildCrossSeaAlerts(buoys: BuoyReading[]): UnifiedAlert[] {
   return [{
     id: 'cross-sea',
     category: 'marine',
-    severity: severity as 'info' | 'moderate' | 'high' | 'critical',
+    severity,
     score,
     icon: 'waves',
-    title: openSea
-      ? effectiveLevel === 'critico' ? 'MAR CRUZADA PELIGROSA EN MAR ABIERTO' : `${baseTitle} en mar abierto`
-      : baseTitle,
+    title: openSea ? `${baseTitle} en mar abierto` : baseTitle,
     detail: [
       `${angleStr} oleaje-viento${buoyStr}`,
       waveStr,
@@ -300,7 +300,7 @@ export function buildCrossSeaAlerts(buoys: BuoyReading[]): UnifiedAlert[] {
             : `Tp ${risk.wavePeriod.toFixed(0)}s`
         : '',
     ].filter(Boolean).join(' · '),
-    urgent: effectiveLevel === 'critico',
+    urgent: false,
     updatedAt: new Date(),
   }];
 }

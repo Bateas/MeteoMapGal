@@ -151,7 +151,7 @@ export function summarizeRecentReports(rows: RecentReportRow[]): RecentReportSum
 }
 
 const WATER_WORDS: Record<WaterState, string> = { 0: 'agua como un espejo', 1: 'agua movida, sin espuma', 2: 'algo de espuma', 3: 'mucha espuma' };
-const DIR_WORDS: Record<DirSeen, string> = { 0: 'N', 45: 'NE', 90: 'E', 135: 'SE', 180: 'S', 225: 'SO', 270: 'O', 315: 'NO' };
+const DIR_WORDS: Record<DirSeen, string> = { 0: 'N', 45: 'NE', 90: 'E', 135: 'SE', 180: 'S', 225: 'SW', 270: 'W', 315: 'NW' };
 
 /** «hace 15 min · 2 reportes» */
 export function recentReportWhen(s: RecentReportSummary): string {

@@ -39,10 +39,11 @@ export const BUOY_COUNT = RIAS_BUOY_STATIONS.length;
  * it at runtime against seven upstream networks — so it is a measurement with
  * a date attached rather than a claim.
  *
- * Live figure any time: `/api/v1/stations`.
+ * Live figure any time: `/api/v1/stations`. Counts stations with data in the last 2 hours: on this
+ * date Weather Underground (175 stations) had been silent for two weeks.
  */
-export const STATION_COUNT_MEASURED = 457;
-export const STATION_COUNT_MEASURED_ON = '2026-08-04';
+export const STATION_COUNT_MEASURED = 359;
+export const STATION_COUNT_MEASURED_ON = '2026-11-04';
 
 /** The seven upstream networks, in the order the map credits them. Counts are
  *  deliberately absent: they move every week and a stale breakdown is worse

@@ -1,29 +1,29 @@
 /**
- * ConditionsTicker — scrolling marquee strip below header.
+ * ConditionsTicker: the official warnings, fixed, and ONE line under them with the most important
+ * thing that the map does not already say. It does not move: a marquee made people wait for the
+ * message they needed, and everything it cycled through lived somewhere else anyway.
  *
- * Shows real-time highlights: top wind spots, gusts, waves, tide,
- * temperature, forecast. Auto-scrolls horizontally with CSS animation.
- * Mobile: limits to most relevant items to avoid overwhelming scroll.
- * Minimal overhead: reads from existing stores (no new fetches).
+ * What it can say: beach day (by day and with the air measured), a strong meteorological tide, UV,
+ * air quality (station and distance), fires (naming the zone), storm and rain from the forecast,
+ * and the thermal forecast inland. It goes silent while the safety band is on: then the band speaks.
  *
- * `simple` prop (simpleMode): the ticker ALWAYS mounts — official
- * MeteoGalicia warnings (static strip) plus a filtered marquee with only
- * critical/actionable items (beach headline, best surf spot from SURF OK
- * up + safety: measured lightning, forecast storms/fog, active fires). A casual user in simple mode must
- * never miss an official NARANJA warning. With no critical items and no
- * warnings, it renders nothing (silence by default).
+ * `simple` prop (simpleMode): the official warnings always show, the line only with what is essential
+ * for a casual user. With nothing to say it renders nothing (silence by default).
+ * Reads from existing stores: no fetches of its own.
  */
-import { memo, useMemo, useState, useEffect, useRef, useCallback } from 'react';
-import { useWeather, useBuoy, useSpot } from '../../store/typedSelectors';
-import { useSpotStore } from '../../store/spotStore';
+import { memo, useEffect, useMemo } from 'react';
+import { useSpot } from '../../store/typedSelectors';
 import { useSectorStore } from '../../store/sectorStore';
 import { isCoastalSector } from '../../config/sectors';
 import { useRainNowStore } from '../../store/rainNowStore';
 import { useForecastStore } from '../../hooks/useForecastTimeline';
 import { useLightningStatus } from '../../hooks/useLightningStatus';
 import { formatStrikeAge } from '../../services/lightningStatus';
+import { useSpotLightningRisk } from '../../hooks/useSpotLightningRisk';
 import { useWarningsStore } from '../../hooks/useWarnings';
-import { useUIStore } from '../../store/uiStore';
+import { mgWarningsLastOkMs } from '../../api/mgWarningsClient';
+import { officialWarningsKnown, OFFICIAL_UNKNOWN_DETAIL, OFFICIAL_UNKNOWN_TITLE } from '../../services/alerts/officialKnown';
+import { warningTitleEs } from '../../services/dayNotices';
 import { useAirQualityStore } from '../../store/airQualityStore';
 import { useAlertStore } from '../../store/alertStore';
 import { useIcaStore } from '../../store/icaStore';
@@ -31,491 +31,193 @@ import { icaCategory } from '../../api/meteoGaliciaIcaClient';
 import { useFireStore } from '../../store/fireStore';
 import { selectFireClusters } from '../../services/fireClustering';
 import { aggregateFiresForSector, formatFireAge } from '../../services/fireService';
-import { getSpotsForSector, isBeachSpot } from '../../config/spots';
+import { describeFireLocation } from '../../services/fireRegion';
+import { cardTideStation, getSpotsForSector, isBeachSpot } from '../../config/spots';
 import { assessBeachDay, type BeachDayResult } from '../../services/beachDayService';
-import { msToKnots } from '../../services/windUtils';
-import { VERDICT_STYLE, displayVerdict, displayWindDir, gateWaveText, gateWaveWhere } from '../../config/verdictStyles';
 import { detectThermalForecast } from '../../services/thermalForecastDetector';
 import { useAloft } from '../../hooks/useAloft';
-import { assessSeaBreezeRias } from '../../services/seaBreezeService';
-import { fetchTidePredictions, type TidePoint } from '../../api/tideClient';
+import { isDaylight } from '../../services/solarUtils';
 import { isPeakUvHour, uvCategory, uvTickerLabel, UV_TICKER_THRESHOLD } from '../../services/uvService';
-import {
-  tideCoefficient,
-  estimateStormSurge,
-  nextAmplitude,
-  tideTickerLabel,
-  shouldShowTideAlert,
-} from '../../services/tideAlertService';
+import { formatMeteoTide } from '../../services/meteoTideService';
 import { useMeteoTide } from '../../hooks/useMeteoTide';
-import { detectUpwellingSummary } from '../../services/upwellingDetector';
-import { formatSurfWave, surfBestRank, surfDisplayState } from '../../services/surfVerdictEngine';
-import { useThemeStore } from '../../store/themeStore';
+import { forecastLines, icaSentence, worstIcaNear } from '../../services/alerts/conditionsList';
+import { spanWords } from '../../services/alerts/whenText';
+import { topStripPlan } from '../../services/alerts/levelZero';
+import { useUIStore } from '../../store/uiStore';
+import { useLevelZeroStore } from '../../store/levelZeroStore';
 import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
-
-/** Find the next tide point (high or low) relative to now */
-function getNextTide(points: TidePoint[]): { point: TidePoint; isRising: boolean } | null {
-  const now = new Date();
-  const nowMs = now.getTime();
-  const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  for (let i = 0; i < points.length; i++) {
-    const pt = points[i];
-    if (pt.epochMs && pt.epochMs > 0) {
-      if (pt.epochMs > nowMs) {
-        return { point: pt, isRising: pt.type === 'high' };
-      }
-    } else if (pt.time > hhmm) {
-      return { point: pt, isRising: pt.type === 'high' };
-    }
-  }
-  return null;
-}
+import '../../styles/condiciones.css';
 
 interface ConditionsTickerProps {
-  /** Simple mode: filter the marquee to critical items only (official
-   *  warnings strip always shows). Default false = full ticker. */
+  /** Simple mode: the line only with essential items (official warnings always show). */
   simple?: boolean;
+}
+
+interface Candidate {
+  key: string;
+  text: string;
+  /** Tone class of the mark: the words stay in ink */
+  tone: string;
+  priority: number;
+  essential?: boolean;
+  icon?: IconId;
+}
+
+/** Vigo port: the coastal reference gauge. */
+const COAST_TIDE_STATION = '29';
+
+/** «Precipitación 12 horas» + «Precipitación 1 hora» = «Precipitación 12 horas y 1 hora»; unrelated kinds, a comma. */
+export function joinWarningTypes(a: string, b: string): string {
+  const head = a.split(' ')[0];
+  if (head && b.startsWith(`${head} `)) return `${a} y ${b.slice(head.length + 1)}`;
+  return `${a}, ${b}`;
 }
 
 export const ConditionsTicker = memo(function ConditionsTicker({ simple = false }: ConditionsTickerProps) {
   const scores = useSpot.use.scores();
-  // Subscribed, not read through getState(): the surf verdict is rebuilt on its
-  // own clock (forecast download, wind shift) and must reach the ticker then,
-  // not whenever some unrelated store happens to change.
-  const surfWaveCache = useSpot.use.surfWaveCache();
-  // Surf items carry their level colour inline, and the ticker is light in the
-  // light theme (it sits outside the map's dark scope).
-  const theme = useThemeStore((s) => s.theme);
-  const readings = useWeather.use.currentReadings();
-  const stations = useWeather.use.stations();
-  const buoyReadings = useBuoy.use.buoys();
-  const sectorId = useSectorStore((s) => s.activeSector.id);
+  const sector = useSectorStore((s) => s.activeSector);
+  const sectorId = sector.id;
   const forecastHourly = useForecastStore((s) => s.hourly);
+  const convectionData = useForecastStore((s) => s.convectionData);
   // Measured rain («Lluvia ahora» layer): the beach headline must not say «Buen día» under it.
   const rainNowSummary = useRainNowStore((s) => s.summary);
   const lightning = useLightningStatus();
   const mgWarnings = useWarningsStore((s) => s.sectorWarnings);
+  // Each poll sets lastFetch, so this is read again after every answer or failure
+  const warningsPolled = useWarningsStore((s) => s.lastFetch);
+  const officialUnknown = !officialWarningsKnown(warningsPolled, mgWarningsLastOkMs(), Date.now());
   const unifiedAlerts = useAlertStore((s) => s.alerts);
-  // Subscribed, not read through getState(): fires poll on their own 30min
-  // clock, so a snapshot read only surfaced them when some unrelated store
-  // happened to change — a new fire could sit invisible for a whole weather
-  // cycle. The rebuild is cheap at that cadence.
+  const airQuality = useAirQualityStore((s) => s.data);
+  const icaReadings = useIcaStore((s) => s.readings);
+  // Subscribed, not read through getState(): fires poll on their own 30min clock.
   const fires = useFireStore((s) => s.fires);
-  const isMobile = useUIStore((s) => s.isMobile);
-
-  // Touch pause state
-  const [paused, setPaused] = useState(false);
-  const pauseTimeout = useRef<ReturnType<typeof setTimeout>>();
-  const handleTouch = useCallback(() => {
-    setPaused(true);
-    clearTimeout(pauseTimeout.current);
-    pauseTimeout.current = setTimeout(() => setPaused(false), 4000);
-  }, []);
-
-  // Tide data — only fetch for Rías sector, cached 60min
-  const [tidePoints, setTidePoints] = useState<TidePoint[]>([]);
-  useEffect(() => {
-    if (!isCoastalSector(sectorId)) { setTidePoints([]); return; }
-    let cancelled = false;
-    fetchTidePredictions().then(pts => { if (!cancelled) setTidePoints(pts); }).catch(() => {});
-    const iv = setInterval(() => {
-      if (document.hidden) return; // Skip fetch when tab is backgrounded
-      fetchTidePredictions().then(pts => { if (!cancelled) setTidePoints(pts); }).catch(() => {});
-    }, 60 * 60_000);
-    return () => { cancelled = true; clearInterval(iv); };
-  }, [sectorId]);
-
-  // Real measured storm surge from REDMAR tide gauge (Vigo port '29' as regional coastal reference)
-  const meteoTide = useMeteoTide(isCoastalSector(sectorId) ? '29' : undefined);
-
+  const lightningRisks = useSpotLightningRisk();
+  // Real measured storm surge from the REDMAR gauge
+  const meteoTide = useMeteoTide(isCoastalSector(sectorId) ? COAST_TIDE_STATION : undefined);
+  // The open spot card paints its own «Agua N cm…» line when its spot has a tide station and that
+  // gauge reads a notable level: the same two conditions as SpotTideSummary, asked of the same hook.
+  const openSpotId = useSpot((st) => st.activeSpotId);
+  const cardTide = useMeteoTide(cardTideStation(openSpotId));
+  const cardSaysTide = !!cardTide && cardTide.level !== 'none';
   const aloft = useAloft();
-  const items = useMemo(() => {
-    // `essential: true` marks items that survive the simpleMode filter:
-    // safety (storm, forecast storms/fog, fires) + the casual beach headline
-    // + the best surf spot from SURF OK up (model waves, and it says so).
-    // Conservative criterion: when in doubt, an item is informational (UV,
-    // air quality, tide coef, gusts, thermal) and only shows in full mode.
-    // `hex` (optional) is an inline text colour that wins over `color`.
-    const result: { key: string; text: string; color: string; hex?: string; bg: string; priority: number; essential?: boolean; icon?: IconId }[] = [];
-    const sectorLabel = sectorId === 'rias' ? 'Rías' : 'Interior';
-    // Daytime window, shared with the beach headline below: a verdict about
-    // going in the water is not what simple mode should lead with at 02:00.
-    const hourNow = new Date().getHours();
-    const daytime = hourNow >= 8 && hourNow < 21;
 
-    // ── Spot verdicts (priority 10 = highest for non-calm, 1 for calm) ──
-    const spots = getSpotsForSector(sectorId);
-    // The best surf spot from SURF OK up becomes essential, so simple mode
-    // (the default for new visitors) finally tells a surfer something.
-    let bestSurf: { idx: number; rank: number; height: number } | null = null;
-    for (const spot of spots) {
-      const sc = scores.get(spot.id);
-      const isSurf = spot.category === 'surf';
+  // Rays near a spot or a storm overhead: the band says it, closer and with what to do.
+  const stormOverhead = unifiedAlerts.some((a) => a.category === 'storm' && a.severity === 'critical');
+  const safetyBandOn = lightningRisks.length > 0 || stormOverhead;
 
-      // Surf spots: THE surf verdict from the cache entry (same one marker,
-      // list and popup read). Quiet until it is ready, like a provisional
-      // sailing verdict. The height is a model value and the text says so.
-      // Over the engine's hard gate the spot falls through to the wind
-      // branch below and reads «Fuerte …kt» like any spot: the wave verdict
-      // ignores wind speed and said SURF OK in a 30 kt blow.
-      const surfState = isSurf ? surfDisplayState(surfWaveCache.get(spot.id), sc) : null;
-      if (isSurf && surfState !== 'danger') {
-        const sw = surfWaveCache.get(spot.id);
-        if (surfState !== 'ready' || !sw?.verdict || sw.waveHeight == null) continue;
-        const v = sw.verdict;
-        const pri = v.level === 0 ? 1 : v.level === 1 ? 3 : 7;
-        result.push({
-          key: `spot-${spot.id}`,
-          text: `${spot.shortName}: ${v.label} ${formatSurfWave(sw.waveHeight)} (modelo)`,
-          // Same colour per level as the marker and the list, on a neutral
-          // chip: the old blue on a blue tint read 1.6:1 in the light theme.
-          color: '',
-          hex: theme === 'light' ? v.lightText : v.text,
-          bg: v.level === 0 ? '' : 'bg-slate-500/10',
-          priority: pri,
-        });
-        // «The best» is CLÁSICO, then SURF OK, then GRANDE (surfBestRank),
-        // never with a storm alert on and only by day.
-        const rank = surfBestRank(v.level);
-        if (rank > 0 && daytime && !sc?.hasStormAlert
-          && (!bestSurf || rank > bestSurf.rank || (rank === bestSurf.rank && sw.waveHeight > bestSurf.height))) {
-          bestSurf = { idx: result.length - 1, rank, height: sw.waveHeight };
-        }
-        continue;
-      }
+  const line = useMemo<Candidate | null>(() => {
+    if (safetyBandOn) return null;
+    const result: Candidate[] = [];
+    const nowDate = new Date();
+    const nowMs = nowDate.getTime();
 
-      // Sailing spots: use wind score
-      // A provisional score reads 'unknown' here and is therefore skipped: the
-      // ticker stays quiet about a spot rather than announcing a verdict that
-      // will change under it a cycle later.
-      const tickerVerdict = displayVerdict(sc);
-      if (!sc || tickerVerdict === 'unknown') continue;
-      const v = VERDICT_STYLE[tickerVerdict];
-      // T3-1 fix S136+3+3: prefer effectiveWindKt (detector-boosted) over raw
-      // avgSpeedKt — keeps ticker aligned with SpotMarker + popup verdict
-      // when Cesantes canalization / Bocana terral are active.
-      const kt = sc.effectiveWindKt ?? sc.wind?.avgSpeedKt;
-      const dir = displayWindDir(sc)?.label ?? '';
-      const pri = sc.verdict === 'calm' ? 1 : sc.verdict === 'light' ? 3 : sc.verdict === 'sailing' ? 7 : 10;
-      // Closed by the sea: say the sea and where it was measured, never «Fuerte 4kt».
-      const sea = gateWaveText(sc);
-      result.push({
-        key: `spot-${spot.id}`,
-        text: sea
-          ? `${spot.shortName}: oleaje ${sea} ${gateWaveWhere(sc)}`
-          : `${spot.shortName}: ${v.label}${kt != null && sc.verdict !== 'calm' ? ` ${dir} ${kt.toFixed(0)}kt` : ''}`,
-        color: v.text,
-        // «Fuerte» is a warning, not an invitation: it never shares the navigable green.
-        bg: sc.verdict === 'calm' ? '' : sc.verdict === 'strong' ? 'bg-orange-900/25' : 'bg-emerald-900/25',
-        priority: pri,
-      });
-    }
-    if (bestSurf) result[bestSurf.idx].essential = true;
-
-    // ── Beach-day casual headline (coastal sector, daytime) — EJE ALCANCE ──
-    // Reframes conditions as a casual "¿buen día de playa?" for the visitor who
-    // doesn't read kt/verdict jargon. Picks the best beach spot in the sector
-    // and runs the same assessBeachDay heuristic the SpotPopup uses. Positive
-    // nudge only (great/ok): a "mal día" is comfort, not safety (danger has its
-    // own items) and would be winter-long noise, so it's suppressed. Daytime
-    // only — a beach verdict at night is absurd.
-    if (isCoastalSector(sectorId)) {
-      if (daytime) {
-        const nowMs = Date.now();
-        // Cloud + rain context from the sector forecast WHEN available — scores
-        // alone (wind/air/water) already give assessBeachDay enough to commit,
-        // so the casual headline still shows during a forecast hiccup (the reach
-        // lever can't be hostage to the forecast fetch). precipitation (mm)
-        // drives "raining now"; precipProbability is noisy on clear days (gotcha)
-        // so it only softens to "rain soon", never marks a bad day on its own.
-        let cloudCoverPct: number | null = null;
-        let rainingNow = false;
-        let rainSoon = false;
-        if (forecastHourly.length > 0) {
-          const curF = forecastHourly.reduce(
-            (best, hh) => (Math.abs(hh.time.getTime() - nowMs) < Math.abs(best.time.getTime() - nowMs) ? hh : best),
-            forecastHourly[0],
-          );
-          cloudCoverPct = curF.cloudCover ?? null;
-          rainingNow = (curF.precipitation ?? 0) > 0.1;
-          let rainSoonProb = 0;
-          let rainSoonMm = 0;
-          for (const hh of forecastHourly) {
-            const dt = hh.time.getTime() - nowMs;
-            if (dt >= 0 && dt < 4 * 3600_000) {
-              rainSoonProb = Math.max(rainSoonProb, hh.precipProbability ?? 0);
-              rainSoonMm = Math.max(rainSoonMm, hh.precipitation ?? 0);
-            }
-          }
-          rainSoon = rainSoonMm > 0.2 || rainSoonProb >= 60;
-        }
-        // Two gauges that the rain layer confirmed beat a dry model hour (same rule as the panel).
-        if (rainNowSummary && !rainNowSummary.sim && rainNowSummary.gauges.length >= 2) rainingNow = true;
-        const foggy = unifiedAlerts.some(
-          (a) => a.category === 'fog' && (a.severity === 'high' || a.severity === 'critical'),
+    // ── Beach-day casual headline (coastal sector): a positive nudge only, by day, with the air
+    // measured. Without the air the cold gate of assessBeachDay does not act: on 4-nov it said «Sol»
+    // at 20:40 with 8.7 °C on the card, until the readings arrived.
+    if (isCoastalSector(sectorId) && isDaylight(nowDate, sector.center)) {
+      let cloudCoverPct: number | null = null;
+      let rainingNow = false;
+      let rainSoon = false;
+      if (forecastHourly.length > 0) {
+        const curF = forecastHourly.reduce(
+          (best, hh) => (Math.abs(hh.time.getTime() - nowMs) < Math.abs(best.time.getTime() - nowMs) ? hh : best),
+          forecastHourly[0],
         );
-
-        // Score every beach spot in the sector, keep the best verdict.
-        const verdictRank: Record<string, number> = { great: 3, ok: 2, poor: 1, unknown: 0 };
-        let bestBeach: { name: string; res: BeachDayResult } | null = null;
-        for (const spot of spots) {
-          if (!isBeachSpot(spot.id)) continue;
-          const sc = scores.get(spot.id);
-          if (!sc) continue;
-          const res = assessBeachDay({
-            cloudCoverPct,
-            windKt: sc.effectiveWindKt ?? sc.wind?.avgSpeedKt ?? null,
-            gustKt: sc.gustKt ?? null,
-            airTempC: sc.airTemp ?? null,
-            waterTempC: sc.waterTemp ?? null,
-            rainingNow,
-            rainSoon,
-            foggy,
-          });
-          if (res.verdict !== 'great' && res.verdict !== 'ok') continue;
-          if (!bestBeach || verdictRank[res.verdict] > verdictRank[bestBeach.res.verdict]) {
-            bestBeach = { name: spot.shortName, res };
+        cloudCoverPct = curF.cloudCover ?? null;
+        rainingNow = (curF.precipitation ?? 0) > 0.1;
+        let rainSoonProb = 0;
+        let rainSoonMm = 0;
+        for (const hh of forecastHourly) {
+          const dt = hh.time.getTime() - nowMs;
+          if (dt >= 0 && dt < 4 * 3600_000) {
+            rainSoonProb = Math.max(rainSoonProb, hh.precipProbability ?? 0);
+            rainSoonMm = Math.max(rainSoonMm, hh.precipitation ?? 0);
           }
         }
-        if (bestBeach) {
-          const great = bestBeach.res.verdict === 'great';
-          const reason = bestBeach.res.reasons.length > 0
-            ? ` · ${bestBeach.res.reasons.slice(0, 2).join(', ')}`
-            : '';
-          result.push({
-            key: 'beach-day',
-            text: `¿Playa? ${bestBeach.res.summary} en ${bestBeach.name}${reason}`,
-            color: great ? 'text-emerald-300' : 'text-amber-300',
-            bg: great ? 'bg-emerald-900/25' : 'bg-amber-900/20',
-            priority: great ? 9 : 8,
-            essential: true,
-          });
-        }
+        rainSoon = rainSoonMm > 0.2 || rainSoonProb >= 60;
       }
-    }
-
-    // ── Max gust across stations (priority 8) ──
-    let maxGust = 0;
-    let maxGustStation = '';
-    for (const st of stations) {
-      const r = readings.get(st.id);
-      if (r?.windGust != null && r.windGust > maxGust) {
-        maxGust = r.windGust;
-        maxGustStation = st.name;
-      }
-    }
-    if (maxGust > 3) {
-      result.push({
-        key: 'max-gust',
-        text: `Racha máx: ${msToKnots(maxGust).toFixed(0)}kt ${maxGustStation}`,
-        color: maxGust > 8 ? 'text-orange-400' : 'text-slate-300',
-        bg: maxGust > 8 ? 'bg-amber-900/25' : '',
-        priority: 8,
-      });
-    }
-
-    // ── Max wave height from buoys (priority 6) ──
-    let maxWave = 0;
-    let maxWaveName = '';
-    for (const br of buoyReadings) {
-      if (br.waveHeight != null && br.waveHeight > maxWave) {
-        maxWave = br.waveHeight;
-        maxWaveName = br.stationName;
-      }
-    }
-    if (maxWave > 0.3) {
-      result.push({
-        key: 'max-wave',
-        text: `Olas: ${maxWave.toFixed(1)}m ${maxWaveName}`,
-        color: maxWave > 2 ? 'text-cyan-400' : 'text-slate-300',
-        bg: 'bg-cyan-900/20',
-        priority: 6,
-      });
-    }
-
-    // NOTE: regional temperature range ("Temp X°–Y°C entre estación A y B")
-    // removed S136+3+5 — it's a sector-wide spread that doesn't change any
-    // decision RIGHT NOW (reactive-map doctrine: regional averages/ranges =
-    // noise). Microclimate detail lives on the map (temperature overlay +
-    // per-station markers), not the ticker.
-
-    // ── Tide info — Rías only (priority 7) ──
-    if (isCoastalSector(sectorId) && tidePoints.length > 0) {
-      const next = getNextTide(tidePoints);
-      if (next) {
-        const label = next.point.type === 'high' ? 'Pleamar' : 'Bajamar';
-        const arrow = next.isRising ? '↑' : '↓';
-        result.push({
-          key: 'tide-next',
-          text: `Marea ${arrow} ${label} ${next.point.time}h (${next.point.height.toFixed(1)}m)`,
-          color: 'text-cyan-400',
-          bg: 'bg-cyan-900/20',
-          priority: 7,
-        });
-
-        // ── Aguas vivas / storm-surge alert (priority 8-9) ──
-        // Compute coef from the next consecutive amplitude. Cross-check buoy
-        // pressure for inverse-barometric surge (≥ 0.2 m worth surfacing).
-        const amp = nextAmplitude(tidePoints);
-        const coef = tideCoefficient(amp);
-        // Cheapest/freshest pressure: any buoy reporting airPressure (Cabo
-        // Silleiro typical). Pick the lowest — we want surge worst-case.
-        let minPressure: number | null = null;
-        for (const b of buoyReadings.values()) {
-          if (b.airPressure != null && (minPressure == null || b.airPressure < minPressure)) {
-            minPressure = b.airPressure;
-          }
-        }
-        const surge = estimateStormSurge(minPressure);
-        const realSurgeM = meteoTide?.residualM ?? null;
-        const portName = meteoTide?.gaugeName;
-        const effectiveCoef = coef ?? 70;
-        if (shouldShowTideAlert(coef, surge, realSurgeM)) {
-          const isExtreme = effectiveCoef >= 100 || (realSurgeM != null && Math.abs(realSurgeM) >= 0.25);
-          result.push({
-            key: 'tide-alert',
-            text: tideTickerLabel(effectiveCoef, next.point, surge, realSurgeM, portName),
-            color: isExtreme ? 'text-cyan-200' : 'text-cyan-300',
-            bg: isExtreme ? 'bg-cyan-800/30' : 'bg-cyan-900/25',
-            priority: isExtreme ? 9 : 8,
-            icon: realSurgeM != null && Math.abs(realSurgeM) >= 0.15 ? 'waves' : 'anchor',
-          });
-        }
-      }
-    }
-
-    // ── Upwelling & Thermal Front in coastal sector (priority 8) ──
-    if (isCoastalSector(sectorId) && buoyReadings.length > 0) {
-      const upwelling = detectUpwellingSummary(buoyReadings);
-      if (upwelling.hasUpwelling && upwelling.tickerMessage) {
-        result.push({
-          key: 'upwelling-event',
-          text: upwelling.tickerMessage,
-          color: 'text-sky-300',
-          bg: 'bg-sky-950/40',
-          priority: 8,
-          essential: false,
-          icon: 'waves',
-        });
-
-        if (upwelling.fishingAdvice) {
-          result.push({
-            key: 'upwelling-fishing',
-            text: `Pesca en ría: ${upwelling.fishingAdvice}`,
-            color: 'text-cyan-300',
-            bg: 'bg-cyan-950/30',
-            priority: 7,
-            essential: false,
-            icon: 'fish',
-          });
-        }
-      }
-    }
-
-    // ── Forecast summary (priority 5) ──
-    if (forecastHourly.length > 0) {
-      const now = new Date();
-      const todayStr = now.toDateString();
-      const futureToday = forecastHourly.filter(h =>
-        h.time.toDateString() === todayStr && h.time > now,
+      // Two gauges that the rain layer confirmed beat a dry model hour (same rule as the panel).
+      if (rainNowSummary && !rainNowSummary.sim && rainNowSummary.gauges.length >= 2) rainingNow = true;
+      const foggy = unifiedAlerts.some(
+        (a) => a.category === 'fog' && (a.severity === 'high' || a.severity === 'critical'),
       );
-      if (futureToday.length >= 3) {
-        const maxWind = Math.max(...futureToday.map(h => h.windSpeed ?? 0));
-        const maxRainProb = Math.max(...futureToday.map(h => h.precipProbability ?? 0));
-        const maxWindKt = Math.round(msToKnots(maxWind));
 
-        if (maxWindKt > 5) {
-          result.push({
-            key: 'fcst-wind',
-            text: `Prev ${sectorLabel}: viento máx ${maxWindKt}kt hoy`,
-            color: maxWindKt > 15 ? 'text-orange-400' : 'text-sky-400',
-            bg: 'bg-sky-900/20',
-            priority: 5,
-          });
-        }
-        if (maxRainProb >= 40) {
-          result.push({
-            key: 'fcst-rain',
-            text: `Prev ${sectorLabel}: lluvia ${maxRainProb}% hoy`,
-            color: maxRainProb >= 70 ? 'text-amber-400' : 'text-slate-400',
-            bg: maxRainProb >= 70 ? 'bg-amber-900/25' : '',
-            priority: 4,
-          });
+      // Score every beach spot in the sector, keep the best verdict.
+      const verdictRank: Record<string, number> = { great: 3, ok: 2, poor: 1, unknown: 0 };
+      let bestBeach: { name: string; res: BeachDayResult } | null = null;
+      for (const spot of getSpotsForSector(sectorId)) {
+        if (!isBeachSpot(spot.id)) continue;
+        const sc = scores.get(spot.id);
+        if (!sc || sc.provisional || sc.airTemp == null) continue;
+        const res = assessBeachDay({
+          cloudCoverPct,
+          windKt: sc.effectiveWindKt ?? sc.wind?.avgSpeedKt ?? null,
+          gustKt: sc.gustKt ?? null,
+          airTempC: sc.airTemp,
+          waterTempC: sc.waterTemp ?? null,
+          rainingNow,
+          rainSoon,
+          foggy,
+        });
+        if (res.verdict !== 'great' && res.verdict !== 'ok') continue;
+        if (!bestBeach || verdictRank[res.verdict] > verdictRank[bestBeach.res.verdict]) {
+          bestBeach = { name: spot.shortName, res };
         }
       }
+      if (bestBeach) {
+        const great = bestBeach.res.verdict === 'great';
+        const reason = bestBeach.res.reasons.length > 0
+          ? ` · ${bestBeach.res.reasons.slice(0, 2).join(', ')}`
+          : '';
+        result.push({
+          key: 'beach-day',
+          text: `¿Playa? ${bestBeach.res.summary} en ${bestBeach.name}${reason}`,
+          tone: great ? 'gc-t-ok' : 'gc-t-moderado',
+          priority: great ? 9 : 8,
+          essential: true,
+          icon: 'beach',
+        });
+      }
+    }
 
-      // Thermal forecast early warning (priority 9)
-      const thermalSignals = detectThermalForecast(forecastHourly, aloft);
-      for (const s of thermalSignals) {
-        const color = s.confidence === 'alta' ? 'text-green-400' : s.confidence === 'media' ? 'text-blue-400' : 'text-slate-400';
+    // ── Strong meteorological tide: measured at the gauge, from the service's own threshold ──
+    // With a spot card open that says it (the spot's own tide beside it), the strip never repeats it,
+    // the high level included: one voice per fact on a screen (11-nov). A card with no tide line
+    // (a spot without a tide station) leaves the strip as the only place, so it stays.
+    if (meteoTide && meteoTide.level !== 'none' && !cardSaysTide) {
+      const high = meteoTide.level === 'high';
+      result.push({
+        key: 'tide-surge',
+        text: `${formatMeteoTide(meteoTide)}${meteoTide.gaugeName ? ` en ${meteoTide.gaugeName}` : ''} (mareógrafo)`,
+        tone: high ? 'gc-t-alto' : 'gc-t-riesgo',
+        priority: high ? 9.5 : 8,
+        essential: high,
+        icon: 'waves',
+      });
+    }
+
+    // ── Forecast: storm and rain, in the words of the list ──
+    for (const l of forecastLines(forecastHourly, convectionData.length > 0 ? convectionData : forecastHourly, nowDate)) {
+      if (l.id === 'ahead-storm') {
+        result.push({ key: l.id, text: `${l.text} (modelo)`, tone: 'gc-t-moderado', priority: 8, essential: true, icon: 'zap' });
+      } else if (l.id === 'ahead-rain') {
+        result.push({ key: l.id, text: `${l.text} (modelo)`, tone: 'gc-t-riesgo', priority: 5, icon: 'cloud-rain' });
+      }
+    }
+
+    // ── Thermal forecast: inland only, the detector means nothing on the coast ──
+    if (sectorId === 'embalse' && forecastHourly.length > 0) {
+      for (const s of detectThermalForecast(forecastHourly, aloft)) {
         result.push({
           key: `thermal-fcst-${s.day}`,
-          text: `${sectorLabel}: ${s.label}`,
-          color,
-          bg: 'bg-amber-900/25',
+          text: `${sector.shortName}: ${s.label}`,
+          tone: s.confidence === 'alta' ? 'gc-t-ok' : 'gc-t-riesgo',
           priority: 9,
         });
       }
     }
 
-    // ── sky_state FOG/STORMS forecast from MeteoSIX (priority 8) ──
-    if (forecastHourly.length > 0) {
-      const now2 = new Date();
-      const next12h = forecastHourly.filter(h => {
-        const diff = h.time.getTime() - now2.getTime();
-        return diff >= 0 && diff < 12 * 3600_000;
-      });
-
-      // First FOG in forecast
-      const fogHour = next12h.find(h => h.skyState === 'FOG' || h.skyState === 'FOG_BANK' || h.skyState === 'MIST');
-      if (fogHour) {
-        const hh = fogHour.time.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false });
-        result.push({
-          key: 'fcst-fog',
-          text: `Niebla prevista ${hh}`,
-          color: 'text-slate-300',
-          bg: 'bg-slate-700/30',
-          priority: 8,
-          essential: true,
-        });
-      }
-
-      // First STORMS in forecast
-      const stormHour = next12h.find(h =>
-        h.skyState === 'STORMS' || h.skyState === 'STORM_THEN_CLOUDY' || h.skyState === 'NIGHT_STORMS' || h.skyState === 'RAIN_HAIL',
-      );
-      if (stormHour) {
-        const hh = stormHour.time.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', hour12: false });
-        result.push({
-          key: 'fcst-storm-sky',
-          text: `WRF prevé tormentas ${hh}`,
-          color: 'text-purple-400',
-          bg: 'bg-purple-900/25',
-          priority: 8,
-          essential: true,
-        });
-      }
-    }
-
-    // ── Real-time thermal precursors (priority 9) — Embalse + thermal spots ──
-    if (sectorId === 'embalse') {
-      const precursors = useSpotStore.getState().thermalPrecursors;
-      for (const [spotId, p] of precursors) {
-        if (p.probability < 30 || p.level === 'none') continue;
-        const color = p.level === 'imminent' || p.level === 'active' ? 'text-green-400'
-          : p.level === 'probable' ? 'text-amber-400' : 'text-blue-400';
-        const etaStr = p.eta ? ` — ${p.eta}` : '';
-        result.push({
-          key: `precursor-${spotId}`,
-          text: `Precursor: ${p.probability}% ${p.level === 'active' ? 'ACTIVO' : p.level === 'imminent' ? 'INMINENTE' : ''}${etaStr}`,
-          color,
-          bg: 'bg-amber-900/25',
-          priority: p.level === 'active' || p.level === 'imminent' ? 10 : 9,
-        });
-      }
-    }
-
-    // ── Lightning measured around the sector point (priority 11 = highest urgency) ──
+    // ── Lightning measured around the sector point ──
     // Distance of the nearest strike and age of the last one. No percentage and no arrival time:
     // against the stored season neither held up (services/lightningStatus.ts).
     if (lightning.level !== 'none') {
@@ -524,296 +226,145 @@ export const ConditionsTicker = memo(function ConditionsTicker({ simple = false 
       const age = lightning.lastStrikeMin != null ? ` · ${formatStrikeAge(lightning.lastStrikeMin)}` : '';
       result.push({
         key: 'lightning-measured',
-        text: isDanger ? `TORMENTA ENCIMA · ${lightning.headline.toLowerCase()}${age}` : `${lightning.headline}${age}`,
-        color: isDanger ? 'text-purple-400' : isWarning ? 'text-amber-400' : 'text-slate-400',
-        bg: isDanger ? 'bg-purple-900/30' : isWarning ? 'bg-amber-900/25' : '',
+        text: isDanger ? `Tormenta encima · ${lightning.headline.toLowerCase()}${age}` : `${lightning.headline}${age}`,
+        tone: isDanger ? 'gc-t-critico' : isWarning ? 'gc-t-alto' : 'gc-t-riesgo',
         priority: isDanger ? 11 : isWarning ? 10 : 6,
         essential: true,
+        icon: 'zap',
       });
     }
 
-    // ── MG official warnings — NOT pushed to the ticker ──
-    // Rendered as a static strip ABOVE the marquee (see return block below).
-    // Reason: official MeteoGalicia AMARILLO/NARANJA/ROJO warnings are too
-    // critical to bury in a scrolling strip — the user reported they get
-    // cut off / stacked. Static strip means they're always visible without
-    // waiting for the marquee to cycle.
-
-    // ── UV warning — only in peak hours (12-16h) and only actionable values ──
-    // Reactive map philosophy: UV during off-peak hours doesn't change a user's
-    // current decision (no real exposure outside the window). Threshold raised
-    // from ≥6 to ≥7 to dedupe with the standard "high" threshold; sub-7 is the
-    // upper-half of "moderate" and the user usually knows already.
-    const aq = useAirQualityStore.getState().data;
-    if (aq && aq.uvIndex >= UV_TICKER_THRESHOLD && isPeakUvHour()) {
-      const uvRounded = Math.round(aq.uvIndex);
+    // ── UV: only in peak hours and only actionable values ──
+    if (airQuality && airQuality.uvIndex >= UV_TICKER_THRESHOLD && isPeakUvHour()) {
+      const uvRounded = Math.round(airQuality.uvIndex);
       const cat = uvCategory(uvRounded);
-      const isExtreme = cat === 'extreme';
-      const isVeryHigh = cat === 'very_high';
       result.push({
         key: 'uv-index',
         text: uvTickerLabel(uvRounded),
-        color: isExtreme ? 'text-purple-400' : isVeryHigh ? 'text-red-400' : 'text-amber-400',
-        bg: isExtreme ? 'bg-purple-900/25' : isVeryHigh ? 'bg-red-900/20' : 'bg-amber-900/20',
-        priority: isExtreme ? 8 : isVeryHigh ? 6 : 4,
+        tone: cat === 'extreme' || cat === 'very_high' ? 'gc-t-alto' : 'gc-t-moderado',
+        priority: cat === 'extreme' ? 8 : cat === 'very_high' ? 6 : 4,
+        icon: 'sun',
       });
     }
 
-    // ── Air quality warning (priority 5 — only when poor) ──
-    // PRIMARY: MeteoGalicia ICA (official Xunta, station-by-station). When any
-    // station registers ICA ≥ 2.5 (deficiente or worse), surface the worst one.
-    // FALLBACK: Open-Meteo European AQI when ICA has no readings yet (boot or
-    // an outage of MeteoGalicia's air-quality JSON).
-    const icaReadings = useIcaStore.getState().readings;
-    if (icaReadings.length > 0) {
-      let worst: typeof icaReadings[0] | null = null;
-      for (const r of icaReadings) {
-        if ((!worst || r.ica > worst.ica) && r.ica >= 2.5) worst = r;
-      }
-      if (worst) {
-        const cat = icaCategory(worst.ica);
-        const labelEs = worst.categoryEs || (cat === 'muy_mala' ? 'Muy mala' : cat === 'mala' ? 'Mala' : 'Deficiente');
-        const isSevere = cat === 'mala' || cat === 'muy_mala';
-        // Expand pollutant code so non-technical users understand what's high.
-        // The label "Calidad del aire" (feminine) agrees with categoryEs values
-        // ("Moderada", "Mala") — earlier "Aire Moderada" was a gender mismatch.
-        const pollutantEs = ({
-          O3: 'ozono', NO2: 'NO₂', PM10: 'partículas PM10',
-          PM25: 'PM2.5', 'PM2.5': 'PM2.5', SO2: 'SO₂', CO: 'CO',
-        } as Record<string, string>)[worst.dominantPollutant] ?? worst.dominantPollutant;
-        result.push({
-          key: 'air-quality',
-          text: `Calidad del aire ${labelEs.toLowerCase()} en ${worst.station}${pollutantEs ? ` · ${pollutantEs}` : ''}`,
-          color: isSevere ? 'text-red-400' : 'text-orange-400',
-          bg: isSevere ? 'bg-red-900/20' : 'bg-orange-900/20',
-          priority: isSevere ? 7 : 5,
-        });
-      }
-    } else if (aq && aq.europeanAqi >= 60) {
-      // Fallback to Open-Meteo when ICA hasn't loaded
-      const aqLabel = aq.europeanAqi >= 80 ? 'Muy mala' : 'Mala';
-      const pm25Label = aq.pm2_5 >= 35 ? ` (PM2.5 ${Math.round(aq.pm2_5)})` : '';
+    // ── Air quality: the official network, a station near the sector, named with its distance ──
+    const ica = worstIcaNear(icaReadings, sector.center, sector.radiusKm);
+    if (ica) {
+      const cat = icaCategory(ica.reading.ica);
+      const severe = cat === 'mala' || cat === 'muy_mala';
       result.push({
         key: 'air-quality',
-        text: `Calidad del aire: ${aqLabel}${pm25Label}`,
-        color: aq.europeanAqi >= 80 ? 'text-red-400' : 'text-orange-400',
-        bg: aq.europeanAqi >= 80 ? 'bg-red-900/20' : 'bg-orange-900/20',
-        priority: aq.europeanAqi >= 80 ? 7 : 5,
+        text: icaSentence(ica),
+        tone: severe ? 'gc-t-alto' : 'gc-t-moderado',
+        priority: severe ? 7 : 5,
+        icon: 'wind',
       });
     }
 
-    // ── Active wildfires warning (NASA FIRMS, priority 6 — high) ──
-    // Situate the fire, never count satellite pixels. The old copy said
-    // "N focos activos" straight off the hotspot rows, which multiplied one
-    // fire by every satellite, pass and pixel that saw it — and grew through
-    // the day while nothing new was burning. `aggregateFiresForSector` groups
-    // the rows into fires, drops the ones too old to still be called active,
-    // and stays silent about anything past the mention range: a fire 178km
-    // away in Zamora is not news for someone deciding whether to go out here.
-    const fireClusters = selectFireClusters(fires);
-    const fireAgg = aggregateFiresForSector(
-      fireClusters,
-      useSectorStore.getState().activeSector.center,
-    );
+    // ── Fires: say the zone, not a distance from an unnamed centre. Clusters, never pixels; past the
+    // mention range it stays silent: a fire in Zamora is not news for someone in Vigo. ──
+    const fireAgg = aggregateFiresForSector(selectFireClusters(fires), sector.center);
     if (fireAgg.severity !== 'none' && fireAgg.nearest) {
       const { distanceKm, bearing, cluster } = fireAgg.nearest;
-      const km = Math.round(distanceKm);
+      const place = describeFireLocation(cluster.lat, cluster.lon, distanceKm, bearing);
+      const placeLower = place.charAt(0).toLowerCase() + place.slice(1);
       const age = formatFireAge(cluster.latestAt);
       const isNear = fireAgg.severity === 'alerta';
       result.push({
         key: 'active-fires',
         text: fireAgg.fireCount === 1
-          ? `Incendio detectado a ${km} km al ${bearing} · ${age}`
-          : `${fireAgg.fireCount} incendios cerca · el más próximo a ${km} km al ${bearing} · ${age}`,
-        color: isNear ? 'text-red-400' : 'text-orange-400',
-        bg: isNear ? 'bg-red-900/20' : 'bg-orange-900/20',
-        priority: isNear ? 7 : 6,
+          ? `Incendio ${placeLower} · ${age}`
+          : `${fireAgg.fireCount} incendios cerca · el más próximo ${placeLower} · ${age}`,
+        tone: isNear ? 'gc-t-critico' : 'gc-t-alto',
+        priority: isNear ? 10 : 7,
         essential: true,
+        icon: 'flame',
       });
     }
 
-    // ── Sea breeze / viración térmica engine (priority 6 — Rías only) ──
-    // Sector-wide thermal driver: when inland heats well above the coast on a
-    // summer afternoon, the breeze fills in. Tells the user the engine is ON
-    // before any individual spot flips. Phase A surface (ticker); animated
-    // front arrow is Phase B.
-    if (isCoastalSector(sectorId)) {
-      const breeze = assessSeaBreezeRias(readings, stations);
-      // Frontal flow aloft (the same veto every spot score carries): a coast-interior
-      // contrast is not a breeze then, and the ticker must not announce one.
-      const frontalAloft = [...useSpotStore.getState().scores.values()].some((s) => s.regimeVeto?.vetoed);
-      if (breeze.active && breeze.phase !== 'building' && !frontalAloft) {
-        // Only surface once the breeze has actually filled in (active/mature) —
-        // 'building' is too speculative for the ticker.
-        result.push({
-          key: 'sea-breeze',
-          text: `Brisa marina ${breeze.phase === 'mature' ? 'plena' : 'activa'}${breeze.deltaT != null ? ` · Δ${breeze.deltaT.toFixed(0)}°C costa-interior` : ''}`,
-          color: 'text-emerald-400',
-          bg: 'bg-emerald-900/20',
-          priority: 6,
-        });
-      }
-    }
-
-    // ── Data-quality WARNING (priority 1) — only when significantly degraded ──
-    // The routine "N/M estaciones activas" count was sector-level noise (a
-    // status count doesn't change a decision NOW). Keep only the warning when
-    // many stations have gone stale → the map is less trustworthy right now.
-    const staleCount = stations.filter(s => {
-      const r = readings.get(s.id);
-      if (!r?.timestamp) return false;
-      return (Date.now() - r.timestamp.getTime()) > 30 * 60_000;
-    }).length;
-    if (staleCount > 10) {
-      result.push({
-        key: 'station-status',
-        text: `Datos parciales — ${staleCount} estaciones sin actualizar`,
-        color: 'text-amber-400',
-        bg: '',
-        priority: 1,
-      });
-    }
-
-    // ── Fallback ──
-    if (result.length === 0 && stations.length > 0) {
-      result.push({
-        key: 'station-count',
-        text: `${stations.length} estaciones activas`,
-        color: 'text-slate-400',
-        bg: '',
-        priority: 0,
-      });
-    }
-
-    // Sort by priority descending, then cap so the marquee stays readable
-    // instead of an endless scroll (the "se hace enorme" problem on desktop,
-    // which had NO cap). The priority sort keeps the decision-relevant items
-    // (storm, spot verdicts, waves, tide); secondary ones (UV, fire, ICA,
-    // afloramiento) still appear when nothing more urgent is happening, but
-    // cede their place during busy conditions — no content type is removed,
-    // it's prioritised by what matters NOW.
-    // Simple mode: only critical/actionable items survive — beach headline,
-    // best surf spot from SURF OK up +
-    // safety (measured lightning, forecast storms/fog, active fires). All the
-    // informational density (spot verdicts, gusts, waves, tide, forecast
-    // summary, thermal, UV, air quality, sea breeze, station status) shows
-    // only in full mode. No essential items → empty marquee (silence).
     const pool = simple ? result.filter((it) => it.essential === true) : result;
     pool.sort((a, b) => b.priority - a.priority);
+    return pool[0] ?? null;
+  }, [safetyBandOn, scores, sectorId, sector, forecastHourly, convectionData, rainNowSummary, lightning, unifiedAlerts, airQuality, icaReadings, meteoTide, cardSaysTide, fires, simple, aloft]);
 
-    const cap = isMobile ? 6 : 9;
-    return pool.length > cap ? pool.slice(0, cap) : pool;
-  }, [scores, surfWaveCache, theme, readings, stations, buoyReadings, sectorId, forecastHourly, rainNowSummary, lightning, mgWarnings, unifiedAlerts, tidePoints, meteoTide, fires, isMobile, simple, aloft]);
-
-  // ── Official MG warnings — static strip above the marquee ─────
-  // Highest-priority signals (AMARILLO/NARANJA/ROJO from MeteoGalicia RSS).
-  // Stacked vertically when there are several so the user sees ALL of them
-  // immediately without waiting for the ticker to cycle.
+  // ── Official warnings: fixed, with day and hour: a warning for tomorrow must not read as today ──
   const officialWarnings = useMemo(() => {
-    return mgWarnings.map((w) => {
-      const levelLabel = w.maxLevel === 3 ? 'ROJO' : w.maxLevel === 2 ? 'NARANJA' : 'AMARILLO';
-      const zoneNames = [...new Set(w.zones.map((z) => z.name))].join(', '); // a zone with two time windows comes twice
-      const color = w.maxLevel === 3
-        ? 'text-red-200'
-        : w.maxLevel === 2 ? 'text-orange-200' : 'text-yellow-200';
-      const bg = w.maxLevel === 3
-        ? 'bg-red-950/70 border-l-red-500'
-        : w.maxLevel === 2
-          ? 'bg-orange-950/60 border-l-orange-500'
-          : 'bg-yellow-950/50 border-l-yellow-500';
-      const chipColor = w.maxLevel === 3
-        ? 'bg-red-500/30 text-red-100'
-        : w.maxLevel === 2 ? 'bg-orange-500/30 text-orange-100' : 'bg-yellow-500/25 text-yellow-100';
+    const now = new Date();
+    const each = mgWarnings.map((w) => {
+      const from = new Date(Math.min(...w.zones.map((z) => z.startTime.getTime())));
+      const to = new Date(Math.max(...w.zones.map((z) => z.endTime.getTime())));
       return {
         key: `mg-${w.typeId}-${w.maxLevel}`,
-        levelLabel,
-        type: w.type,
-        zoneNames,
-        color,
-        bg,
-        chipColor,
+        level: w.maxLevel,
+        levelLabel: w.maxLevel === 3 ? 'ROJO' : w.maxLevel === 2 ? 'NARANJA' : 'AMARILLO',
+        type: warningTitleEs(w.type),
+        // A zone with two time windows comes twice
+        where: `${spanWords(from, to, now)} · ${[...new Set(w.zones.map((z) => z.name))].join(', ')}`,
       };
     });
+    // Two warnings of the same level for the same hours and places («Precipitación 12 horas» and
+    // «1 hora») are one line: on a phone each took two rows of the screen before the map. Never
+    // across levels: an orange one keeps its own line.
+    const grouped: typeof each = [];
+    for (const w of each) {
+      const same = grouped.find((g) => g.level === w.level && g.where === w.where);
+      if (same) same.type = joinWarningTypes(same.type, w.type);
+      else grouped.push({ ...w });
+    }
+    return grouped;
   }, [mgWarnings]);
 
-  if (items.length === 0 && officialWarnings.length === 0) return null;
+  // Simple mode: two entries at most over the map, one warning on a phone; the rest wait in Condiciones.
+  const isMobile = useUIStore((st) => st.isMobile);
+  const plan = topStripPlan(officialWarnings, line, simple, isMobile);
+  const shownLine = plan.line ? line : null;
+  // The strip beside the map tools reads this, so it does not say the same thing again.
+  const setTickerKey = useLevelZeroStore((st) => st.setTickerKey);
+  const shownKey = shownLine?.key ?? null;
+  useEffect(() => { setTickerKey(shownKey); }, [shownKey, setTickerKey]);
+  useEffect(() => () => setTickerKey(null), [setTickerKey]);
 
-  // Dynamic animation speed: ~8s per item (more items = slower scroll)
-  const duration = Math.max(20, items.length * 8);
-
-  // Duplicate items for seamless loop
-  const tickerContent = [...items, ...items];
+  // MeteoGalicia down and no warnings to show: said where they would be, or the empty strip reads as «none» (18-nov)
+  const sayUnknown = officialUnknown && plan.warnings.length === 0;
+  if (!shownLine && plan.warnings.length === 0 && !sayUnknown) return null;
 
   return (
-    <div className="flex-shrink-0">
-      {/* ── Static official warnings strip ── */}
-      {officialWarnings.length > 0 && (
+    <div className="g-theme flex-shrink-0">
+      {plan.warnings.length > 0 && (
         <div className="flex flex-col">
-          {officialWarnings.map((w) => (
-            <div
-              key={w.key}
-              role="alert"
-              className={`flex items-center gap-2 px-3 py-1 text-[11px] border-l-4 border-b border-slate-800/60 ${w.bg} ${w.color}`}
-            >
-              <span className={`font-bold uppercase tracking-wide px-1.5 py-0.5 rounded text-[10px] ${w.chipColor}`}>
-                Aviso {w.levelLabel}
-              </span>
-              <span className="font-semibold">{w.type}</span>
-              <span className="opacity-60">·</span>
-              <span className="opacity-90 truncate">{w.zoneNames}</span>
+          {plan.warnings.map((w, i) => (
+            <div key={w.key} role="alert" className="gc-official">
+              <span className="gc-official-level" data-level={w.level}>Aviso {w.levelLabel}</span>
+              <b>{w.type}</b>
+              {plan.hidden > 0 && i === plan.warnings.length - 1 && (
+                <span className="gc-official-more">y {plan.hidden} más en Condiciones</span>
+              )}
+              <span>{w.where}</span>
             </div>
           ))}
         </div>
       )}
 
-      {/* ── Scrolling ticker (everything else) ── */}
-      {items.length > 0 && (
-    <div
-      role="marquee"
-      aria-label="Condiciones meteorológicas en tiempo real"
-      className="h-7 bg-slate-900/80 border-b border-slate-700/50 overflow-hidden relative flex"
-    >
-      <button
-        onClick={() => setPaused(p => !p)}
-        className="flex-shrink-0 w-8 h-7 flex items-center justify-center text-slate-500 hover:text-slate-300 transition-colors border-r border-slate-700/50"
-        aria-label={paused ? 'Reanudar ticker de alertas' : 'Pausar ticker de alertas'}
-        title={paused ? 'Reanudar' : 'Pausar'}
-      >
-        {paused ? (
-          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
-        ) : (
-          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" /></svg>
-        )}
-      </button>
-      <div
-        className="flex-1 overflow-hidden"
-        onClick={handleTouch}
-        onTouchStart={handleTouch}
-      >
-        <div
-          className="ticker-scroll flex items-center h-full gap-6 whitespace-nowrap px-4"
-          style={{
-            animationDuration: `${duration}s`,
-            animationPlayState: paused ? 'paused' : 'running',
-          }}
-        >
-          {tickerContent.map((item, i) => (
-            <span
-              key={`${item.key}-${i}`}
-              className={`text-[11px] font-medium ${item.color} flex items-center gap-1.5 ${item.bg ? `${item.bg} px-2 py-0.5 rounded` : ''}`}
-              style={item.hex ? { color: item.hex } : undefined}
-            >
-              {item.icon ? (
-                <WeatherIcon id={item.icon} size={12} className="shrink-0 opacity-80" />
-              ) : (
-                <span className="w-1 h-1 rounded-full bg-current opacity-50" />
-              )}
-              <span>{item.text}</span>
-            </span>
-          ))}
+      {sayUnknown && (
+        <div role="status" className="gc-official gc-official--unknown">
+          <b>{OFFICIAL_UNKNOWN_TITLE}</b>
+          <span>{OFFICIAL_UNKNOWN_DETAIL}</span>
         </div>
-      </div>
-    </div>
+      )}
+
+      {shownLine && (
+        <div className="gc-ticker" role="status" title={shownLine.text}>
+          <span className="gc-tickerline">
+            {shownLine.icon ? (
+              <span className={`inline-flex shrink-0 ${shownLine.tone}`} style={{ color: 'var(--tone)' }}>
+                <WeatherIcon id={shownLine.icon} size={15} />
+              </span>
+            ) : (
+              <span className={`gc-dot ${shownLine.tone}`} />
+            )}
+            <span>{shownLine.text}</span>
+          </span>
+        </div>
       )}
     </div>
   );

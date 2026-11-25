@@ -89,6 +89,14 @@ describe('UserSpotMarkers', () => {
     expect(container.textContent).toContain('Calculando');
   });
 
+  it('an own pin says no state: ink and dashes, not the violet of «fuerte»', () => {
+    seedPin(useSectorStore.getState().activeSector.id);
+    useUserSpotStore.setState({ scores: new Map([['user-test-1', scoreWith({ effectiveWindKt: 9 })]]) } as never);
+    const { container } = render(<UserSpotMarkers />);
+    expect(container.innerHTML).not.toMatch(/a78bfa|167,\s*139,\s*250/i);
+    expect(container.innerHTML).toContain('dashed');
+  });
+
   it('renders nothing in a sector with no pins and no weather points', () => {
     useSectorStore.setState((s) => ({ activeSector: { ...s.activeSector, id: 'rias' } }) as never);
     const { container } = render(<UserSpotMarkers />);

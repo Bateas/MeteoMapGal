@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense, type ComponentProps } from 'react';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { WeatherIcon } from '../icons/WeatherIcons';
@@ -13,21 +13,19 @@ import { useWeatherSelectionStore } from '../../store/weatherSelectionStore';
 import { useLightningStore } from '../../hooks/useLightningData';
 import { logPredictionSnapshot } from '../../services/stormPredictionLogger';
 import { useStormPrediction, usePredictionInputsReady } from '../../hooks/useStormPrediction';
-import { fetchSeasonGDD } from '../../services/gddService';
 import { useTemperatureOverlayStore } from '../../store/temperatureOverlayStore';
-import { useAlertStore } from '../../store/alertStore';
 import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import { KeyboardShortcutHelp } from '../common/KeyboardShortcutHelp';
 const MeteoGuide = lazy(() => import('../guide/MeteoGuide').then(m => ({ default: m.MeteoGuide })));
 const FeedbackModal = lazy(() => import('../common/FeedbackModal').then(m => ({ default: m.FeedbackModal })));
 import { ToastContainer } from '../common/ToastContainer';
-const OnboardingTour = lazy(() => import('../common/OnboardingTour').then(m => ({ default: m.OnboardingTour })));
+// The first visit asks two or three questions instead of the old four-step tour (18-nov)
+const WelcomeAssistant = lazy(() => import('../common/WelcomeAssistant').then(m => ({ default: m.WelcomeAssistant })));
 // Daily summary handled by ingestor 24/7 (dailySummary.ts) — frontend service removed
 // Geolocation disabled — browser permission popup scares first-visit users
 const ConditionsTicker = lazy(() => import('../common/ConditionsTicker').then(m => ({ default: m.ConditionsTicker })));
 const ForecastPanel = lazy(() => import('../charts/ForecastPanel').then(m => ({ default: m.ForecastPanel })));
 import { SourceStatusBanner } from '../common/SourceStatusBanner';
-import { MagicWindowBanner } from '../common/MagicWindowBanner';
 import { PwaInstallBanner } from '../common/PwaInstallBanner';
 import { NewVersionBanner } from '../common/NewVersionBanner';
 import { SimulationBanner } from '../common/SimulationBanner';
@@ -35,89 +33,91 @@ import { useThemeStore } from '../../store/themeStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { useUIStore } from '../../store/uiStore';
 import { useToastStore } from '../../store/toastStore';
-import { useAirspaceStore } from '../../store/airspaceStore';
 import { MobileSailingBanner } from '../dashboard/MobileSailingBanner';
 import { CriticalAlertBanner } from '../map/CriticalAlertBanner';
 import { LightningProximityBanner } from '../map/LightningProximityBanner';
 import { useCssVarFromElement } from '../../hooks/useCssVarFromElement';
+import { NARROW_DESKTOP_QUERY } from '../../config/narrowDesktop';
 import type { TeleconnectionIndex } from '../../api/naoClient';
 import { useUnifiedAlertPipeline } from '../../hooks/useUnifiedAlertPipeline';
+import { useConditionsList } from '../../hooks/useConditionsList';
 import { useDeepLink } from '../../hooks/useDeepLink';
+import { bottomTabFor } from '../../config/bottomTab';
+import { visibleSidebarTabs } from '../../config/simpleTabs';
+import { clearAdvancedLayers } from '../../services/simpleModeLayers';
+import '../../styles/v3tokens.css';
+import '../../styles/chrome.css';
+import '../../styles/archivoFonts.css';
+import { useBackCloses } from '../../hooks/useBackCloses';
+import { MobileSidePanel } from './MobileSidePanel';
 const DeferredHooks = lazy(() => import('./DeferredHooks').then(m => ({ default: m.DeferredHooks })));
 
-/** Collapsed sidebar: vertical icon strip with tab shortcuts — sector-aware.
- *  In simpleMode, hides Gráfica/Rankings/Historial (per user
- *  feedback: "lo más limpio posible para no abrumar"). Keeps Estaciones +
- *  Previsión always, Térmico only in Embalse. */
+/** Collapsed sidebar: the same tabs as the open panel, as a column of icons with their names. */
 function CollapsedSidebar({ onExpand }: { onExpand: () => void }) {
-  const sectorId = useSectorStore((s) => s.activeSector.id);
   const simpleMode = useUIStore((s) => s.simpleMode);
-  const allTabs = [
-    { icon: 'map-pin' as const, label: 'Estaciones', shortcut: '1', tab: 'stations' },
-    { icon: 'activity' as const, label: 'Gráfica', shortcut: '2', tab: 'chart', hideInSimple: true },
-    { icon: 'compass' as const, label: 'Previsión', shortcut: '3', tab: 'forecast' },
-    // Térmico only in Embalse — dynamic, not hardcoded
-    ...(sectorId === 'embalse' ? [{ icon: 'flame' as const, label: 'Térmico', shortcut: '4', tab: 'thermal' }] : []),
-    { icon: 'layers' as const, label: 'Rankings', shortcut: sectorId === 'embalse' ? '5' : '4', tab: 'rankings', hideInSimple: true },
-    { icon: 'clock' as const, label: 'Historial', shortcut: sectorId === 'embalse' ? '6' : '5', tab: 'history', hideInSimple: true },
-  ];
-  const TABS = allTabs.filter((t) => !simpleMode || !('hideInSimple' in t && t.hideInSimple));
+  const tabs = visibleSidebarTabs(simpleMode);
   return (
-    <div className="flex flex-col items-center py-2 gap-1 h-full">
-      {/* Expand button */}
-      <button
-        onClick={onExpand}
-        className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors mb-2"
-        aria-label="Expandir panel"
-        title="Expandir panel"
-      >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" d="M9 5l7 7-7 7" /></svg>
+    <div className="gc-rail" data-tour="sidebar">
+      <button type="button" onClick={onExpand} className="gc-railbtn gc-railbtn--icon" aria-label="Expandir panel" title="Expandir panel">
+        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true"><path strokeLinecap="round" d="M9 5l7 7-7 7" /></svg>
       </button>
-      {/* Tab icons — click navigates directly to that tab */}
-      {TABS.map((tab) => (
+      {tabs.map((tab) => (
         <button
-          key={tab.label}
-          onClick={() => { useUIStore.getState().setRequestedTab(tab.tab); onExpand(); }}
-          className="w-11 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-lg text-slate-500 hover:text-sky-400 hover:bg-slate-800/60 transition-colors"
-          title={`${tab.label} (${tab.shortcut})`}
-          aria-label={tab.label}
+          key={tab.id}
+          type="button"
+          onClick={() => { useUIStore.getState().setRequestedTab(tab.id); onExpand(); }}
+          // Simple mode: the forecast is the one place to go besides the map, so it leads
+          className={simpleMode && tab.id === 'forecast' ? 'gc-railbtn gc-railbtn--lead' : 'gc-railbtn'}
+          title={tab.label}
         >
-          <WeatherIcon id={tab.icon} size={14} />
-          <span className="text-[8px] font-medium leading-none truncate w-full text-center">{tab.label}</span>
+          <WeatherIcon id={tab.icon} size={18} />
+          <span>{tab.label}</span>
         </button>
       ))}
-      {/* Spacer */}
-      <div className="flex-1" />
-      {/* Guide + Feedback at bottom */}
-      <button
-        onClick={() => useUIStore.getState().toggleGuide()}
-        className="w-11 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-lg text-slate-500 hover:text-sky-400 hover:bg-slate-800/60 transition-colors"
-        title="Guía (G)"
-        aria-label="Guía"
-      >
-        <WeatherIcon id="book-open" size={14} />
-        <span className="text-[8px] font-medium leading-none">Guía</span>
-      </button>
-      <button
-        onClick={() => useUIStore.getState().setFeedbackOpen(true)}
-        className="w-11 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-lg text-emerald-500/60 hover:text-emerald-400 hover:bg-emerald-900/30 transition-colors"
-        title="Feedback"
-        aria-label="Feedback"
-      >
-        <WeatherIcon id="message-square" size={14} />
-        <span className="text-[8px] font-medium leading-none">Feedback</span>
-      </button>
-      <a
-        href="https://ko-fi.com/bateas"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="w-11 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-lg text-amber-500/50 hover:text-amber-400 hover:bg-amber-900/20 transition-colors"
-        title="Apoyar el proyecto"
-        aria-label="Apoyar en Ko-fi"
-      >
-        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><line x1="6" y1="2" x2="6" y2="4"/><line x1="10" y1="2" x2="10" y2="4"/><line x1="14" y1="2" x2="14" y2="4"/></svg>
-        <span className="text-[8px] font-medium leading-none">Apoyar</span>
+      <div style={{ flex: 1 }} />
+      <a href="https://ko-fi.com/bateas" target="_blank" rel="noopener noreferrer" className="gc-railbtn" title="Apoyar el proyecto">
+        <WeatherIcon id="anchor" size={18} />
+        <span>Apoyar</span>
       </a>
+    </div>
+  );
+}
+
+/**
+ * Nothing on screen and nothing on the way. It has to be worked out here: when every network fails, the
+ * discovery returns an empty list, with no error at all, and the map would just stay empty. The wait
+ * rides over the moment between the end of the discovery and the start of the first reading.
+ */
+/**
+ * The dot of Condiciones (the worst colour of its list, official warnings and lightning included) read here
+ * and not in AppShell: its eleven store slices re-rendered the whole map tree; measured on 19-nov, about
+ * 7 extra renders of the map during start-up. Now only the header or the bottom bar repaints.
+ */
+function HeaderWithConditions(props: Omit<ComponentProps<typeof Header>, 'fieldAlertLevel'>) {
+  return <Header {...props} fieldAlertLevel={useConditionsList().level} />;
+}
+function BottomNavWithConditions() {
+  return <MobileBottomNav fieldAlertLevel={useConditionsList().level} />;
+}
+
+function NoDataNotice({ onRetry }: { onRetry: () => void }) {
+  const error = useWeatherStore((s) => s.error);
+  const nothingComing = useWeatherStore((s) => s.currentReadings.size === 0 && !s.isLoading);
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    if (!nothingComing) {
+      setShow(false);
+      return;
+    }
+    const t = setTimeout(() => setShow(true), 1500);
+    return () => clearTimeout(t);
+  }, [nothingComing]);
+  if (!show && !(error && nothingComing)) return null;
+  return (
+    <div className="g-theme gc-notice" role="alert">
+      <span className="gc-dot gc-t-critico" />
+      <span className="gc-notice-text"><b>No se han podido cargar los datos.</b></span>
+      <button type="button" className="gc-btn gc-btn--plain" onClick={onRetry}>Reintentar</button>
     </div>
   );
 }
@@ -131,8 +131,6 @@ export function AppShell() {
   const error = useWeatherStore((s) => s.error);
   const stations = useWeatherStore((s) => s.stations);
   const activeSectorId = useSectorStore((s) => s.activeSector.id);
-  const activeSectorCenter = useSectorStore((s) => s.activeSector.center);
-  const activeSectorName = useSectorStore((s) => s.activeSector.name);
 
   // ── Responsive state ──────────────────────────────────
   const isMobile = useUIStore((s) => s.isMobile);
@@ -144,7 +142,7 @@ export function AppShell() {
   // Apply theme to <html> element
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'light' ? '#ffffff' : '#0f172a');
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'light' ? '#f4f5f3' : '#141618');
   }, [theme]);
   const sidebarOpen = useUIStore((s) => s.sidebarOpen);
   // Where the map really starts, and how tall the phone's top-of-map column
@@ -153,11 +151,15 @@ export function AppShell() {
   const mapTopStackRef = useRef<HTMLDivElement>(null);
   useCssVarFromElement(mainRef, '--map-top', 'top');
   useCssVarFromElement(mapTopStackRef, '--map-stack-h', 'height', isMobile);
+  // The warnings strip floats over the top of the map; what sits there moves down by its height (--ticker-h).
+  const tickerRef = useRef<HTMLDivElement>(null);
+  useCssVarFromElement(tickerRef, '--ticker-h', 'height');
   const setIsMobile = useUIStore((s) => s.setIsMobile);
   const setSidebarOpen = useUIStore((s) => s.setSidebarOpen);
   const fieldDrawerOpen = useUIStore((s) => s.fieldDrawerOpen);
   const setFieldDrawerOpen = useUIStore((s) => s.setFieldDrawerOpen);
   const toggleFieldDrawer = useUIStore((s) => s.toggleFieldDrawer);
+  const closeFieldDrawer = useCallback(() => setFieldDrawerOpen(false), [setFieldDrawerOpen]);
 
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 768px)');
@@ -169,6 +171,16 @@ export function AppShell() {
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
   }, [setIsMobile, setSidebarOpen]);
+
+  // A narrow desktop window (a tablet, half a screen): the open panel leaves the map no room, so it
+  // folds when the window gets there. The reader can still open it; it is not locked.
+  useEffect(() => {
+    const mq = window.matchMedia(NARROW_DESKTOP_QUERY);
+    const fold = (e: { matches: boolean }) => { if (e.matches) useUIStore.getState().setSidebarCollapsed(true); };
+    fold(mq);
+    mq.addEventListener('change', fold);
+    return () => mq.removeEventListener('change', fold);
+  }, []);
 
   // Auto-close sidebar when a station is selected on mobile
   const selectedStationId = useWeatherSelectionStore((s) => s.selectedStationId);
@@ -190,9 +202,18 @@ export function AppShell() {
   useEffect(() => {
     if (!isMobile) return;
     const ui = useUIStore.getState();
-    if (forecastPanelOpen) ui.setActiveBottomTab('prevision');
-    else if (!sidebarOpen && !fieldDrawerOpen) ui.setActiveBottomTab('map');
+    const tab = bottomTabFor({ forecastPanelOpen, fieldDrawerOpen, sidebarOpen, current: ui.activeBottomTab });
+    if (tab) ui.setActiveBottomTab(tab);
   }, [isMobile, sidebarOpen, fieldDrawerOpen, forecastPanelOpen]);
+
+  // On a phone the panels cover the map: the back button closes whichever is open and goes back to it.
+  // One slot for the three, so moving between tabs is still a single step back.
+  useBackCloses(isMobile && (sidebarOpen || fieldDrawerOpen || forecastPanelOpen), () => {
+    const ui = useUIStore.getState();
+    ui.setSidebarOpen(false);
+    ui.setFieldDrawerOpen(false);
+    ui.setForecastPanelOpen(false);
+  }, 'panel');
 
   // React to external tab switch requests (e.g. popup "Ver historial" button).
   // MUST live here (not in Sidebar) because Sidebar is not mounted when collapsed/closed.
@@ -203,9 +224,11 @@ export function AppShell() {
     // Expand sidebar so <Sidebar/> mounts and picks up the requestedTab
     if (!isMobile && ui.sidebarCollapsed) ui.setSidebarCollapsed(false);
     if (isMobile && !ui.sidebarOpen) ui.setSidebarOpen(true);
+    // «Ver historial» on a card: Estaciones and Historial live under Más, not under Spots
+    if (isMobile && requestedTab !== 'spots') ui.setActiveBottomTab('mas');
   }, [requestedTab, isMobile]);
 
-  // useForecastTimeline moved to DeferredHooks (audit S136+3 #8) — not on
+  // useForecastTimeline moved to DeferredHooks — not on
   // critical path for first paint; consumers read from useForecastStore.
 
   // ── Deferred hooks — mount after 3s to unblock first paint ──
@@ -215,65 +238,30 @@ export function AppShell() {
     return () => clearTimeout(t);
   }, []);
 
-  // Read airspaceCheck from store (populated by useAirspace inside DeferredHooks)
-  const airspaceCheck = useAirspaceStore((s) => s.check);
-
   // NAO/AO teleconnection indices — ref shared with DeferredHooks
   const teleconnectionsRef = useRef<TeleconnectionIndex[]>([]);
 
-  // ── Map reveal crossfade — smooth transition as loading screen fades out ──
-  const readingsCount = useWeatherStore((s) => s.currentReadings.size);
-  const [mapRevealed, setMapRevealed] = useState(false);
-  // showLoading tracks whether LoadingScreen should be mounted on cold start
+  // LoadingScreen decides when it leaves, with its fade; this only says it is gone
   const [showLoading, setShowLoading] = useState(true);
-  const loadingStartRef = useRef(Date.now());
+  const hideLoading = useCallback(() => setShowLoading(false), []);
 
-  // Reveal map immediately on cold start — tiles load fast, data overlays appear as they arrive.
-  // This improves FCP/LCP: user sees the map base within ~400ms instead of waiting ~7s.
+  // Simple mode has no layer switches, so what stays on could not be turned off
   useEffect(() => {
-    const t = setTimeout(() => setMapRevealed(true), 400);
-    return () => clearTimeout(t);
-  }, []);
-
-  // Hide LoadingScreen after min display time OR data ready (whichever is later) on initial boot
-  useEffect(() => {
-    if (!showLoading) return;
-    const elapsed = Date.now() - loadingStartRef.current;
-    // If data arrived, dismiss quickly (350ms min). If not, dismiss after 2s max (map visible underneath)
-    const maxWait = readingsCount > 0 ? Math.max(0, 350 - elapsed) : 2000;
-    const t = setTimeout(() => setShowLoading(false), maxWait);
-    return () => clearTimeout(t);
-  }, [readingsCount > 0, showLoading]);
+    if (simpleMode) clearAdvancedLayers();
+  }, [simpleMode]);
 
   // Geolocation auto-sector removed (permission popup scared users)
 
   // Prune stale history moved to DeferredHooks (off critical path).
   // Daily summary moved to ingestor (24/7, single source, no visitor duplicates).
 
-  // GDD season accumulation — deferred 20s to avoid Open-Meteo queue congestion at startup
-  const [seasonGDD, setSeasonGDD] = useState<{ accumulated: number; days: number } | null>(null);
-  const gddFetchedRef = useRef(false);
-  useEffect(() => {
-    if (gddFetchedRef.current) return;
-    const [lon, lat] = activeSectorCenter;
-    const t = setTimeout(() => {
-      gddFetchedRef.current = true;
-      fetchSeasonGDD(lat, lon).then((result) => {
-        if (result) setSeasonGDD(result);
-      });
-    }, 20_000);
-    return () => clearTimeout(t);
-  }, [activeSectorCenter]);
-
-  // ── Unified alert pipeline (extracted S136+3+2 TIER 2 A2-5) ──────
+  // ── Unified alert pipeline (its own hook) ──────────────────
   // The 3-effect chain (lapseRate → fieldAlerts → unified aggregation)
-  // lives in useUnifiedAlertPipeline now. AppShell only consumes
-  // fieldAlerts (for Header). The 12+ store subscriptions stay isolated
-  // in the hook so re-renders are scoped to the hook's internal state.
-  const fieldAlerts = useUnifiedAlertPipeline({
+  // lives in useUnifiedAlertPipeline now and writes to the stores. Its store subscriptions still
+  // re-render AppShell (a hook's subscriptions belong to its caller): about once a minute once settled
+  // (measured 19-nov), so it stays here for now.
+  useUnifiedAlertPipeline({
     stations,
-    airspaceCheck,
-    seasonGDD,
     teleconnectionsRef,
   });
 
@@ -284,35 +272,36 @@ export function AppShell() {
     const LAYER_LABELS: Record<string, string> = {
       'none': 'Ninguna',
       'wind-particles': 'Viento',
-      'satellite': 'Satélite',
       'radar': 'Radar',
     };
 
     function handleKeyDown(e: KeyboardEvent) {
-      // Ignore if typing in an input
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      // Not while typing, not Ctrl+C and the like, and not under a dialog that owns the keyboard
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      // (P is the forecast panel's own key: it opened it, it closes it)
+      const closesForecast = e.key.toLowerCase() === 'p' && useUIStore.getState().forecastPanelOpen;
+      if (!closesForecast && document.querySelector('[aria-modal="true"]')) return;
       const toast = useToastStore.getState().addToast;
 
       switch (e.key.toLowerCase()) {
         case 'c':
           toggleFieldDrawer();
-          toast('Panel de campo', 'info');
+          toast('Condiciones', 'info');
           break;
         case 'r':
-          if (!e.ctrlKey && !e.metaKey) {
-            forceRefresh();
-            toast('Datos refrescados', 'success');
-          }
+          forceRefresh();
+          toast('Datos refrescados', 'success');
           break;
         case 't':
+          // Simple mode has no layer buttons to turn it off again
+          if (useUIStore.getState().simpleMode) break;
           useTemperatureOverlayStore.getState().toggleOverlay();
-          toast('Gradiente térmico', 'info');
-          break;
-        case 'a':
-          useAlertStore.getState().togglePanel();
-          toast('Panel de alertas', 'info');
+          toast('Temperatura', 'info');
           break;
         case 'w': {
+          // Simple mode has no layer buttons to turn it off again
+          if (useUIStore.getState().simpleMode) break;
           useWeatherLayerStore.getState().cycleLayer();
           const layer = useWeatherLayerStore.getState().activeLayer;
           toast(`Capa: ${LAYER_LABELS[layer] ?? layer}`, 'info');
@@ -347,71 +336,41 @@ export function AppShell() {
       {/* Skip to content — visible only on keyboard focus */}
       <a
         href="#main-map"
+        // In the type of the rest of the page: it was the one text on the first screen that made the browser
+        // download DM Sans, and it is not even seen.
+        style={{ fontFamily: 'var(--g-font)' }}
         className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[9999] focus:px-4 focus:py-2 focus:bg-blue-700 focus:text-white focus:rounded-lg focus:text-sm focus:font-bold focus:shadow-lg focus:ring-2 focus:ring-blue-400 focus:outline-none"
       >
         Saltar al mapa
       </a>
       <SimulationBanner />
-      <Header
+      <HeaderWithConditions
         onRefresh={forceRefresh}
         fieldDrawerOpen={fieldDrawerOpen}
         onToggleFieldDrawer={toggleFieldDrawer}
-        fieldAlertLevel={fieldAlerts?.maxLevel ?? 'none'}
-        windFront={fieldAlerts?.wind ? {
-          active: fieldAlerts.wind.active,
-          etaMin: fieldAlerts.wind.estimatedArrivalMin,
-          directionLabel: fieldAlerts.wind.directionLabel,
-          frontSpeedKt: fieldAlerts.wind.frontSpeedKt,
-        } : null}
       />
 
       {/* Deferred hooks — mount after 3s to unblock first paint (LCP) */}
       {deferredReady && <DeferredHooks teleconnectionsRef={teleconnectionsRef} />}
 
-      {/* Visual confirmation of simpleMode + escape hatch. Without this the
-          user may toggle simpleMode by accident and not understand why content
-          disappeared. Clickable → toggles back to advanced. */}
-      {simpleMode && (
-        <button
-          onClick={() => useUIStore.getState().toggleSimpleMode()}
-          className="w-full bg-amber-500/10 hover:bg-amber-500/20 border-b border-amber-500/30 px-3 py-1 text-[11px] text-amber-300 hover:text-amber-200 font-medium transition-colors flex items-center justify-center gap-2 min-h-[28px]"
-          aria-label="Modo simple activo, pulsa para volver al modo avanzado"
-          title="Pulsa para volver al modo avanzado"
-        >
-          <WeatherIcon id="eye-off" size={12} />
-          <span>Modo simple activo · pulsa para ver todo</span>
-        </button>
-      )}
+      {/* No «Estás en modo simple» line: it took a row of every screen. The way to the rest is the
+          «Avanzado» button of the header and, on the phone, of the «Más» menu. */}
 
-      {/* Ticker mounts ALWAYS — in simpleMode it self-filters to critical
-          items only (official MG warnings + beach headline + safety). Hiding
-          it entirely made simple-mode users miss official NARANJA warnings. */}
-      <ErrorBoundary section="Ticker"><Suspense fallback={null}><ConditionsTicker simple={simpleMode} /></Suspense></ErrorBoundary>
       <SourceStatusBanner />
-      {/* Magic Window banner (T2-2) — appears only when backend detector confirms
-          a rare optimal-sailing convergence in Rías. Self-hides when not active. */}
-      <MagicWindowBanner />
+      {!showLoading && <NoDataNotice onRetry={retryDiscovery} />}
 
       <div className="flex-1 flex overflow-hidden relative">
         {/* Desktop sidebar: collapsible (icon strip ↔ full panel) */}
         {!isMobile && (
           <ErrorBoundary section="Sidebar">
-            <aside
-              className={`bg-slate-900 border-r border-slate-700 flex flex-col overflow-hidden transition-all duration-300 ${
-                sidebarCollapsed ? 'w-14' : 'w-80'
-              }`}
-            >
+            <aside className={`g-theme gc-aside gc-aside--dock ${sidebarCollapsed ? 'w-[68px]' : 'w-80'}`}>
               {sidebarCollapsed ? (
                 <CollapsedSidebar onExpand={toggleSidebarCollapsed} />
               ) : (
                 <>
-                  <button
-                    onClick={toggleSidebarCollapsed}
-                    className="shrink-0 flex items-center justify-center h-8 text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors border-b border-slate-700/50"
-                    aria-label="Colapsar panel"
-                    title="Colapsar panel"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" d="M15 19l-7-7 7-7" /></svg>
+                  <button type="button" onClick={toggleSidebarCollapsed} className="gc-collapse" aria-label="Colapsar panel" title="Colapsar panel">
+                    <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true"><path strokeLinecap="round" d="M15 19l-7-7 7-7" /></svg>
+                    Plegar
                   </button>
                   <Sidebar />
                 </>
@@ -422,33 +381,22 @@ export function AppShell() {
 
         {/* Mobile sidebar: slide-over panel */}
         {isMobile && sidebarOpen && (
-          <>
-            <div
-              className="fixed inset-0 bg-black/60 z-30 transition-opacity"
-              onClick={() => setSidebarOpen(false)}
-              onKeyDown={(e) => { if (e.key === 'Escape') setSidebarOpen(false); }}
-              role="presentation"
-            />
-            <aside className="fixed inset-y-0 left-0 z-40 w-72 bg-slate-900 shadow-2xl flex flex-col overflow-hidden animate-slide-in-left">
-              {/* Close button */}
-              <button
-                onClick={() => setSidebarOpen(false)}
-                className="absolute top-2 right-2 z-50 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors active:bg-slate-600"
-                aria-label="Cerrar panel"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-              <Sidebar />
-            </aside>
-          </>
+          <MobileSidePanel onClose={() => setSidebarOpen(false)}>
+            <Sidebar />
+          </MobileSidePanel>
         )}
 
-        <main ref={mainRef} id="main-map" className={`flex-1 relative isolate transition-opacity duration-1000 map-dark-scope ${mapRevealed ? 'opacity-100' : 'opacity-0'}`}>
+        <main ref={mainRef} id="main-map" className="flex-1 relative isolate map-dark-scope">
           <ErrorBoundary section="Mapa">
             <WeatherMap />
           </ErrorBoundary>
+
+          {/* The warnings strip mounts ALWAYS (in simple mode it keeps only the essential items: official
+              warnings, safety). It floats over the top of the map: in the page flow it arrived ~4 s after the
+              map and pushed it down 50 px (CLS 0,10; over the map since 19-nov). */}
+          <div ref={tickerRef} className="gc-mapticker">
+            <ErrorBoundary section="Ticker"><Suspense fallback={null}><ConditionsTicker simple={simpleMode} /></Suspense></ErrorBoundary>
+          </div>
 
           {/* Phone: the notices at the top of the map share ONE column, pinned
               where the map really starts (--map-top, measured) and stacked by
@@ -459,7 +407,7 @@ export function AppShell() {
             <div
               ref={mapTopStackRef}
               className="fixed left-0 right-0 z-30 px-2 flex flex-col items-center gap-1.5 pointer-events-none"
-              style={{ top: 'calc(var(--map-top, 4.5rem) + 0.5rem)' }}
+              style={{ top: 'calc(var(--map-top, 4.5rem) + var(--ticker-h, 0px) + 0.5rem)' }}
             >
               <CriticalAlertBanner />
               <LightningProximityBanner />
@@ -467,31 +415,22 @@ export function AppShell() {
             </div>
           )}
 
-          {/* Campo (field alerts) drawer — lazy loaded */}
-          <Suspense fallback={null}>
-            <FieldDrawer
-              open={fieldDrawerOpen}
-              onClose={() => setFieldDrawerOpen(false)}
-              alerts={fieldAlerts}
-            />
-          </Suspense>
+          {/* Condiciones: not mounted while closed, so no polling and nothing to tab into */}
+          {fieldDrawerOpen && (
+            <Suspense fallback={null}>
+              <FieldDrawer onClose={closeFieldDrawer} />
+            </Suspense>
+          )}
         </main>
 
-        {/* Loading screen: OUTSIDE <main> so it's not affected by map opacity transition.
-            Mounted on initial load & sector switch. Handles its own fade-out. */}
-        {showLoading && (
-          <LoadingScreen
-            sectorName={activeSectorName}
-            error={error}
-            onRetry={retryDiscovery}
-          />
-        )}
+        {/* The whole window, on the first load only. It leaves with its own fade. */}
+        {showLoading && <LoadingScreen error={error} onDone={hideLoading} />}
       </div>
       <Suspense fallback={null}><ForecastPanel /></Suspense>
       <Suspense fallback={null}><MeteoGuide /></Suspense>
       <Suspense fallback={null}><FeedbackModal /></Suspense>
       {!isMobile && <KeyboardShortcutHelp />}
-      <Suspense fallback={null}><OnboardingTour /></Suspense>
+      <Suspense fallback={null}><WelcomeAssistant /></Suspense>
       <ToastContainer />
       {/* Bottom notices share one slot and stack instead of covering each other. On a phone they
           live in the map's bottom column instead (WeatherMap), above the toolbar. */}
@@ -501,7 +440,7 @@ export function AppShell() {
           <PwaInstallBanner />
         </div>
       )}
-      {isMobile && <MobileBottomNav />}
+      {isMobile && <BottomNavWithConditions />}
     </div>
   );
 }

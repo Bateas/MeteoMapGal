@@ -137,18 +137,6 @@ describe('computeCompositeRisk — weighted-max', () => {
     expect(result.activeCount).toBe(2);
   });
 
-  it('drone alerts are deprioritized by low weight', () => {
-    // drone: 90 × 0.5 = 45
-    // thermal: 50 × 1.0 = 50 (winner)
-    // Final = 50 / 1.0 = 50 → moderate
-    const result = computeCompositeRisk([
-      alert({ score: 90, category: 'drone', severity: 'high' }),
-      alert({ score: 50, category: 'thermal', severity: 'moderate' }),
-    ]);
-    expect(result.score).toBe(50);
-    expect(result.severity).toBe('moderate');
-  });
-
   it('activeCount excludes info alerts', () => {
     const result = computeCompositeRisk([
       alert({ score: 80, category: 'storm', severity: 'critical' }),

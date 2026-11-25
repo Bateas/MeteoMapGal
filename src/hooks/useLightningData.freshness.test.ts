@@ -1,8 +1,8 @@
 /**
  * When our lightning API fails, the map must not read «no strikes» as «no storm». Since 9-oct the
  * browser no longer falls back to meteo2api, so this is the only guard: the last good picture
- * stays as it was, the error is set (the indicator shows its age and the hook retries), and with
- * no answer at all since the page opened the indicator says «sin dato», not «sin actividad».
+ * stays as it was, the error is set (the chip shows its age and the hook retries), and with
+ * no answer at all since the page opened the chip says «sin dato», not nothing.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, render, screen, act } from '@testing-library/react';
@@ -19,7 +19,7 @@ vi.mock('../api/lightningClient', async (importOriginal) => ({
 
 import { useLightningData, useLightningStore } from './useLightningData';
 import { fetchLightningStrikes } from '../api/lightningClient';
-import { StormIndicator } from '../components/map/StormIndicator';
+import { LightningDataChip } from '../components/map/LightningDataChip';
 import type { LightningStrike } from '../types/lightning';
 
 const fetchMock = vi.mocked(fetchLightningStrikes);
@@ -70,17 +70,23 @@ describe('useLightningData when our API fails', () => {
   });
 });
 
-describe('StormIndicator says when there is no lightning data', () => {
+describe('The map says when there is no lightning data', () => {
   it('«sin dato» when the server never answered', () => {
     useLightningStore.setState({ lastFetch: null, error: 'Sin datos de rayos: el servidor no responde' });
-    render(createElement(StormIndicator));
-    expect(screen.getByText('sin dato')).toBeTruthy();
+    render(createElement(LightningDataChip));
+    expect(screen.getByText('Rayos: sin dato')).toBeTruthy();
   });
 
   it('the age of the data when the last good answer is old', () => {
     useLightningStore.setState({ lastFetch: new Date(T - 9 * 60_000), error: 'Sin respuesta del servidor de rayos' });
-    render(createElement(StormIndicator));
-    expect(screen.getByText('9m')).toBeTruthy();
-    expect(screen.queryByText('sin dato')).toBeNull();
+    render(createElement(LightningDataChip));
+    expect(screen.getByText('Rayos: dato de hace 9 min')).toBeTruthy();
+    expect(screen.queryByText('Rayos: sin dato')).toBeNull();
+  });
+
+  it('nothing when the data is fresh: quiet is the normal state', () => {
+    useLightningStore.setState({ lastFetch: new Date(T - 2 * 60_000), error: null });
+    const { container } = render(createElement(LightningDataChip));
+    expect(container.textContent).toBe('');
   });
 });

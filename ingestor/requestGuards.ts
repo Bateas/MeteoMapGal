@@ -79,6 +79,11 @@ export function clientKeyOf(headers: IncomingHttpHeaders, socketAddress: string 
   return rateKeyOf(clientIpOf(headers, socketAddress));
 }
 
+/** A spot id as `src/config/spots.ts` writes them: a short lowercase slug. */
+export function isSpotIdShape(raw: string): boolean {
+  return /^[a-z0-9-]{1,64}$/.test(raw);
+}
+
 /** Integer from a query param, clamped to [min, max]; `fallback` when absent or not a number. */
 export function clampInt(raw: string | null | undefined, min: number, max: number, fallback: number): number {
   const n = raw == null || raw === '' ? NaN : Number.parseInt(raw, 10);

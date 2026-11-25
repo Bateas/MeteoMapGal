@@ -23,18 +23,36 @@ const LEVEL = ['', 'amarillo', 'naranja', 'rojo'];
 
 const TYPE_ES: Record<string, string> = {
   // MeteoGalicia (Galician or Spanish)
-  vento: 'viento', viento: 'viento', choiva: 'lluvia', chuvia: 'lluvia', lluvia: 'lluvia',
-  tormenta: 'tormenta', treboada: 'tormenta', 'tormenta eléctrica': 'tormenta', ondas: 'oleaje', oleaxe: 'oleaje',
+  vento: 'viento', viento: 'viento', 'vento no mar': 'viento en el mar', 'mar de fondo': 'mar de fondo', choiva: 'lluvia', chuvia: 'lluvia', lluvia: 'lluvia',
+  tormenta: 'tormenta', treboada: 'tormenta', 'tormenta eléctrica': 'tormenta', ondas: 'oleaje', oleaxe: 'oleaje', olas: 'oleaje', oleaje: 'oleaje',
   'néboa': 'niebla', niebla: 'niebla', neve: 'nieve', nieve: 'nieve', calor: 'calor', 'frío': 'frío', frio: 'frío',
   // IPMA (Portuguese)
   'agitação marítima': 'oleaje', nevoeiro: 'niebla', 'precipitação': 'lluvia', trovoada: 'tormenta',
   'tempo quente': 'calor', 'tempo frio': 'frío',
 };
-const typeEs = (t: string) => TYPE_ES[t.trim().toLowerCase()] ?? t.trim().toLowerCase();
+/**
+ * The zones of a MeteoGalicia warning that actually warn (level 1 to 3). A level-0 zone is «no warning
+ * there»: the day panel always left it out, Condiciones counted it and could say «Aviso  de MeteoGalicia»
+ * with no colour, or stretch the end time with it (P3 review, 19-nov). Both read this one rule now.
+ */
+export const zonesInForce = (w: MGWarning) => w.zones.filter((z) => z.level >= 1);
 
+/** The warning type in Spanish, whatever the language of the feed. */
+export const warningTypeEs = (t: string) => TYPE_ES[t.trim().toLowerCase()] ?? t.trim().toLowerCase();
+const typeEs = warningTypeEs;
+/** For a title: the Spanish word capitalised when we know it, the feed's own words when we do not
+ *  («Precipitación 12 horas» is already Spanish). The band over the map said «Ondas» and «Vento no
+ *  mar» in Galician next to a card saying «oleaje» (18-nov). */
+export function warningTitleEs(t: string): string {
+  const key = t.trim().toLowerCase();
+  const es = TYPE_ES[key];
+  return es ? es.charAt(0).toUpperCase() + es.slice(1) : t.trim();
+}
+
+/** Midnight to midnight by the calendar: «+24 h» lost an hour in late October and took one of the next day in March. */
 function dayBounds(day: Date): [number, number] {
   const start = new Date(day.getFullYear(), day.getMonth(), day.getDate()).getTime();
-  return [start, start + 86_400_000];
+  return [start, new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1).getTime()];
 }
 
 /** «de 12 a 20 h», «desde las 15 h», «hasta las 9 h» or «todo el día», clipped to the day. */
@@ -68,14 +86,18 @@ export function officialNotices(day: Date, mg: MGWarning[], ipma: IpmaWarning[])
   for (const w of mg) {
     for (const z of w.zones) {
       const from = z.startTime.getTime(), to = z.endTime.getTime();
-      if (to > d0 && from < d1 && z.level >= 1) merge(spans, `MeteoGalicia|${typeEs(w.type)}`, z.level, from, to);
+      if (to > d0 && from < d1 && z.level >= 1 /* zonesInForce */) merge(spans, `MeteoGalicia|${typeEs(w.type)}`, z.level, from, to);
     }
   }
   for (const w of ipma) {
     const from = w.startTime.getTime(), to = w.endTime.getTime();
     if (to > d0 && from < d1 && w.level >= 1) merge(spans, `IPMA|${typeEs(w.type)}`, w.level, from, to);
   }
+  // One line per phenomenon: MeteoGalicia's own warning wins, and IPMA only speaks of what
+  // MeteoGalicia does not (18-nov: «naranja por oleaje» twice, once per agency, for one sea).
+  const mgTypes = new Set([...spans.keys()].filter((k) => k.startsWith('MeteoGalicia|')).map((k) => k.split('|')[1]));
   return [...spans.entries()]
+    .filter(([key]) => !(key.startsWith('IPMA|') && mgTypes.has(key.split('|')[1])))
     .map(([key, byLevel]) => {
       const [source, type] = key.split('|');
       const levels = [...byLevel.keys()].sort((a, b) => b - a);
@@ -86,7 +108,7 @@ export function officialNotices(day: Date, mg: MGWarning[], ipma: IpmaWarning[])
         .filter((l) => { const x = byLevel.get(l)!; return x.from < s.from || x.to > s.to; })
         .map((l) => { const x = byLevel.get(l)!; return `${LEVEL[Math.min(3, l)]} ${spanText(x.from, x.to, bounds)}`; });
       const extra = lower.length ? ` (${lower.join('; ')})` : '';
-      return { level: top, text: `Aviso ${LEVEL[top]} de ${source} por ${type}, ${spanText(s.from, s.to, bounds)}${extra}` };
+      return { level: top, text: `Aviso ${LEVEL[top]} por ${type}, ${spanText(s.from, s.to, bounds)}${extra}${source === 'IPMA' ? ' (IPMA)' : ''}` };
     })
     .sort((a, b) => b.level - a.level);
 }

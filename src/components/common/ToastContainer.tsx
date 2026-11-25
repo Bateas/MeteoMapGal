@@ -1,16 +1,16 @@
 /**
  * Toast notification container — renders stacked toasts at bottom-right (desktop)
- * or bottom-center (mobile).
+ * or bottom-center (mobile). Paper and ink; only the icon carries the severity.
  */
-import type { ReactNode } from 'react';
+import type { CSSProperties } from 'react';
 import { useToastStore, type ToastSeverity } from '../../store/toastStore';
-import { WeatherIcon } from '../icons/WeatherIcons';
+import { WeatherIcon, type IconId } from '../icons/WeatherIcons';
 
-const SEVERITY_STYLES: Record<ToastSeverity, { bg: string; border: string; text: string; icon: ReactNode }> = {
-  info:    { bg: 'bg-blue-900/90',   border: 'border-blue-700', text: 'text-blue-200',   icon: <WeatherIcon id="info" size={14} /> },
-  success: { bg: 'bg-green-900/90',  border: 'border-green-700', text: 'text-green-200',  icon: <WeatherIcon id="check-circle" size={14} /> },
-  warning: { bg: 'bg-amber-900/90',  border: 'border-amber-700', text: 'text-amber-200',  icon: <WeatherIcon id="alert-triangle" size={14} /> },
-  error:   { bg: 'bg-red-900/90',    border: 'border-red-700',   text: 'text-red-200',    icon: <WeatherIcon id="x-circle" size={14} /> },
+const SEVERITY: Record<ToastSeverity, { icon: IconId; tone: string }> = {
+  info: { icon: 'info', tone: 'var(--g-l-riesgo)' },
+  success: { icon: 'check-circle', tone: 'var(--g-s-navegable)' },
+  warning: { icon: 'alert-triangle', tone: 'var(--g-l-alto)' },
+  error: { icon: 'x-circle', tone: 'var(--g-danger)' },
 };
 
 export function ToastContainer() {
@@ -26,25 +26,22 @@ export function ToastContainer() {
          aria-live="polite"
          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       {toasts.map((toast) => {
-        const style = SEVERITY_STYLES[toast.severity];
+        const severity = SEVERITY[toast.severity];
         return (
           <div
             key={toast.id}
-            className={`
-              ${style.bg} ${style.border} ${style.text}
-              border rounded-lg px-3 py-2 shadow-lg backdrop-blur-sm
-              flex items-start gap-2 pointer-events-auto
-              animate-slide-up
-            `}
+            className="g-theme gc-toast animate-slide-up"
+            style={{ '--tone': severity.tone } as CSSProperties}
           >
-            <span className="flex-shrink-0 mt-0.5">{style.icon}</span>
-            <span className="text-xs font-medium flex-1">{toast.message}</span>
+            <span><WeatherIcon id={severity.icon} size={16} /></span>
+            <span>{toast.message}</span>
             <button
+              type="button"
               onClick={() => removeToast(toast.id)}
-              className="text-xs opacity-60 hover:opacity-100 flex-shrink-0 ml-1"
+              className="gc-btn gc-btn--plain gc-btn--icon"
               aria-label="Cerrar"
             >
-              ✕
+              <WeatherIcon id="x" size={14} />
             </button>
           </div>
         );

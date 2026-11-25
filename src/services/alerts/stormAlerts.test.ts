@@ -187,6 +187,8 @@ describe('buildStormShadowAlerts — confidence + lightning gating', () => {
     }));
     expect(alerts[0].severity).toBe('high');
     expect(alerts[0].urgent).toBe(true); // ETA<20 is urgent
+    // The level stays; the figure does not reach the screen.
+    expect(`${alerts[0].title} ${alerts[0].detail}`).not.toMatch(/ETA|15 min/);
   });
 
   it('keeps severity moderate for distant lightning storm', () => {

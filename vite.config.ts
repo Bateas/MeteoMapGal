@@ -22,14 +22,10 @@ export default defineConfig(({ mode }) => {
     sourcemap: 'hidden',
     // Filter modulepreload: only preload chunks needed for first paint.
     // Vite adds preloads for ALL transitive deps including lazy chunks like
-    // recharts (412KB) and shared service chunks (240KB) — wastes bandwidth.
+    // shared service chunks (240KB) — wastes bandwidth.
     modulePreload: {
       resolveDependencies: (_filename, deps) =>
         deps.filter(d =>
-          !d.includes('recharts') &&
-          !d.includes('windTrend') &&
-          !d.includes('date-fns') &&
-          !d.includes('aemetDaily') &&
           !d.includes('stationDiscovery')  // S134 audit: 239KB, not LCP-critical
         ),
     },
@@ -41,8 +37,9 @@ export default defineConfig(({ mode }) => {
       output: {
         manualChunks: {
           'maplibre': ['maplibre-gl'],
-          'recharts': ['recharts'],
-          'date-fns': ['date-fns'],
+          // Not recharts: its own chunk took the public entry of react-dom, so main imported it and every
+          // visit downloaded and ran 123 KB gzip of charts. With React apart, charts come with whoever opens one.
+          'react-vendor': ['react', 'react-dom', 'scheduler'],
           'zustand': ['zustand'],
         },
       },
@@ -82,12 +79,6 @@ export default defineConfig(({ mode }) => {
         rewrite: (path) => path.replace(/^\/netatmo-auth/, ''),
         secure: true,
       },
-      '/enaire-api': {
-        target: 'https://servais.enaire.es',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/enaire-api/, ''),
-        secure: true,
-      },
       '/ihm-api': {
         target: 'https://ideihm.covam.es',
         changeOrigin: true,
@@ -123,12 +114,6 @@ export default defineConfig(({ mode }) => {
         target: `http://${process.env.LMSTUDIO_HOST || 'localhost'}:1234`,
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/lmstudio-api/, ''),
-      },
-      '/opensky-api': {
-        target: 'https://opensky-network.org/api',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/opensky-api/, ''),
-        secure: true,
       },
       '/swan-api': {
         target: 'https://thredds-meteo.cesga.es',

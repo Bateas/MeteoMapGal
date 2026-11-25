@@ -110,7 +110,7 @@ interface RainContext {
 
 /**
  * Precipitation readings around the strike window. `readings` has no coords
- * (schema gotcha) — JOIN stations for latitude/longitude, and grab the name
+ * (see the schema) — JOIN stations for latitude/longitude, and grab the name
  * while we are there so alerts can say "cerca de Ribadavia" instead of raw
  * coordinates. Column is `precip` (NOT `precipitation`).
  */

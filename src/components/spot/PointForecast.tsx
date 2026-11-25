@@ -180,9 +180,6 @@ export const PointForecast = memo(function PointForecast({ pointId, lat, lon, zo
           </div>
         </section>
       )}
-      {warnings && active.length === 0 && zones.length > 0 && (
-        <p className="gf-hint gfp-noalert">Sin avisos oficiales en {zones[0]}.</p>
-      )}
     </>
   );
 });

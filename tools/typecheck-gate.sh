@@ -12,13 +12,16 @@
 #     map with the error screen while the build and every test were green.
 #  2. Everything else is known debt: the count may go down, never up. When a
 #     commit fixes some, lower the baseline in that same commit.
+#  3. A file that does not parse (TS1xxx) fails on its own: with one, tsc stops
+#     before checking types, reports only the syntax errors, and the count drops
+#     under the baseline as if debt had been paid.
 #
 # The ingestor runs through tsx, which does not typecheck either, and the build
 # does not include it: it gets the same two rules with its own tsconfig and
 # baseline. It needs `npm ci` in ingestor/ first (its types come from there).
 set -u
 
-BASELINE=99
+BASELINE=36
 INGESTOR_BASELINE=1
 CRASH_CODES='TS2304|TS2552|TS2307|TS2305|TS2724|TS2448'
 
@@ -31,12 +34,19 @@ summary() {
 check() {
   local name=$1 baseline=$2 var=$3
   shift 3
-  local log total crash
+  local log total crash syntax
   log=$(mktemp)
   npx tsc "$@" > "$log" 2>&1
   total=$(grep -c "error TS" "$log")
   crash=$(grep -E "error ($CRASH_CODES):" "$log")
+  syntax=$(grep -E "error TS1[0-9]{3}:" "$log")
   summary "$name: $total errors (baseline $baseline)"
+  if [ -n "$syntax" ]; then
+    echo "$syntax" | while IFS= read -r line; do echo "::error::$line"; done
+    summary "FAIL ($name): a file does not parse, so the types were not checked at all (see above)."
+    rm -f "$log"
+    return 1
+  fi
   if [ -n "$crash" ]; then
     echo "$crash" | while IFS= read -r line; do echo "::error::$line"; done
     summary "FAIL ($name): a name, module or declaration that does not exist at runtime (see above)."

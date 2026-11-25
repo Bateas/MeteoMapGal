@@ -139,8 +139,8 @@ describe('buildShareFilename', () => {
 describe('buildShareText', () => {
   it('says the doubt when the wind sits on a verdict line, and nothing when it is clear', () => {
     const onLine = buildShareData(SPOT_CESANTES, SCORE_BASE, { sectorId: 'rias' });
-    expect(onLine.doubt).toBe('entre Navegable y Buen día');
-    expect(buildShareText(onLine)).toContain('entre Navegable y Buen día');
+    expect(onLine.doubt).toBe('entre Navegable y Bueno');
+    expect(buildShareText(onLine)).toContain('entre Navegable y Bueno');
     const clear = buildShareData(SPOT_CESANTES, { ...SCORE_BASE, effectiveWindKt: 9.5, wind: { ...SCORE_BASE.wind!, avgSpeedKt: 9.5 } }, { sectorId: 'rias' });
     expect(clear.doubt).toBeNull();
   });
@@ -150,7 +150,7 @@ describe('buildShareText', () => {
     const text = buildShareText(data);
     expect(text).toContain('Cesantes');
     expect(text).toContain('Navegable');
-    expect(text).toContain('12kt');
+    expect(text).toContain('12 kt');
     expect(text).toContain('meteomapgal.navia3d.com');
   });
 
@@ -185,7 +185,7 @@ describe('buildShareText', () => {
     const score = { ...SCORE_BASE, effectiveWindKt: 12, gustKt: 22, wind: { ...SCORE_BASE.wind, avgSpeedKt: 12 } } as SpotScore;
     const data = buildShareData(SPOT_CESANTES, score);
     const text = buildShareText(data);
-    expect(text).toContain('rachas 22kt');
+    expect(text).toContain('rachas 22 kt');
   });
 
   it('skips gust mention when gusts are close to avg', () => {

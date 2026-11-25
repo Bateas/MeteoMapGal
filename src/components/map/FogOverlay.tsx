@@ -1,17 +1,14 @@
 /**
- * FogOverlay — scientific fog visualization using REAL terrain data (#55).
+ * FogOverlay — the fog on the map, one look whatever detected it (see fogField).
  *
- * Features:
- * - Per-cell density: lower altitude = denser fog (not uniform)
- * - Fog type colors: radiative (warm white) vs advective (blue-steel)
- * - Directional advance: advective fog denser on coast, thins inland
+ * - Per-point density: lower altitude = denser, and it falls with the distance to the detector
  * - Fade in/out transition on activation/dissipation (no perpetual animation)
  * - Sectors: Embalse (valley <185m) + Rías Baixas (coastal <35m)
  *
- * Activated by fog alerts in alertStore. Ground altitude comes from the DEM
- * tiles read directly (demElevation), never from MapLibre terrain: terrain on
- * a flat map made every pointer move and every marker read pixels back from
- * the GPU (30 s of a 40 s trace with fog on, 27-Sep).
+ * Paints fog alerts from alertStore plus the points of the official visibility sensors
+ * (AemetVisibilityHalo). Ground altitude comes from the DEM tiles read directly (demElevation),
+ * never from MapLibre terrain: terrain on a flat map made every pointer move and every marker read
+ * pixels back from the GPU (30 s of a 40 s trace with fog on, 27-Sep).
  */
 import { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import { Source, Layer } from 'react-map-gl/maplibre';
@@ -20,27 +17,14 @@ import { useSectorStore } from '../../store/sectorStore';
 import { isCoastalSector } from '../../config/sectors';
 import { useAlertStore } from '../../store/alertStore';
 import type { UnifiedAlert } from '../../services/alerts/types';
+import { useMapInk } from '../../hooks/useMapInk';
+import { fogLattice, fogPoint, useFogFieldStore, FOG_HEATMAP_INTENSITY, FOG_HEATMAP_RADIUS, type FogPoint } from './fogField';
+import { useFade } from './useFade';
 
 // ── Config ──────────────────────────────────────────
 
-const FOG_CONFIG = {
-  embalse: {
-    maxAltitude: 185,
-    bbox: { west: -8.20, east: -7.97, south: 42.24, north: 42.34 },
-    cols: 100, rows: 80,
-    radiativeColor: '#e2e8f0',   // warm white-gray (still, valley)
-    advectiveColor: '#94a3b8',   // cooler blue-gray (unlikely in embalse)
-    glowColor: '#94a3b8',
-  },
-  rias: {
-    maxAltitude: 35,
-    bbox: { west: -9.05, east: -8.50, south: 42.10, north: 42.55 },
-    cols: 120, rows: 100,
-    radiativeColor: '#cbd5e1',   // lighter gray
-    advectiveColor: '#7c9ab8',   // blue-steel (marine character)
-    glowColor: '#64748b',
-  },
-} as const;
+/** Fog is a low thing: above this nothing is painted. */
+const FOG_MAX_ALTITUDE_M = { inland: 185, coastal: 35 } as const;
 
 const MIN_CLUSTER_POINTS = 8;
 
@@ -64,115 +48,69 @@ function distKm(lat1: number, lon1: number, lat2: number, lon2: number): number 
  * Only paints cells with low elevation (coastal/water-level).
  */
 // Yield to the event loop every CHUNK_CELLS iterations so the main thread
-// stays responsive. Without this, processing ~1800 cells back-to-back blocks
-// the browser for 400-700ms (visible jank + `setTimeout handler took 621ms`
-// violations on mobile when fog appears). 100 cells × ~0.3ms = ~30ms per
-// chunk, comfortably under the 50ms long-task threshold.
+// stays responsive when the detectors are far apart and the box is large.
 const CHUNK_CELLS = 100;
 const yieldToEventLoop = () => new Promise<void>((r) => setTimeout(r, 0));
 
-async function sampleFogZonesLocal(
+async function sampleFogPoints(
   queryElevation: (lngLat: { lng: number; lat: number }) => number | null,
   sources: { lat: number; lon: number }[],
-  config: typeof FOG_CONFIG.embalse | typeof FOG_CONFIG.rias,
-  fogType: 'radiative' | 'advective',
+  maxAltitude: number,
   signal?: AbortSignal,
-): Promise<GeoJSON.FeatureCollection> {
-  const { maxAltitude, cols, rows } = config;
-  const color = fogType === 'advective' ? config.advectiveColor : config.radiativeColor;
-
-  // Compute tight bbox covering all sources + buffer
-  const buffer = 0.04; // ~4km in degrees
-  const bbox = {
+): Promise<FogPoint[]> {
+  // Tight bbox covering all sources + buffer
+  const buffer = 0.05; // a bit over FOG_RADIUS_KM in degrees
+  const lattice = fogLattice({
     west: Math.min(...sources.map(s => s.lon)) - buffer,
     east: Math.max(...sources.map(s => s.lon)) + buffer,
     south: Math.min(...sources.map(s => s.lat)) - buffer,
     north: Math.max(...sources.map(s => s.lat)) + buffer,
-  };
-  const cellW = (bbox.east - bbox.west) / cols;
-  const cellH = (bbox.north - bbox.south) / rows;
-  const features: GeoJSON.Feature[] = [];
-  let cellsProcessed = 0;
+  });
+  const points: FogPoint[] = [];
+  let processed = 0;
 
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      // Yield to event loop every CHUNK_CELLS cells (~30ms of work) so the
-      // main thread can render and respond to input. Also check for abort.
-      if (++cellsProcessed % CHUNK_CELLS === 0) {
-        await yieldToEventLoop();
-        if (signal?.aborted) throw new DOMException('Fog build aborted', 'AbortError');
-      }
-      const lng = bbox.west + (col + 0.5) * cellW;
-      const lat = bbox.south + (row + 0.5) * cellH;
-
-      // perf: distance filter FIRST (cheap math), then elevation lookup
-      // (expensive DEM read). Previously elev was sampled for every cell of the
-      // sector grid (8000-12000 cells) but only ~10% pass the 4km radius — we
-      // were paying 90% of DEM cost for nothing. Saves ~600ms during fog build.
-      let minDist = Infinity;
-      for (const src of sources) {
-        const d = distKm(lat, lng, src.lat, src.lon);
-        if (d < minDist) minDist = d;
-      }
-      if (minDist > FOG_RADIUS_KM) continue; // outside any source's range
-
-      // Maritime fog floats over water AND coastal lowlands; mountains SKIP.
-      // null = the DEM tile could not be loaded: unknown ground is not
-      // painted (it used to count as water and spill fog up the hills).
-      // Sea reads as bathymetry (< 0) and counts as sea level.
-      const elev = queryElevation({ lng, lat });
-      if (elev === null || elev === undefined) continue;
-      if (elev > maxAltitude) continue;
-      const ground = Math.max(0, elev);
-
-      // Density: quadratic falloff with distance (sharper edge), blended with altitude
-      const linearDist = Math.max(0, 1.0 - minDist / FOG_RADIUS_KM); // 1 at source, 0 at edge
-      const distFactor = linearDist * linearDist; // quadratic → sharper falloff, less bleed
-      // Sea level = max altitude factor (1.0). Land = falls with elevation.
-      const altFactor = 1.0 - ground / maxAltitude;
-      const rawDensity = Math.min(1.0, distFactor * 0.8 + altFactor * 0.2);
-      if (rawDensity < 0.08) continue; // skip cells too transparent to see
-      // Discretize density into 8 buckets (0.125, 0.25, ..., 1.0). Adjacent
-      // cells sharing the same bucket get identical fill-opacity → MapLibre
-      // merges them without visible seams. 8 buckets give a finer gradient
-      // than 4 (which user reported as "mini-cuadrados en Ons" — the steps
-      // between buckets were too coarse and individual cells stood out).
-      const density = Math.round(rawDensity * 8) / 8;
-
-      const x1 = bbox.west + col * cellW;
-      const x2 = x1 + cellW;
-      const y1 = bbox.south + row * cellH;
-      const y2 = y1 + cellH;
-
-      features.push({
-        type: 'Feature',
-        geometry: {
-          type: 'Polygon',
-          coordinates: [[[x1, y1], [x2, y1], [x2, y2], [x1, y2], [x1, y1]]],
-        },
-        properties: { elevation: ground, density, color },
-      });
+  for (const { lng, lat } of lattice) {
+    if (++processed % CHUNK_CELLS === 0) {
+      await yieldToEventLoop();
+      if (signal?.aborted) throw new DOMException('Fog build aborted', 'AbortError');
     }
+
+    // perf: distance filter FIRST (cheap math), then elevation lookup (DEM read)
+    let minDist = Infinity;
+    for (const src of sources) {
+      const d = distKm(lat, lng, src.lat, src.lon);
+      if (d < minDist) minDist = d;
+    }
+    if (minDist > FOG_RADIUS_KM) continue; // outside any source's range
+
+    // Maritime fog floats over water AND coastal lowlands; mountains SKIP.
+    // null = the DEM tile could not be loaded: unknown ground is not
+    // painted (it used to count as water and spill fog up the hills).
+    // Sea reads as bathymetry (< 0) and counts as sea level.
+    const elev = queryElevation({ lng, lat });
+    if (elev === null || elev === undefined) continue;
+    if (elev > maxAltitude) continue;
+    const ground = Math.max(0, elev);
+
+    // Density: falls with the distance, denser low down, and nothing at the edge or it reads as a disc
+    const linearDist = Math.max(0, 1.0 - minDist / FOG_RADIUS_KM); // 1 at source, 0 at edge
+    const altFactor = 1.0 - ground / maxAltitude; // sea level = 1, land falls with elevation
+    const density = Math.min(1.0, linearDist * (linearDist * 0.8 + altFactor * 0.2));
+    if (density < 0.08) continue;
+
+    points.push(fogPoint(lng, lat, density));
   }
 
-  return { type: 'FeatureCollection', features };
+  return points;
 }
 
 // ── Component ───────────────────────────────────────
 
 function FogOverlayInner() {
   const sectorId = useSectorStore((s) => s.activeSector.id);
-  // Steady-state fog opacity (constant). The old "breathing pulse" was a
-  // perpetual ~20fps rAF + setState that re-rendered this component FOREVER
-  // while fog was active — the dominant idle CPU churn in the v2.86.0 pan/perf
-  // trace (it ran the same panning or sitting still, hence the fan spinning on
-  // a static map). The pulse is visually indistinguishable from a constant, so
-  // it's removed; only the brief fade in/out animates now (and that self-stops).
-  const FOG_BASE_OPACITY = 0.12;
-  const [fogGeoJSON, setFogGeoJSON] = useState<GeoJSON.FeatureCollection | null>(null);
-  // Fade transition: ramps 0→1 on activation (~2s) and 1→0 on dissipation (~5s).
-  // Asymmetric timing matches real fog — forms gradually, lifts slowly.
-  const [fadeOpacity, setFadeOpacity] = useState(0);
+  const ink = useMapInk();
+  const sensorPoints = useFogFieldStore((s) => s.sensorPoints);
+  const [detectorPoints, setDetectorPoints] = useState<FogPoint[] | null>(null);
   const lastFogRef = useRef<GeoJSON.FeatureCollection | null>(null);
 
   // Fix: field is `alerts` not `unifiedAlerts` (bug discovered)
@@ -189,8 +127,7 @@ function FogOverlayInner() {
 
   const fogMeta = fogAlert?.fogMeta ?? null;
   const coastal = isCoastalSector(sectorId);
-  const fogType = fogMeta?.type ?? (coastal ? 'advective' : 'radiative');
-  const config = coastal ? FOG_CONFIG.rias : FOG_CONFIG.embalse;
+  const maxAltitude = coastal ? FOG_MAX_ALTITUDE_M.coastal : FOG_MAX_ALTITUDE_M.inland;
   const hasFogAlert = fogAlert != null;
 
   // The alert pipeline hands over a NEW sources array on every recompute even
@@ -235,7 +172,7 @@ function FogOverlayInner() {
       // sampled ~12k cells.)
       const sources = sourcesRef.current;
       if (sources.length === 0) {
-        if (!ac.signal.aborted) setFogGeoJSON(null);
+        if (!ac.signal.aborted) setDetectorPoints(null);
         return;
       }
       // Only the DEM tiles around the detectors (1-4 per source, cached).
@@ -244,29 +181,29 @@ function FogOverlayInner() {
       );
       if (ac.signal.aborted) return;
       const queryElev = ({ lng, lat }: { lng: number; lat: number }) => elevAt(lng, lat);
-      const data = await sampleFogZonesLocal(queryElev, sources, config, fogType, ac.signal);
+      const points = await sampleFogPoints(queryElev, sources, maxAltitude, ac.signal);
 
       if (ac.signal.aborted) return; // newer build raced past us
       // Too little to draw (or the ground could not be read): draw nothing
       // rather than keep a previous build that no longer matches the sources.
-      setFogGeoJSON(data.features.length >= MIN_CLUSTER_POINTS ? data : null);
+      setDetectorPoints(points.length >= MIN_CLUSTER_POINTS ? points : null);
     } catch (err) {
       if ((err as DOMException)?.name === 'AbortError') return; // expected on rebuild
       throw err;
     }
     // sourcesKey stands in for the sources array (read through sourcesRef)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config, fogType, sourcesKey]);
+  }, [maxAltitude, sourcesKey]);
 
   // A sector switch must not carry the other sector's fog across.
   useEffect(() => {
-    setFogGeoJSON(null);
+    setDetectorPoints(null);
     lastFogRef.current = null;
   }, [sectorId]);
 
   useEffect(() => {
     if (!active) {
-      setFogGeoJSON(null);
+      setDetectorPoints(null);
       return;
     }
     // No wait for tiles any more: the build loads the DEM it needs itself.
@@ -274,78 +211,44 @@ function FogOverlayInner() {
     return () => { buildAbortRef.current?.abort(); };
   }, [active, buildFogZones]);
 
-  // Retain last valid fogGeoJSON so fade-out animates on dissipation
+  // One field: what the detectors say and what the official sensors say, in one source.
+  const fogGeoJSON = useMemo<GeoJSON.FeatureCollection | null>(() => {
+    const features = [...(detectorPoints ?? []), ...sensorPoints];
+    return features.length > 0 ? { type: 'FeatureCollection', features } : null;
+  }, [detectorPoints, sensorPoints]);
+
+  // Retain the last field so fade-out animates on dissipation
   useEffect(() => {
     if (fogGeoJSON) lastFogRef.current = fogGeoJSON;
   }, [fogGeoJSON]);
 
-  // Fade in/out transition (placebo growth/dissipation effect)
-  // - appearing: 2s ease-in (fog forms quickly once detected)
-  // - dissipating: 5s ease-out (fog lifts slowly, like real marine fog burning off)
-  // Throttled to 20fps (50ms gate) — same reason as breathing pulse: setState
-  // at full 60fps re-renders FogOverlay → MapLibre re-processes Source GeoJSON
-  // → CPU spike. 20fps fade is still visually smooth (S136+3 audit #11).
-  useEffect(() => {
-    const shouldShow = active && fogGeoJSON != null;
-    const target = shouldShow ? 1 : 0;
-    const startT = Date.now();
-    const startV = fadeOpacity;
-    const delta = target - startV;
-    if (Math.abs(delta) < 0.01) return;
-    const duration = delta > 0 ? 2000 : 5000;
-    let frame: number;
-    let lastUpdate = 0;
-    const FADE_GATE_MS = 50;
-    const tick = () => {
-      if (document.hidden) { frame = requestAnimationFrame(tick); return; }
-      const now = Date.now();
-      if (now - lastUpdate >= FADE_GATE_MS) {
-        lastUpdate = now;
-        const elapsed = now - startT;
-        const progress = Math.min(1, elapsed / duration);
-        // easeInOutCubic
-        const eased = progress < 0.5
-          ? 4 * progress * progress * progress
-          : 1 - Math.pow(-2 * progress + 2, 3) / 2;
-        setFadeOpacity(startV + delta * eased);
-        if (progress >= 1) return; // done, stop scheduling
-      }
-      frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  // eslint-disable-next-line react-hooks/exhaustive-deps — fadeOpacity intentionally read as start value, not tracked
-  }, [active, fogGeoJSON != null]);
+  // Forms in 2 s, lifts in 5 s
+  const fadeOpacity = useFade(fogGeoJSON != null);
 
   // Keep rendering during fade-out by falling back to last valid features
   const renderGeoJSON = fogGeoJSON ?? (fadeOpacity > 0.01 ? lastFogRef.current : null);
   if (!renderGeoJSON || fadeOpacity < 0.01) return null;
-  const finalOpacity = FOG_BASE_OPACITY * fadeOpacity;
+  // Pale on a dark map, grey on a light one: a white veil on a pale map cannot be seen. It follows the map
+  // drawn, not the theme, like the words (useMapInk).
+  const rgb = ink.halo === '#ffffff' ? '71, 85, 105' : '226, 232, 240';
 
   return (
     <Source id="fog-overlay" type="geojson" data={renderGeoJSON}>
-      {/* Fog fill — per-cell density × constant base opacity × fade transition */}
       <Layer
-        id="fog-fill"
-        type="fill"
+        id="fog-heat"
+        type="heatmap"
         paint={{
-          'fill-color': ['get', 'color'],
-          'fill-opacity': ['*', ['get', 'density'], finalOpacity],
-          'fill-antialias': false,
-        }}
-      />
-      {/* Soft outer glow that merges adjacent fog cells (without it the density
-        buckets show as a "mini-cuadrados" mosaic). line-blur reduced 14→8: a
-        wide blurred line re-rasterizes on every pan frame and the kernel cost
-        scales with the blur radius — 8 still merges the cells but is cheaper. */}
-      <Layer
-        id="fog-glow"
-        type="line"
-        paint={{
-          'line-color': config.glowColor,
-          'line-width': 10,
-          'line-blur': 8,
-          'line-opacity': finalOpacity * 0.3,
+          'heatmap-weight': ['get', 'density'],
+          'heatmap-intensity': FOG_HEATMAP_INTENSITY,
+          'heatmap-radius': FOG_HEATMAP_RADIUS,
+          'heatmap-color': [
+            'interpolate', ['linear'], ['heatmap-density'],
+            0, `rgba(${rgb}, 0)`,
+            0.15, `rgba(${rgb}, 0.16)`,
+            0.5, `rgba(${rgb}, 0.42)`,
+            1, `rgba(${rgb}, 0.65)`,
+          ],
+          'heatmap-opacity': fadeOpacity,
         }}
       />
     </Source>

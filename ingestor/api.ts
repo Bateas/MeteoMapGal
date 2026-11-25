@@ -74,7 +74,7 @@ import {
   queryWitnessRain,
 } from './queries.js';
 import { getPool } from './db.js';
-import { clientKeyOf, clampInt, hitBucket, isAllowedPushEndpoint, isValidPushSpotList, parseTimeRange, pruneCache, memoAsync } from './requestGuards.js';
+import { clientKeyOf, clampInt, isSpotIdShape, hitBucket, isAllowedPushEndpoint, isValidPushSpotList, parseTimeRange, pruneCache, memoAsync } from './requestGuards.js';
 import { parseFieldReport, summarizeRecentReports, RECENT_REPORT_WINDOW_MIN, KT_RANGES, OBSERVER_CODE_RE, type RecentReportSummary, type ObserverReport, type ObserverBeta, type ObserverLabRow } from '../src/services/fieldReport.js';
 import { getForecast, getMarineForecast } from './forecastFetcher.js';
 import { stopForecastArchive } from './forecastArchive.js';
@@ -439,7 +439,12 @@ async function handleSpotScores(
   origin?: string
 ): Promise<void> {
   const spotId = params.spot_id;
+  // Spot ids are short lowercase slugs (spots.ts); anything else is not a spot. The query is
+  // parameterised anyway: this only refuses junk before it reaches the database.
+  if (spotId && !isSpotIdShape(spotId)) { error(res, 'Invalid spot_id', 400, origin); return; }
   const days = clampInt(params.days, 1, 30, 7);
+  // A short window, for what only needs the last hours: all the spots for a day weigh 400 KB
+  const hours = params.hours ? clampInt(params.hours, 1, 72, 3) : days * 24;
   const db = getPool();
 
   try {
@@ -448,10 +453,10 @@ async function handleSpotScores(
               raw_wind_kt, boosted_by, boost_confidence
        FROM spot_scores
        WHERE ($1::text IS NULL OR spot_id = $1)
-         AND time > NOW() - make_interval(days => $2)
+         AND time > NOW() - make_interval(hours => $2)
        ORDER BY time DESC
        LIMIT 2000`,
-      [spotId || null, days]
+      [spotId || null, hours]
     );
     json(res, { count: result.rows.length, scores: result.rows }, 200, origin);
   } catch (err) {
@@ -1063,7 +1068,7 @@ const routes: Record<string, RouteHandler> = {
   '/api/v1/analytics/convection-grid':    handleAnalyticsConvectionGrid,
   '/api/v1/analytics/historical-baseline': handleAnalyticsHistoricalBaseline,
   '/api/v1/analytics/upper-air':          handleAnalyticsUpperAir,
-  // ── Magic Window (T2-2 S136+3+3) ──
+  // ── Magic Window ──
   '/api/v1/magic-window/latest':          handleMagicWindowLatest,
   // ── Web Push (lightning-safety channel) ──
   '/api/v1/push/vapid-key':               handlePushVapidKey,

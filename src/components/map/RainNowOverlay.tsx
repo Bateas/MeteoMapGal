@@ -12,26 +12,27 @@
  * are in services/rainNowService.ts.
  */
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { Source, Layer, type SourceProps } from 'react-map-gl/maplibre';
+import { Source, Layer, useMap, type SourceProps } from 'react-map-gl/maplibre';
 import { useWeatherStore } from '../../store/weatherStore';
 import { useWeatherLayerStore } from '../../store/weatherLayerStore';
 import { useSectorStore } from '../../store/sectorStore';
 import { resolveStyleId, useMapStyleStore } from '../../store/mapStyleStore';
 import { useThemeStore } from '../../store/themeStore';
+import { useUIStore } from '../../store/uiStore';
 import { useRainNowStore, type RainNowDebug } from '../../store/rainNowStore';
 import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 import { fetchRadarFrames, FRAMES_WANTED } from '../../api/radarTiles';
 import { getSpotsForSector } from '../../config/spots';
-import { mosaicCorners, type RadarMosaic } from '../../services/radarDecode';
+import { kmPerPx, mosaicCorners, type RadarMosaic } from '../../services/radarDecode';
 import { estimateMotion, type RadarMotion } from '../../services/radarMotion';
 import { pixelsByLabel, trackCells, type CellTrack } from '../../services/radarTracking';
 import {
-  announcingTracks, approachingCells, classifyGauges, drawableCells, echoWorthFollowing, findRainCells, gaugeIntensity, groundTruth, leadingEdge,
-  rainArrivalAt, rainTrajectories, renderRain, ARRIVAL_MAX_MIN, type GaugeRain, type RainApproach,
+  announcingTracks, approachingCells, classifyGauges, drawableCells, echoWorthFollowing, findRainCells, gaugeIntensity, gaugeWetNow, groundTruth, leadingEdge,
+  rainArrivalAt, rainTrajectories, renderPastRain, renderRain, ARRIVAL_MAX_MIN, type GaugeRain, type RainApproach,
 } from '../../services/rainNowService';
 import { updateArrivalChecks } from '../../services/rainArrivalChecks';
 import { simGauges, simRainFrames, simRainMode } from '../../services/rainSim';
-import { withServerPrecip } from '../../services/precipSemantics';
+import { precipSamplesFromHistory, withServerPrecip } from '../../services/precipSemantics';
 import { fetchRecentPrecip } from '../../api/recentPrecipClient';
 import type { NormalizedReading } from '../../types/station';
 
@@ -48,6 +49,55 @@ const MAX_ARROWS = 3;
  * data: URL this used was blocked and the rain never drew in production (6-oct; dev has no policy,
  * so it looked fine). A canvas source reads the pixels directly: no request at all.
  */
+/** How many canvas pixels each radar cell gets at most (see the blur where the picture is made). */
+const RADAR_UPSCALE = 4;
+
+/**
+ * The loop of the last minutes: the two frames before the newest, then the newest held. Three
+ * pictures to start with (20 min); desktop only until it is measured on a phone.
+ */
+const LOOP_PAST_FRAMES = 2;
+const LOOP_STEP_MS = 700;
+const LOOP_HOLD_NOW_MS = 3200;
+/** The past frames are context, not the reading: half the pixels of the newest picture. */
+const LOOP_UPSCALE = 2;
+/** How far a patch may have come from between two frames when the radar gave no speed, km/h. */
+const LOOP_DEFAULT_KMH = 50;
+/**
+ * The loop says where the rain goes in a few turns; past them, to someone who stays looking, it only
+ * moves, and watched for long it gets tiresome (18-nov). It rests on the newest picture
+ * and starts again when the map is moved or a new radar picture arrives.
+ */
+const LOOP_MAX_TURNS = 4;
+/** The rain one notch under full: at 1 it weighed more than the map under it (18-nov). */
+const RAIN_OPACITY = 0.85;
+const PULSE_EVERY_MS = 2200;
+/** The ring of a gauge measuring rain now while nothing moves (reduced motion, or between beats). */
+const PULSE_REST_RADIUS = 9;
+const PULSE_REST_OPACITY = 0.5;
+
+/** The rain picture on a canvas `up` times larger, through a soft blur (see where the newest is made). */
+function softCanvas(rgba: Uint8ClampedArray<ArrayBuffer>, w: number, h: number, up: number): HTMLCanvasElement | null {
+  const small = document.createElement('canvas');
+  small.width = w; small.height = h;
+  const smallCtx = small.getContext('2d');
+  const canvas = document.createElement('canvas');
+  canvas.width = w * up; canvas.height = h * up;
+  const ctx = canvas.getContext('2d');
+  if (!ctx || !smallCtx) return null;
+  smallCtx.putImageData(new ImageData(rgba, w, h), 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.filter = `blur(${up * 0.6}px)`;
+  ctx.drawImage(small, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
+/** Nobody is looking: hidden tab, or the idle pause (idleAnimations.ts). */
+function pageAtRest(): boolean {
+  return typeof document !== 'undefined' && (document.hidden || document.documentElement.hasAttribute('data-idle'));
+}
+
 interface Picture { canvas: HTMLCanvasElement; corners: [[number, number], [number, number], [number, number], [number, number]]; id: number }
 let pictureSeq = 0;
 
@@ -61,10 +111,14 @@ export const RainNowOverlay = memo(function RainNowOverlay() {
   // and looked gone (6-oct). Gauges, arrows and the chip stay.
   const rawRadarOn = useWeatherLayerStore((s) => s.activeLayer === 'radar');
   const sector = useSectorStore((s) => s.activeSector);
-  // On the dark canvas the old dark blue arrow all but disappeared.
+  // The arrows are part of the rain layer, so they take the rain's own blue: the near-white one of before
+  // stood out of the map more than the rain it explains (18-nov). On the dark canvas the old dark
+  // blue all but disappeared, hence a light blue there.
   const styleChoice = useMapStyleStore((s) => s.activeStyleId);
   const theme = useThemeStore((s) => s.theme);
-  const arrowColor = resolveStyleId(styleChoice, theme) === 'dark' ? '#bfdbfe' : '#1d4ed8';
+  const mapDark = resolveStyleId(styleChoice, theme) === 'dark';
+  const arrowColor = mapDark ? '#93bdf2' : '#1e4fa8';
+  const arrowHalo = mapDark ? '#0b1220' : '#ffffff';
   const stations = useWeatherStore((s) => s.stations);
   const readingsEpoch = useWeatherStore((s) => s.readingsEpoch);
   const historyEpoch = useWeatherStore((s) => s.historyEpoch);
@@ -158,6 +212,7 @@ export const RainNowOverlay = memo(function RainNowOverlay() {
     const raining = gauges.filter((g) => g.verdict === 'rain').sort((a, b) => b.mmPerHour - a.mmPerHour);
 
     let picture: Picture | null = null;
+    let past: { key: string; labels: Int32Array; draw: Set<number> } | null = null;
     let arrivals: { spotId: string; spotName: string; etaMin: number; distanceKm: number }[] = [];
     let approach: RainApproach[] = [];
     let cellsShown = 0;
@@ -198,41 +253,53 @@ export const RainNowOverlay = memo(function RainNowOverlay() {
         picture = pictureRef.current.picture;
       } else {
         const rgba = renderRain(newest, labels, draw);
-        const canvas = document.createElement('canvas');
-        canvas.width = newest.w; canvas.height = newest.h;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.putImageData(new ImageData(rgba, newest.w, newest.h), 0, 0);
+        // The radar cell is about 1 km: drawn as it comes, the map filled with square blocks. The
+        // picture goes to a canvas four times larger through a soft blur, so a patch of rain has
+        // a rounded edge and one intensity melts into the next. Less than a cell is added around.
+        const up = Math.max(1, Math.min(RADAR_UPSCALE, Math.floor(4096 / Math.max(newest.w, newest.h))));
+        const canvas = softCanvas(rgba, newest.w, newest.h, up);
+        if (canvas) {
           picture = { canvas, corners: mosaicCorners(newest), id: ++pictureSeq };
           pictureRef.current = { key: pictureKey, picture };
         }
       }
-      // Every arrow starts at the front of its patch and reaches where that front would be in half an hour.
-      // The strongest one is rain coming to the sector; the others say where each patch on the map is going
-      // (asked for on 9-nov: blue patches with no direction told nothing), see rainTrajectories.
-      const arrowOf = (a: { cellId: number; lon: number; lat: number; toDeg: number; kmh: number }, kind: ArrowKind) => {
-        const from = leadingEdge(newest, analysis.byLabel?.get(a.cellId) ?? [], a.lon, a.lat, a.toDeg);
-        return arrowGeo(from.lon, from.lat, a.toDeg, a.kmh * 0.5, kind).features;
+      past = { key: pictureKey, labels, draw };
+      // Every arrow sits on the front of its patch: it starts a few km inside the rain and sticks out a
+      // little ahead (18-nov: from the front to where the front would be in half an hour, the
+      // arrows lay whole over dry ground and read as stray lines). Not from the centre either: the centre of
+      // a 150 km band put the arrow across the map (9-nov). The strongest one is rain coming to the
+      // sector; the others say where each big patch is going, see rainTrajectories.
+      const arrowOf = (a: { cellId: number; lon: number; lat: number; toDeg: number; kmh: number }, kind: ArrowKind, label?: string) => {
+        const edge = leadingEdge(newest, analysis.byLabel?.get(a.cellId) ?? [], a.lon, a.lat, a.toDeg);
+        return arrowGeo(edge, Math.min(ARROW_INSIDE_KM, kmBetween(edge, a)), arrowOverhangKm(a.kmh), a.toDeg, kind, label).features;
       };
       const coming = approach.slice(0, MAX_ARROWS);
       arrows = [
-        ...coming.flatMap((a) => arrowOf(a, 'coming')),
+        // Only rain with a computed arrival at the sector carries its hour; a patch that just moves does not.
+        ...coming.flatMap((a) => arrowOf(a, 'coming', arrivalClock(Date.now(), a.etaMin))),
         ...rainTrajectories(judged, analysis.tracks, draw, motion, centre, new Set(coming.map((a) => a.cellId)))
           .flatMap((t) => arrowOf(t, t.own ? 'own' : 'flow')),
       ];
     } else if (raining.length === 0 && !sim) {
       return { off: true as const, gauges, arrivals, debug };
     }
+    // A gauge whose last reading carries rain is measuring it now; the others had it within the half hour.
+    const wetNow = (g: GaugeRain): boolean => {
+      if (sim) return true;
+      const { currentReadings } = useWeatherStore.getState();
+      return gaugeWetNow(g.id, precipSamplesFromHistory(gaugeHistory().get(g.id), currentReadings.get(g.id)), Date.now());
+    };
     const gaugeGeo: GeoJSON.FeatureCollection = {
       type: 'FeatureCollection',
       features: raining.map((g) => ({
         type: 'Feature',
         geometry: { type: 'Point', coordinates: [g.lon, g.lat] },
-        properties: { color: TONE_COLOR[gaugeIntensity(g.mmPerHour)], label: g.mmPerHour.toFixed(1).replace('.', ',') },
+        properties: { color: TONE_COLOR[gaugeIntensity(g.mmPerHour)], label: g.mmPerHour.toFixed(1).replace('.', ','), fresh: wetNow(g) ? 1 : 0 },
       })),
     };
     return {
-      off: false as const, gauges, picture, gaugeGeo, cellsShown, arrivals, approach, debug,
+      off: false as const, gauges, picture, past, gaugeGeo, cellsShown, arrivals, approach, debug,
+      anyFresh: gaugeGeo.features.some((f) => f.properties?.fresh === 1),
       arrowGeo: arrows.length ? ({ type: 'FeatureCollection', features: arrows } as GeoJSON.FeatureCollection) : null,
       raining: raining.map((g) => ({ id: g.id, name: g.name, mm: g.mm, mmPerHour: g.mmPerHour, radarDbz: g.radarDbz })),
     };
@@ -260,54 +327,248 @@ export const RainNowOverlay = memo(function RainNowOverlay() {
   }, [view, motion, radar, sim, sector.id, setSummary, setChecks, setDebug]);
   useEffect(() => () => setSummary(null), [setSummary]);
 
+  // 6. The loop of the last minutes and the beat of the gauges: both through the map's own paint
+  //    properties from a slow timer, never through React state.
+  const { current: mapRef } = useMap();
+  const isMobile = useUIStore((s) => s.isMobile);
+  const [stillAsked, setStillAsked] = useState(() => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+  useEffect(() => {
+    const mq = typeof window !== 'undefined' ? window.matchMedia?.('(prefers-reduced-motion: reduce)') : undefined;
+    if (!mq?.addEventListener) return;
+    const onChange = () => setStillAsked(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  const shown = view && !view.off ? view : null;
+  const picture = shown?.picture ?? null;
+  const pastInput = shown?.past ?? null;
+  const loopOn = !!picture && !!pastInput && !rawRadarOn && !isMobile && !stillAsked && !!newest && (frames?.length ?? 0) > LOOP_PAST_FRAMES;
+  // One canvas for the whole loop, redrawn and uploaded again at each step: a new canvas source per
+  // frame would leave a texture behind every time (see pictureRef).
+  const loop = useMemo(() => {
+    if (!loopOn || !newest) return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = newest.w * LOOP_UPSCALE; canvas.height = newest.h * LOOP_UPSCALE;
+    if (!canvas.getContext('2d')) return null;
+    const id = `rain-now-loop-${newest.x0}-${newest.y0}-${newest.w}x${newest.h}`;
+    return { canvas, id, corners: mosaicCorners(newest) };
+    // the block of tiles is what the canvas depends on, not the frame
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loopOn, newest?.w, newest?.h, newest?.x0, newest?.y0]);
+  const pastRef = useRef<{ key: string; pics: HTMLCanvasElement[] } | null>(null);
+
+  useEffect(() => {
+    const map = mapRef?.getMap();
+    if (!map || !loop || !picture || !pastInput || !frames || !newest) return;
+    const nowLayer = `rain-now-radar-${picture.id}`;
+    const earlier = frames.slice(-1 - LOOP_PAST_FRAMES, -1);
+    const pastKey = `${pastInput.key}|${earlier.map((f) => f.t).join(',')}`;
+    if (pastRef.current?.key !== pastKey) {
+      const kmh = Math.min(90, Math.max(30, motion?.kmh ?? LOOP_DEFAULT_KMH));
+      const kmPx = kmPerPx(newest, centre.lat);
+      const made: HTMLCanvasElement[] = [];
+      for (const f of earlier) {
+        const reach = Math.ceil((kmh * ((newest.t - f.t) / 3600)) / kmPx) + 3;
+        const c = softCanvas(renderPastRain(f, newest, pastInput.labels, pastInput.draw, reach), newest.w, newest.h, LOOP_UPSCALE);
+        if (c) made.push(c);
+      }
+      pastRef.current = { key: pastKey, pics: made };
+    }
+    const pics = pastRef.current.pics;
+    if (pics.length === 0) return;
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let uploadTimer: ReturnType<typeof setTimeout> | undefined;
+    let dragging = false;
+    let step = pics.length; // starts on the newest picture
+    const setOpacity = (layer: string, value: number) => {
+      try { if (map.getLayer(layer)) map.setPaintProperty(layer, 'raster-opacity', value); } catch { /* style reloading */ }
+    };
+    const showNow = () => { setOpacity(loop.id, 0); setOpacity(nowLayer, RAIN_OPACITY); };
+    let turns = 0;
+    let resting = false;
+    const tick = () => {
+      if (pageAtRest() || dragging || !map.getLayer(loop.id) || !map.getLayer(nowLayer)) {
+        showNow();
+        step = pics.length;
+        timer = setTimeout(tick, 1500);
+        return;
+      }
+      if (step === pics.length && turns >= LOOP_MAX_TURNS) {
+        // Enough turns: hold the newest picture until the map moves
+        showNow();
+        resting = true;
+        return;
+      }
+      step = (step + 1) % (pics.length + 1);
+      if (step < pics.length) {
+        const ctx = loop.canvas.getContext('2d');
+        const source = map.getSource(loop.id) as unknown as { play?: () => void; pause?: () => void } | undefined;
+        if (ctx && source?.play && source.pause) {
+          ctx.clearRect(0, 0, loop.canvas.width, loop.canvas.height);
+          ctx.drawImage(pics[step], 0, 0);
+          // A canvas source uploads its pixels only while it «plays»: a moment is enough.
+          source.play();
+          clearTimeout(uploadTimer);
+          uploadTimer = setTimeout(() => source.pause?.(), 250);
+          setOpacity(loop.id, RAIN_OPACITY);
+          setOpacity(nowLayer, 0);
+        }
+        timer = setTimeout(tick, LOOP_STEP_MS);
+      } else {
+        turns++;
+        showNow();
+        timer = setTimeout(tick, LOOP_HOLD_NOW_MS);
+      }
+    };
+    const onMoveStart = () => { dragging = true; showNow(); };
+    const onMoveEnd = () => {
+      dragging = false;
+      // Looking somewhere else: the loop has something new to show there
+      if (resting) {
+        resting = false;
+        turns = 0;
+        step = pics.length;
+        clearTimeout(timer);
+        timer = setTimeout(tick, LOOP_HOLD_NOW_MS);
+      }
+    };
+    map.on('movestart', onMoveStart);
+    map.on('moveend', onMoveEnd);
+    timer = setTimeout(tick, LOOP_HOLD_NOW_MS);
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(uploadTimer);
+      map.off('movestart', onMoveStart);
+      map.off('moveend', onMoveEnd);
+      try { (map.getSource(loop.id) as unknown as { pause?: () => void } | undefined)?.pause?.(); } catch { /* map gone */ }
+      showNow();
+    };
+    // frames, newest, motion and centre come with the picture
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapRef, loop, picture, pastInput]);
+
+  const anyFresh = !!shown?.anyFresh;
+  useEffect(() => {
+    const map = mapRef?.getMap();
+    if (!map || !anyFresh || stillAsked) return;
+    const LAYER = 'rain-now-gauges-pulse';
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let grow: ReturnType<typeof setTimeout> | undefined;
+    const set = (duration: number, radius: number, opacity: number) => {
+      try {
+        if (!map.getLayer(LAYER)) return;
+        map.setPaintProperty(LAYER, 'circle-radius-transition', { duration, delay: 0 });
+        map.setPaintProperty(LAYER, 'circle-stroke-opacity-transition', { duration, delay: 0 });
+        map.setPaintProperty(LAYER, 'circle-radius', radius);
+        map.setPaintProperty(LAYER, 'circle-stroke-opacity', opacity);
+      } catch { /* style reloading */ }
+    };
+    const beat = () => {
+      if (!pageAtRest()) {
+        set(0, 6, 0.75);
+        grow = setTimeout(() => set(1500, 17, 0), 60);
+      }
+      timer = setTimeout(beat, PULSE_EVERY_MS);
+    };
+    timer = setTimeout(beat, 400);
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(grow);
+      set(0, PULSE_REST_RADIUS, PULSE_REST_OPACITY);
+    };
+  }, [mapRef, anyFresh, stillAsked]);
+
   if (!view || view.off) return null;
+  const under = view.arrowGeo ? 'rain-now-arrow-halo' : 'rain-now-gauges-pulse';
   return (
     <>
+      {view.arrowGeo && (
+        <Source id="rain-now-arrow" type="geojson" data={view.arrowGeo}>
+          {/* A soft edge of the opposite tone under shaft and head: over the blue of the rain the arrow was lost. */}
+          <Layer id="rain-now-arrow-halo" type="line" filter={['!=', ['get', 'part'], 'eta']} layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+            paint={{ 'line-color': arrowHalo, 'line-width': ['match', ['get', 'kind'], 'coming', 4.5, 'own', 4, 3.4], 'line-opacity': 0.3, 'line-blur': 1 }} />
+          <Layer id="rain-now-arrow-line" type="line" filter={['==', ['get', 'part'], 'shaft']}
+            layout={{ 'line-cap': 'round' }}
+            paint={{ 'line-color': arrowColor, 'line-width': ['match', ['get', 'kind'], 'coming', 2.2, 'own', 1.8, 1.5], 'line-opacity': ['match', ['get', 'kind'], 'coming', 0.9, 'own', 0.8, 0.7] }} />
+          <Layer id="rain-now-arrow-head" type="line" filter={['==', ['get', 'part'], 'head']}
+            layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+            paint={{ 'line-color': arrowColor, 'line-width': ['match', ['get', 'kind'], 'coming', 2.6, 'own', 2.2, 1.8], 'line-opacity': ['match', ['get', 'kind'], 'coming', 0.9, 'own', 0.8, 0.7] }} />
+          {/* When the rain coming to the sector gets there, at the tip of its arrow. */}
+          <Layer id="rain-now-arrow-eta" type="symbol" filter={['==', ['get', 'part'], 'eta']}
+            layout={{ 'text-field': ['get', 'label'], 'text-font': ['Noto Sans Bold'], 'text-size': 12, 'text-anchor': 'bottom', 'text-offset': [0, -0.7], 'text-allow-overlap': true, 'text-ignore-placement': true }}
+            paint={{ 'text-color': arrowColor, 'text-halo-color': arrowHalo, 'text-halo-width': 1.4 }} />
+        </Source>
+      )}
+      <Source id="rain-now-gauges" type="geojson" data={view.gaugeGeo}>
+        {/* A ring that beats around the gauges measuring rain right now (animated from the effect above). */}
+        <Layer id="rain-now-gauges-pulse" type="circle" filter={['==', ['get', 'fresh'], 1]}
+          paint={{ 'circle-radius': PULSE_REST_RADIUS, 'circle-color': 'rgba(0,0,0,0)', 'circle-stroke-color': ['get', 'color'], 'circle-stroke-width': 2, 'circle-stroke-opacity': PULSE_REST_OPACITY }} />
+        <Layer id="rain-now-gauges" type="circle"
+          paint={{ 'circle-radius': ['case', ['==', ['get', 'fresh'], 1], 6, 5], 'circle-color': ['get', 'color'], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5, 'circle-opacity': ['case', ['==', ['get', 'fresh'], 1], 0.95, 0.6], 'circle-stroke-opacity': ['case', ['==', ['get', 'fresh'], 1], 1, 0.7] }} />
+        <Layer id="rain-now-gauges-label" type="symbol" minzoom={9}
+          layout={{ 'text-field': ['get', 'label'], 'text-font': ['Noto Sans Bold'], 'text-size': 11, 'text-offset': [0, 1.2], 'text-anchor': 'top', 'text-allow-overlap': false }}
+          paint={{ 'text-color': '#1e3a8a', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 }} />
+      </Source>
+      {/* The radar pictures come last in this list and say which layer they go under: arrows and gauges are
+          already in the map by then. Added first, a new picture landed on top of them and hid the arrows. */}
       {view.picture && !rawRadarOn && (
         // A new canvas is a new source: MapLibre has no setter for a canvas source. The id changes with it.
         // With one fixed id (until 20-oct) the new <Source> found the old one still in the map, reused it
         // and drew nothing new: the picture only moved on a page reload.
         <Source key={view.picture.id} id={`rain-now-radar-${view.picture.id}`} {...canvasSource(view.picture)}>
-          <Layer id={`rain-now-radar-${view.picture.id}`} type="raster" paint={{ 'raster-opacity': 1, 'raster-resampling': 'linear', 'raster-fade-duration': 0 }} />
+          <Layer id={`rain-now-radar-${view.picture.id}`} type="raster" beforeId={under} paint={{ 'raster-opacity': RAIN_OPACITY, 'raster-resampling': 'linear', 'raster-fade-duration': 0 }} />
         </Source>
       )}
-      {view.arrowGeo && (
-        <Source id="rain-now-arrow" type="geojson" data={view.arrowGeo}>
-          <Layer id="rain-now-arrow-line" type="line" filter={['==', ['get', 'part'], 'shaft']}
-            paint={{ 'line-color': arrowColor, 'line-width': ['match', ['get', 'kind'], 'coming', 2.5, 'own', 2, 1.5], 'line-dasharray': [2, 1.5], 'line-opacity': ['match', ['get', 'kind'], 'coming', 0.9, 'own', 0.85, 0.65] }} />
-          <Layer id="rain-now-arrow-head" type="line" filter={['==', ['get', 'part'], 'head']}
-            layout={{ 'line-cap': 'round', 'line-join': 'round' }}
-            paint={{ 'line-color': arrowColor, 'line-width': ['match', ['get', 'kind'], 'coming', 3, 'own', 2.4, 1.8], 'line-opacity': ['match', ['get', 'kind'], 'coming', 0.9, 'own', 0.85, 0.65] }} />
+      {loop && view.picture && !rawRadarOn && (
+        <Source key={loop.id} id={loop.id} {...canvasSource({ canvas: loop.canvas, corners: loop.corners, id: 0 })}>
+          <Layer id={loop.id} type="raster" beforeId={under} paint={{ 'raster-opacity': 0, 'raster-resampling': 'linear', 'raster-fade-duration': 0 }} />
         </Source>
       )}
-      <Source id="rain-now-gauges" type="geojson" data={view.gaugeGeo}>
-        <Layer id="rain-now-gauges" type="circle"
-          paint={{ 'circle-radius': 6, 'circle-color': ['get', 'color'], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5, 'circle-opacity': 0.95 }} />
-        <Layer id="rain-now-gauges-label" type="symbol" minzoom={9}
-          layout={{ 'text-field': ['get', 'label'], 'text-font': ['Noto Sans Bold'], 'text-size': 11, 'text-offset': [0, 1.2], 'text-anchor': 'top', 'text-allow-overlap': false }}
-          paint={{ 'text-color': '#1e3a8a', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 }} />
-      </Source>
     </>
   );
 });
 
 type ArrowKind = 'coming' | 'own' | 'flow';
 
-/** A dashed shaft from (lon, lat) `km` towards `toDeg`, and an open chevron at its end (two short
- *  strokes, so it does not cover a spot marker when zoomed in). */
-function arrowGeo(lon: number, lat: number, toDeg: number, km: number, kind: ArrowKind): GeoJSON.FeatureCollection {
-  const kmLat = 111.32, kmLon = 111.32 * Math.cos((lat * Math.PI) / 180);
+/** «~18:10»: the clock time `etaMin` from now, to the nearest 5 minutes, in Madrid time. */
+export function arrivalClock(nowMs: number, etaMin: number): string {
+  const step = 5 * 60_000;
+  const at = new Date(Math.round((nowMs + etaMin * 60_000) / step) * step);
+  return `~${new Intl.DateTimeFormat('es-ES', { timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(at)}`;
+}
+
+/** How far inside the rain an arrow starts, behind the front. */
+export const ARROW_INSIDE_KM = 7;
+/** How far an arrow sticks out ahead of the front: a little, more for faster rain, never its half hour. */
+export function arrowOverhangKm(kmh: number): number {
+  return Math.min(5, Math.max(2, kmh * 0.1));
+}
+
+function kmBetween(a: { lon: number; lat: number }, b: { lon: number; lat: number }): number {
+  const kmLon = 111.32 * Math.cos((((a.lat + b.lat) / 2) * Math.PI) / 180);
+  return Math.hypot((a.lon - b.lon) * kmLon, (a.lat - b.lat) * 111.32);
+}
+
+/** A solid shaft through the front of a patch, from `inside` km behind it to `ahead` km past it towards
+ *  `toDeg`, and an open chevron at its tip (two short strokes, so it does not cover a spot marker). */
+export function arrowGeo(edge: { lon: number; lat: number }, inside: number, ahead: number, toDeg: number, kind: ArrowKind, label?: string): GeoJSON.FeatureCollection {
+  const kmLat = 111.32, kmLon = 111.32 * Math.cos((edge.lat * Math.PI) / 180);
   const from = (p: [number, number], d: number, deg: number): [number, number] => {
     const r = (deg * Math.PI) / 180;
     return [p[0] + (Math.sin(r) * d) / kmLon, p[1] + (Math.cos(r) * d) / kmLat];
   };
-  const tip = from([lon, lat], km, toDeg);
-  const barb = Math.max(0.6, km * 0.06);
+  const start = from([edge.lon, edge.lat], inside, toDeg + 180);
+  const tip = from([edge.lon, edge.lat], ahead, toDeg);
+  const km = inside + ahead;
+  const barb = Math.max(0.9, km * 0.09);
   return {
     type: 'FeatureCollection',
     features: [
-      { type: 'Feature', properties: { part: 'shaft', kind }, geometry: { type: 'LineString', coordinates: [[lon, lat], tip] } },
+      { type: 'Feature', properties: { part: 'shaft', kind }, geometry: { type: 'LineString', coordinates: [start, tip] } },
       { type: 'Feature', properties: { part: 'head', kind }, geometry: { type: 'LineString', coordinates: [from(tip, barb, toDeg + 150), tip, from(tip, barb, toDeg - 150)] } },
+      ...(label ? [{ type: 'Feature' as const, properties: { part: 'eta', kind, label }, geometry: { type: 'Point' as const, coordinates: tip } }] : []),
     ],
   };
 }

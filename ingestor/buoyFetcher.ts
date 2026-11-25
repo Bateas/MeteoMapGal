@@ -49,7 +49,7 @@ const RIAS_BUOY_STATIONS: (BuoyStation & { enabled?: boolean })[] = [
   { id: 1253, name: 'A Guarda', type: 'CETMAR', enabled: false },
   // Ría de Vigo
   { id: 1252, name: 'Islas Cíes', type: 'CETMAR', enabled: false },  // OFFLINE since Dec 2025 (same as ObsCosteiro 15002)
-  // Rande has NO anemometer (documented gotcha) — only humidity/temp/dewpoint.
+  // Rande has NO anemometer (known) — only humidity/temp/dewpoint.
   // Its water, air and humidity arrive through ObsCosteiro (same buoy, same id).
   { id: 1251, name: 'Rande (Ría Vigo)', type: 'CETMAR', enabled: false },
   { id: 3221, name: 'Vigo (marea)', type: 'REDMAR' },
