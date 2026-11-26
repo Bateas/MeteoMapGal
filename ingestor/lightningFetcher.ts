@@ -287,6 +287,30 @@ async function batchInsertStrikes(strikes: PersistedStrike[]): Promise<number | 
   return inserted;
 }
 
+// ── Feed status for the API ───────────────────────────
+
+let feedStatusWarned = false;
+
+/**
+ * Tell the API, a separate process, when the feed last answered well (table `feed_status`): the
+ * map uses it to say «sin dato» instead of drawing calm. Never throws: without the table the map
+ * just cannot say the data is stale, as before 3.0.4. One warning until it works again.
+ */
+async function recordFeedPoll(ok: boolean, atMs: number): Promise<void> {
+  try {
+    await getPool().query(
+      `INSERT INTO feed_status (feed, last_ok_at, last_try_at) VALUES ('lightning', $1, $2)
+       ON CONFLICT (feed) DO UPDATE SET last_try_at = EXCLUDED.last_try_at,
+         last_ok_at = COALESCE(EXCLUDED.last_ok_at, feed_status.last_ok_at)`,
+      [ok ? new Date(atMs) : null, new Date(atMs)],
+    );
+    feedStatusWarned = false;
+  } catch (err) {
+    if (!feedStatusWarned) log.warn(`[Lightning] no se pudo apuntar el estado del servicio en feed_status: ${(err as Error).message}`);
+    feedStatusWarned = true;
+  }
+}
+
 // ── Public entry ──────────────────────────────────────
 
 /**
@@ -301,6 +325,7 @@ export async function runLightningCycle(): Promise<{ stormActive: boolean }> {
   const firstPoll = lastSuccessAt == null;
   const raw = await fetchRaios(polledAt);
   if (!raw) {
+    await recordFeedPoll(false, polledAt);
     const notice = feedSilentNotice(polledAt, lastSuccessAt, startedAt);
     if (notice) void dispatchOpsNotice('lightning-feed', 'Rayos sin dato', notice);
     return { stormActive: lastStormActive };
@@ -311,12 +336,15 @@ export async function runLightningCycle(): Promise<{ stormActive: boolean }> {
   const lags = publishLags(raw, polledAt, firstPoll);
   if (strikes.length === 0) {
     lastSuccessAt = polledAt;
+    await recordFeedPoll(true, polledAt);
     log.debug(`[Lightning] poll ok — 0 strikes`);
     return { stormActive: lastStormActive };
   }
 
   const inserted = await batchInsertStrikes(strikes);
   if (inserted !== null) lastSuccessAt = polledAt;
+  // Strikes that did not reach the table are not on the map either: not a good poll.
+  await recordFeedPoll(inserted !== null, polledAt);
   const inScope = strikes.filter((s) => s.isGalicia).length;
   const lagText = lags.length ? ` · ${lags.length} nuevos cerca, publicados con ${Math.round(median(lags))} min de retraso (mediana; max ${Math.round(Math.max(...lags))})` : '';
   log.info(

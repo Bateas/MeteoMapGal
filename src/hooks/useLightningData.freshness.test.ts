@@ -60,6 +60,33 @@ describe('useLightningData when our API fails', () => {
     expect(s.lastFetch?.getTime()).toBe(T); // the indicator shows 8 min, not «just now»
   });
 
+  it('our API answers but MeteoGalicia stopped: last picture kept, error with the time, lastFetch at its last good answer', async () => {
+    fetchMock.mockResolvedValueOnce({ strikes: [strike(3)], asOf: T, fresh: true });
+    renderHook(() => useLightningData());
+    await act(async () => { await poll!(); });
+
+    vi.setSystemTime(T + 20 * 60_000);
+    fetchMock.mockResolvedValue({ strikes: [], asOf: T + 20 * 60_000, fresh: false, feedStale: { lastOkAt: T - 60_000 } });
+    await act(async () => { await poll!(); });
+    const s = useLightningStore.getState();
+    expect(s.strikes).toHaveLength(1);
+    expect(s.error).toBe('MeteoGalicia no da rayos desde las 14:59'); // T - 1 min = 12:59Z = 14:59 in Madrid (summer time)
+    expect(s.lastFetch?.getTime()).toBe(T - 60_000);
+    render(createElement(LightningDataChip));
+    expect(screen.getByText('Rayos: dato de hace 21 min')).toBeTruthy();
+  });
+
+  it('MeteoGalicia never answered the ingestor: «sin dato»', async () => {
+    fetchMock.mockResolvedValue({ strikes: [], asOf: T, fresh: false, feedStale: { lastOkAt: null } });
+    renderHook(() => useLightningData());
+    await act(async () => { await poll!(); });
+    const s = useLightningStore.getState();
+    expect(s.lastFetch).toBeNull();
+    expect(s.error).toBe('MeteoGalicia no da rayos');
+    render(createElement(LightningDataChip));
+    expect(screen.getByText('Rayos: sin dato')).toBeTruthy();
+  });
+
   it('cold start with our API down: no lastFetch, error set', async () => {
     fetchMock.mockResolvedValue({ strikes: [], asOf: null, fresh: false });
     renderHook(() => useLightningData());

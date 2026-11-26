@@ -28,7 +28,7 @@ const GRANTS: Record<string, Op[]> = {
   push_subscriptions: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
   // Read only
   active_fires: ['SELECT'], beta_signals: ['SELECT'], buoy_readings: ['SELECT'], convection_grid_hourly: ['SELECT'],
-  effis_fires: ['SELECT'], field_observers: ['SELECT'], lightning_strikes: ['SELECT'], magic_windows: ['SELECT'],
+  effis_fires: ['SELECT'], feed_status: ['SELECT'], field_observers: ['SELECT'], lightning_strikes: ['SELECT'], magic_windows: ['SELECT'],
   metar_reports: ['SELECT'], mg_aux_readings: ['SELECT'], ml_models: ['SELECT'], ml_predictions: ['SELECT'],
   readings: ['SELECT'], spot_scores: ['SELECT'], station_calibration: ['SELECT'], stations: ['SELECT'],
   upper_air_hourly: ['SELECT'], webcam_readings: ['SELECT'],

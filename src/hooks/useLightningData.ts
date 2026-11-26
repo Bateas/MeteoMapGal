@@ -72,7 +72,7 @@ interface LightningState {
   setGustFronts: (fronts: import('../services/gustFrontService').GustFrontDetection[]) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
-  setLastFetch: (date: Date) => void;
+  setLastFetch: (date: Date | null) => void;
   toggleOverlay: () => void;
 }
 
@@ -305,10 +305,18 @@ export function useLightningData() {
 
     setLoading(true);
     try {
-      const { strikes, asOf, fresh } = await fetchLightningStrikes({ stormActive });
+      const { strikes, asOf, fresh, feedStale } = await fetchLightningStrikes({ stormActive });
       // Our API did not answer: keep the last picture as it was — a storm that stops being read
       // is not a storm that went away — and let the indicator show how old it is (lastFetch stays
       // at the last good answer). Before 9-oct the meteo2api fallback hid this case.
+      if (!fresh && feedStale) {
+        // Our API answers, but MeteoGalicia has not answered the ingestor since `lastOkAt` (3.0.4):
+        // the strikes stop there. Same as above, and the indicator counts from that answer.
+        setLastFetch(feedStale.lastOkAt != null ? new Date(feedStale.lastOkAt) : null);
+        throw new Error(feedStale.lastOkAt != null
+          ? `MeteoGalicia no da rayos desde las ${new Date(feedStale.lastOkAt).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' })}`
+          : 'MeteoGalicia no da rayos');
+      }
       if (!fresh) {
         throw new Error(asOf != null ? 'Sin respuesta del servidor de rayos' : 'Sin datos de rayos: el servidor no responde');
       }

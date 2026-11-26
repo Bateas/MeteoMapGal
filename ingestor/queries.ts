@@ -1132,6 +1132,24 @@ async function queryRecentLightningUncached(minutes: number): Promise<RecentStri
 /** The map polls this every minute in a storm: every visitor of the same 20 s shares one query. */
 export const queryRecentLightning = memoByKey(20_000, queryRecentLightningUncached, (minutes) => `lightning:${minutes}`);
 
+/**
+ * When the ingestor last got a good answer from the lightning feed (`feed_status`, 3.0.4).
+ * Undefined when there is nothing to read: no row yet, or the table or its grant are missing.
+ * Then the map behaves as before, so this never fails the strikes it goes with.
+ */
+async function queryLightningFeedUncached(): Promise<{ lastOkAt: Date | null } | undefined> {
+  try {
+    const res = await getPool().query<{ last_ok_at: Date | null }>(
+      `SELECT last_ok_at FROM feed_status WHERE feed = 'lightning'`,
+    );
+    return res.rows.length ? { lastOkAt: res.rows[0].last_ok_at } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export const queryLightningFeed = memoByKey(20_000, queryLightningFeedUncached, () => 'lightning-feed');
+
 // ── Latest airport METAR for the map (21-oct audit, finding 14) ──
 
 /** One airport's newest stored report, as the map reads it. */

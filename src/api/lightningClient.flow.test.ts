@@ -80,4 +80,38 @@ describe('fetchLightningStrikes', () => {
     const r = await fetchLightningStrikes();
     expect(r).toEqual({ strikes: [], asOf: null, fresh: false });
   });
+
+  it('our API answers but says MeteoGalicia stopped answering: not fresh, with the time of its last good answer, also from the cache', async () => {
+    const { fetchLightningStrikes } = await client();
+    let now = T0;
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+    const lastOk = new Date(T0 - 25 * 60_000).toISOString();
+    const fetchMock = vi.fn(async () => json({ strikes: [], fresh: false, polledAt: lastOk }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const r = await fetchLightningStrikes();
+    expect(r.fresh).toBe(false);
+    expect(r.feedStale).toEqual({ lastOkAt: T0 - 25 * 60_000 });
+    expect(r.asOf).toBe(T0);
+
+    now = T0 + 30_000; // inside the cache: same answer, no new request
+    const again = await fetchLightningStrikes();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(again.fresh).toBe(false);
+    expect(again.feedStale).toEqual({ lastOkAt: T0 - 25 * 60_000 });
+  });
+
+  it('a feed that never answered is stale with no time; a fresh feed and an older API without the fields are fresh', async () => {
+    const { readFeedState } = await client();
+    expect(readFeedState({ fresh: false, polledAt: null })).toEqual({ fresh: false, polledAt: null });
+    expect(readFeedState({ fresh: true, polledAt: '2026-11-26T16:00:00.000Z' })).toEqual({ fresh: true, polledAt: Date.parse('2026-11-26T16:00:00Z') });
+    expect(readFeedState({})).toEqual({ fresh: null, polledAt: null });
+    expect(readFeedState({ fresh: 'no', polledAt: 'x' })).toEqual({ fresh: null, polledAt: null });
+
+    const { fetchLightningStrikes } = await client();
+    vi.spyOn(Date, 'now').mockImplementation(() => T0);
+    vi.stubGlobal('fetch', vi.fn(async () => json({ strikes: [] })));
+    const r = await fetchLightningStrikes();
+    expect(r).toEqual({ strikes: [], asOf: T0, fresh: true });
+  });
 });

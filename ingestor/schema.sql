@@ -1477,3 +1477,22 @@ DO $$ BEGIN
     GRANT SELECT ON poem_wave_points, poem_wave_forecast TO ml_job;
   END IF;
 END $$;
+
+-- ── Feed status (F-01 of the 26-nov-2026 audit) ─────────
+-- When each feed the ingestor polls last answered well. The ingestor writes it on every poll and
+-- the API, which runs as another process, reads it: without it the map could not tell «no
+-- strikes» from «we could not ask». Today only 'lightning'.
+CREATE TABLE IF NOT EXISTS feed_status (
+  feed        TEXT        PRIMARY KEY,
+  last_ok_at  TIMESTAMPTZ,            -- last poll with a good answer, stored; NULL until one
+  last_try_at TIMESTAMPTZ NOT NULL    -- last poll, good or not
+);
+GRANT SELECT, INSERT, UPDATE ON feed_status TO meteomap_app;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'meteomap_api') THEN
+    GRANT SELECT ON feed_status TO meteomap_api;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'grafana_ro') THEN
+    GRANT SELECT ON feed_status TO grafana_ro;
+  END IF;
+END $$;

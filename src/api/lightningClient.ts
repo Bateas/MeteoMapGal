@@ -14,7 +14,18 @@ import type { LightningStrike } from '../types/lightning';
 
 // ── Cache ────────────────────────────────────────────────────────
 
-let cache: { data: LightningStrike[]; fetchedAt: number } | null = null;
+/** What our API says about MeteoGalicia behind it (3.0.4): whether the ingestor's last good answer
+ *  is recent (`fresh`), and when it was (`polledAt`, ms). `fresh` null = an older API, or it could
+ *  not tell: then the strikes are taken as before. */
+export interface FeedState { fresh: boolean | null; polledAt: number | null }
+
+/** Reads `fresh` and `polledAt` from our API's answer; anything else is «unknown». */
+export function readFeedState(body: { fresh?: unknown; polledAt?: unknown }): FeedState {
+  const t = typeof body.polledAt === 'string' ? Date.parse(body.polledAt) : NaN;
+  return { fresh: typeof body.fresh === 'boolean' ? body.fresh : null, polledAt: Number.isFinite(t) ? t : null };
+}
+
+let cache: { data: LightningStrike[]; fetchedAt: number; feed: FeedState } | null = null;
 /** Cache TTL for quiet conditions (no recent nearby strikes). */
 const CACHE_TTL_NORMAL_MS = 2 * 60 * 1000;
 /** Cache TTL when a storm is active (recent strikes < 15 min ago, < 80 km): our API, not the
@@ -75,8 +86,8 @@ export function mergeStrikes(
     .sort((a, b) => b.timestamp - a.timestamp);
 }
 
-/** The day of strikes from our API, or null when it fails. */
-async function fetchFromOwnApi(): Promise<LightningStrike[] | null> {
+/** The day of strikes from our API with the state of the feed behind it, or null when it fails. */
+async function fetchFromOwnApi(): Promise<{ strikes: LightningStrike[]; feed: FeedState } | null> {
   if (Date.now() < apiDownUntil) return null;
   const askedAt = Date.now();
   try {
@@ -84,11 +95,11 @@ async function fetchFromOwnApi(): Promise<LightningStrike[] | null> {
       signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) throw new Error(`Lightning API ${res.status}`);
-    const body = await res.json() as { strikes?: unknown };
+    const body = await res.json() as { strikes?: unknown; fresh?: unknown; polledAt?: unknown };
     if (!Array.isArray(body.strikes)) throw new Error('Lightning API: no strikes array');
     const strikes = mergeStrikes(known, body.strikes as RecentStrikeRow[], Date.now(), nextId);
     lastApiAt = askedAt;
-    return strikes;
+    return { strikes, feed: readFeedState(body) };
   } catch (err) {
     apiDownUntil = Date.now() + API_COOLDOWN_MS;
     console.debug('[Lightning] own API failed, keeping the last picture:', err);
@@ -104,6 +115,15 @@ export interface LightningFetch {
   /** False when our API failed just now: `strikes` is the last day we had (ages updated), or none.
    *  The caller must not take that for a fresh answer: «no strikes» would read as «no storm». */
   fresh: boolean;
+  /** Only when our API answers but says MeteoGalicia has not answered the ingestor for a while
+   *  (3.0.4): `lastOkAt` is its last good answer (ms), or null if none. `fresh` is false then. */
+  feedStale?: { lastOkAt: number | null };
+}
+
+/** The answer for strikes read from our API at `asOf`, given the feed state it came with. */
+function answer(strikes: LightningStrike[], asOf: number, feed: FeedState): LightningFetch {
+  if (feed.fresh === false) return { strikes, asOf, fresh: false, feedStale: { lastOkAt: feed.polledAt } };
+  return { strikes, asOf, fresh: true };
 }
 
 /**
@@ -119,13 +139,13 @@ export async function fetchLightningStrikes(
   const ttl = opts.stormActive ? CACHE_TTL_STORM_MS : CACHE_TTL_NORMAL_MS;
   // Return cached data if fresh enough
   if (cache && Date.now() - cache.fetchedAt < ttl) {
-    return { strikes: recomputeAges(cache.data), asOf: cache.fetchedAt, fresh: true };
+    return answer(recomputeAges(cache.data), cache.fetchedAt, cache.feed);
   }
 
   const own = await fetchFromOwnApi();
   if (own) {
-    cache = { data: own, fetchedAt: Date.now() };
-    return { strikes: own, asOf: cache.fetchedAt, fresh: true };
+    cache = { data: own.strikes, fetchedAt: Date.now(), feed: own.feed };
+    return answer(own.strikes, cache.fetchedAt, own.feed);
   }
   return { strikes: cache ? recomputeAges(cache.data) : [], asOf: cache?.fetchedAt ?? null, fresh: false };
 }
