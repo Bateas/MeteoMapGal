@@ -220,11 +220,25 @@ describe('AEMET data proxy with an expired temporary url', () => {
     vi.resetModules();
   });
 
+  it('S-04: a link our step one never handed out gets 404 without asking AEMET', async () => {
+    vi.resetModules();
+    const { handleAemetDataProxy } = await import('./proxyHandlers');
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const r = fakeRes();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await handleAemetDataProxy('/opendata/sh/a1b2c3d4', r as any);
+    expect(r.status).toBe(404);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('a 404 does not pause the resource: the next visitor still asks AEMET', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-10-21T09:00:00Z'));
     vi.resetModules();
-    const { handleAemetDataProxy } = await import('./proxyHandlers');
+    const { handleAemetDataProxy, __rememberDataOriginForTests } = await import('./proxyHandlers');
+    // A link our step one did hand out, expired at AEMET by the time it is asked for.
+    __rememberDataOriginForTests('/api/observacion/convencional/todas', b('{"estado":200,"datos":"https://opendata.aemet.es/opendata/sh/deadbeef"}'));
     const fetchMock = vi.fn(async () => new Response('{"estado":404}', { status: 404 }));
     vi.stubGlobal('fetch', fetchMock);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

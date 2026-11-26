@@ -431,6 +431,13 @@ export async function handleAemetDataProxy(
   // Cached under the resource it belongs to, not under the temporary url — but only for the
   // url that resource handed out last, so no other path can pause or overwrite it.
   const { key, stepOne } = aemetDataKey(dataPath);
+  // Only links our own step one handed out: any other code was an open relay to AEMET from our
+  // address, and a valid one taken with someone else's key filled our cache (S-04 of the
+  // 26-nov-2026 audit). The map always asks step one first.
+  if (!stepOne) {
+    error(res, 'Unknown AEMET data path', 404, origin);
+    return;
+  }
   const ttl = stepOne ? aemetTtlFor(stepOne) : AEMET_CACHE_TTL;
   const cached = aemetCache.get(key);
   if (cached && Date.now() - cached.ts < ttl) {
