@@ -68,6 +68,22 @@ describe('convectionRiskScore', () => {
 describe('parseGridResponses', () => {
   const cell: GridCell = { i: 0, j: 0, lat: 42.5, lon: -8.5 };
 
+  it('F-03: the same instant twice for a cell gives one row, the last one (a repeated key fails the INSERT)', () => {
+    const rows = parseGridResponses([{
+      cell,
+      hourly: {
+        time: ['2027-03-28T02:00', '2027-03-28T02:00'],
+        cape: [100, 300],
+        lifted_index: [-1, -2],
+        convective_inhibition: [0, 0],
+        boundary_layer_height: [500, 600],
+        precipitation: [0, 0],
+      },
+    }]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].cape).toBe(300);
+  });
+
   it('returns empty when hourly is null for all cells', () => {
     const rows = parseGridResponses([{ cell, hourly: null }]);
     expect(rows).toEqual([]);

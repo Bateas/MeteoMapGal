@@ -30,6 +30,7 @@ import {
   reportRateLimit as reportOpenMeteoRateLimit,
   reportSuccess as reportOpenMeteoSuccess,
 } from './openMeteoBreaker.js';
+import { dedupeByKey } from './dedupeByKey.js';
 
 const OPEN_METEO_URL = 'https://api.open-meteo.com/v1/forecast';
 // 12s was too tight for 200-coord multi-point queries when Open-Meteo
@@ -329,7 +330,9 @@ export function parseGridResponses(responses: CellHourly[]): ConvectionGridRow[]
       });
     }
   }
-  return rows;
+  // One row per (time, cell): on the night the clocks go forward two hours read as the same instant,
+  // and a repeated key fails its whole INSERT chunk (F-03; see dedupeByKey.ts).
+  return dedupeByKey(rows, (r) => `${r.time.getTime()}|${r.cellI}|${r.cellJ}`);
 }
 
 // ── DB persist ──────────────────────────────────────────────────────

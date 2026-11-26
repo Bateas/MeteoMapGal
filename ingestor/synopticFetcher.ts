@@ -28,6 +28,7 @@ import {
   reportRateLimit as reportOpenMeteoRateLimit,
   reportSuccess as reportOpenMeteoSuccess,
 } from './openMeteoBreaker.js';
+import { dedupeByKey } from './dedupeByKey.js';
 
 const OPEN_METEO_URL = 'https://api.open-meteo.com/v1/forecast';
 const FETCH_TIMEOUT_MS = 12_000;
@@ -141,7 +142,12 @@ export function parseSynopticPayload(
     }
   }
 
-  return { upperAir, convection };
+  // One row per table key: on the night the clocks go forward two hours read as the same instant,
+  // and a repeated key fails the whole multi-row INSERT (F-03; see dedupeByKey.ts).
+  return {
+    upperAir: dedupeByKey(upperAir, (r) => `${r.time.getTime()}|${r.pressureHpa}`),
+    convection: dedupeByKey(convection, (r) => String(r.time.getTime())),
+  };
 }
 
 // ── Fetcher ──────────────────────────────────────────

@@ -195,3 +195,28 @@ describe('parseSynopticPayload — time parsing', () => {
     expect(r.convection[0].time).toBeInstanceOf(Date);
   });
 });
+
+// ── F-03: the night the clocks go forward (28-mar-2027) ──
+
+describe('parseSynopticPayload — F-03, one row per key', () => {
+  it('the same hour twice gives one row per level and one convection row, the last one', () => {
+    const p = makePayload(2, { cape: [111, 222], windDir850: [10, 20] });
+    p.hourly.time = [ISO('02:00'), ISO('02:00')];
+    const r = parseSynopticPayload(p, 'rias');
+    expect(r.convection).toHaveLength(1);
+    expect(r.convection[0].cape).toBe(222);
+    const at850 = r.upperAir.filter((u) => u.pressureHpa === 850);
+    expect(at850).toHaveLength(1);
+    expect(at850[0].windDirDeg).toBe(20);
+  });
+
+  it('02:00 and 03:00 of 28-mar-2027 never give two rows for one instant, whatever the server time zone', () => {
+    const p = makePayload(2);
+    p.hourly.time = [ISO('02:00', '2027-03-28'), ISO('03:00', '2027-03-28')];
+    const r = parseSynopticPayload(p, 'rias');
+    const instants = new Set(r.convection.map((c) => c.time.getTime()));
+    expect(r.convection).toHaveLength(instants.size); // 1 in Madrid time, 2 in UTC
+    const keys = new Set(r.upperAir.map((u) => `${u.time.getTime()}|${u.pressureHpa}`));
+    expect(r.upperAir).toHaveLength(keys.size);
+  });
+});
