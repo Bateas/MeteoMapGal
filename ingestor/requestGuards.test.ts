@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { parse as legacyUrlParse } from 'node:url';
 import { clientIpOf, clientKeyOf, rateKeyOf, clampInt, isSpotIdShape, hitBucket, isAllowedPushEndpoint, isValidPushSpotList, parseTimeRange, pruneCache, memoAsync } from './requestGuards';
 
 describe('clientIpOf — the bucket key must not be something the client wrote', () => {
@@ -80,6 +81,43 @@ describe('isAllowedPushEndpoint — only real browser push services', () => {
     expect(isAllowedPushEndpoint(42)).toBe(false);
     expect(isAllowedPushEndpoint('not a url')).toBe(false);
     expect(isAllowedPushEndpoint('https://fcm.googleapis.com/' + 'a'.repeat(1000))).toBe(false);
+  });
+
+  // The sender (web-push) reads the endpoint with the legacy url.parse, which ends the host at
+  // characters the WHATWG parser keeps, and keeps going past tabs and newlines WHATWG drops.
+  const ODD_HOST_CHARS = [';', "'", '"', '`', '{', '}', '\t', '\n', '\r', ' '];
+
+  it('rejects a host the sender would read as another host', () => {
+    for (const c of ODD_HOST_CHARS) {
+      expect(isAllowedPushEndpoint(`https://other.example${c}.push.apple.com/x`)).toBe(false);
+      expect(isAllowedPushEndpoint(`https://other.example${c}.notify.windows.com/w/?token=a`)).toBe(false);
+    }
+  });
+
+  it('rejects a port, surrounding spaces and empty labels', () => {
+    expect(isAllowedPushEndpoint('https://fcm.googleapis.com:8443/fcm/send/abc')).toBe(false);
+    expect(isAllowedPushEndpoint(' https://fcm.googleapis.com/fcm/send/abc')).toBe(false);
+    expect(isAllowedPushEndpoint('https://fcm.googleapis.com/fcm/send/abc ')).toBe(false);
+    expect(isAllowedPushEndpoint('https://..push.apple.com/x')).toBe(false);
+  });
+
+  it('whatever it accepts, the check and the sender see the same host', () => {
+    const candidates = [
+      'https://fcm.googleapis.com/fcm/send/abc:def',
+      'https://updates.push.services.mozilla.com/wpush/v2/xyz',
+      'https://wns2-par02p.notify.windows.com/w/?token=abc%2Bdef',
+      'https://web.push.apple.com/QWERTY',
+      ...ODD_HOST_CHARS.map((c) => `https://other.example${c}.push.apple.com/x`),
+      'https://other.example\\.push.apple.com/x',
+      'https://other.example%2f.push.apple.com/x',
+    ];
+    let accepted = 0;
+    for (const e of candidates) {
+      if (!isAllowedPushEndpoint(e)) continue;
+      accepted++;
+      expect(legacyUrlParse(e).hostname).toBe(new URL(e).hostname);
+    }
+    expect(accepted).toBe(4);
   });
 });
 

@@ -117,17 +117,33 @@ export function isValidPushSpotList(spotIds: unknown, valid: ReadonlySet<string>
     && spotIds.every((id: unknown) => typeof id === 'string' && valid.has(id));
 }
 
-/** True only for an https URL on a known browser push service. */
+/** The host as written: plain labels of letters, digits and hyphens, then the path, query or end. */
+const RAW_PUSH_HOST = /^https:\/\/([a-z0-9-]+(?:\.[a-z0-9-]+)*)(?:[/?#]|$)/i;
+
+/**
+ * True only for an https URL on a known browser push service.
+ *
+ * The sender (web-push) reads the endpoint with Node's legacy `url.parse`, not with `new URL`,
+ * and the two disagree on odd hosts: `url.parse` ends the host at `;`, quotes or braces that
+ * WHATWG keeps, and stops at tabs and newlines that WHATWG silently drops. With
+ * `https://other.example;.push.apple.com/x` this check saw an Apple host and the send went to
+ * `other.example`. So the host is read from the raw text, must be plain ASCII labels, and must
+ * be the host WHATWG sees as well: then both parsers name the same machine.
+ */
 export function isAllowedPushEndpoint(endpoint: unknown): endpoint is string {
   if (typeof endpoint !== 'string' || endpoint.length > 1000) return false;
+  if (/[^\x21-\x7e]/.test(endpoint)) return false; // spaces, control characters, non-ASCII
+  const raw = RAW_PUSH_HOST.exec(endpoint);
+  if (!raw) return false;
   let u: URL;
   try {
     u = new URL(endpoint);
   } catch {
     return false;
   }
-  if (u.protocol !== 'https:' || u.username || u.password) return false;
+  if (u.protocol !== 'https:' || u.username || u.password || u.port) return false;
   const host = u.hostname.toLowerCase();
+  if (host !== raw[1].toLowerCase()) return false;
   if (PUSH_HOSTS_EXACT.has(host)) return true;
   return PUSH_HOST_SUFFIXES.some((s) => host.endsWith(s) && host.length > s.length);
 }
