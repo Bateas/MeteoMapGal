@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parse as legacyUrlParse } from 'node:url';
-import { clientIpOf, clientKeyOf, rateKeyOf, clampInt, isSpotIdShape, hitBucket, isAllowedPushEndpoint, isValidPushSpotList, parseTimeRange, pruneCache, memoAsync } from './requestGuards';
+import { clientIpOf, clientKeyOf, rateKeyOf, clampInt, isSpotIdShape, hitBucket, isAllowedPushEndpoint, isValidPushSpotList, parseTimeRange, pruneCache, memoAsync, stripTrailingSlashes, MAX_API_PATH } from './requestGuards';
 
 describe('clientIpOf — the bucket key must not be something the client wrote', () => {
   it('prefers the tunnel header, which the client cannot forge', () => {
@@ -258,5 +258,29 @@ describe('isSpotIdShape: only spot slugs reach the spot scores query', () => {
     const { ALL_SPOTS } = await import('../src/config/spots');
     expect(ALL_SPOTS.every((s) => isSpotIdShape(s.id))).toBe(true);
     for (const bad of ['', 'Castrelo', "x' OR 1=1", 'a'.repeat(65), 'castrelo/../x', 'castrelo%20']) expect(isSpotIdShape(bad)).toBe(false);
+  });
+});
+
+describe('stripTrailingSlashes — S-02: a run of slashes must not stall the API', () => {
+  it('strips only the trailing slashes, as the old /\/+$/ did', () => {
+    expect(stripTrailingSlashes('/api/v1/health/')).toBe('/api/v1/health');
+    expect(stripTrailingSlashes('/api/v1/health///')).toBe('/api/v1/health');
+    expect(stripTrailingSlashes('/api/v1/health')).toBe('/api/v1/health');
+    expect(stripTrailingSlashes('//a//b')).toBe('//a//b');
+    expect(stripTrailingSlashes('/')).toBe('');
+    expect(stripTrailingSlashes('')).toBe('');
+  });
+
+  it('is linear: 200,000 slashes then a letter, and 200,000 trailing slashes, in a few ms', () => {
+    const t0 = performance.now();
+    expect(stripTrailingSlashes('/'.repeat(200_000) + 'x')).toHaveLength(200_001);
+    expect(stripTrailingSlashes('/a' + '/'.repeat(200_000))).toBe('/a');
+    expect(performance.now() - t0).toBeLessThan(50);
+  });
+
+  it('every API path we serve fits under the length cap', () => {
+    for (const p of ['/api/v1/aemet/api/observacion/convencional/todas', '/api/v1/meteosix/getNumericForecastInfo', '/api/v1/lightning/recent']) {
+      expect(p.length).toBeLessThan(MAX_API_PATH);
+    }
   });
 });

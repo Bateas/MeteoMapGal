@@ -75,7 +75,7 @@ import {
   queryWitnessRain,
 } from './queries.js';
 import { getPool } from './db.js';
-import { clientKeyOf, clampInt, isSpotIdShape, hitBucket, isAllowedPushEndpoint, isValidPushSpotList, parseTimeRange, pruneCache, memoAsync } from './requestGuards.js';
+import { clientKeyOf, clampInt, isSpotIdShape, hitBucket, isAllowedPushEndpoint, isValidPushSpotList, parseTimeRange, pruneCache, memoAsync, stripTrailingSlashes, MAX_API_PATH } from './requestGuards.js';
 import { feedFreshness } from './feedFreshness.js';
 import { parseFieldReport, summarizeRecentReports, RECENT_REPORT_WINDOW_MIN, KT_RANGES, OBSERVER_CODE_RE, type RecentReportSummary, type ObserverReport, type ObserverBeta, type ObserverLabRow } from '../src/services/fieldReport.js';
 import { getForecast, getMarineForecast } from './forecastFetcher.js';
@@ -1816,7 +1816,12 @@ const server = http.createServer(async (req, res) => {
 
   try {
     const url = new URL(req.url || '/', `http://${HOST}:${PORT}`);
-    const pathname = url.pathname.replace(/\/+$/, ''); // strip trailing slash
+    // No path of ours is near this long; a huge one is only load (S-02, 26-nov audit).
+    if (url.pathname.length > MAX_API_PATH) {
+      error(res, 'URI too long', 414, origin);
+      return;
+    }
+    const pathname = stripTrailingSlashes(url.pathname);
 
     // ── API key proxy routes (keys stay server-side) ──
     if (pathname.startsWith('/api/v1/aemet/')) {

@@ -79,6 +79,21 @@ export function clientKeyOf(headers: IncomingHttpHeaders, socketAddress: string 
   return rateKeyOf(clientIpOf(headers, socketAddress));
 }
 
+/** Longest API path we accept: ours are under 100 characters; the query string does not count. */
+export const MAX_API_PATH = 512;
+
+/**
+ * The path without its trailing slashes, in one pass. `/\/+$/` was quadratic on a run of slashes
+ * followed by something else (each start position re-scans the run): 16,000 slashes took 76 ms
+ * per request on the API's only thread (S-02 of the 26-nov-2026 audit). Callers also reject paths
+ * over MAX_API_PATH before this.
+ */
+export function stripTrailingSlashes(path: string): string {
+  let end = path.length;
+  while (end > 0 && path.charCodeAt(end - 1) === 47) end--; // '/'
+  return path.slice(0, end);
+}
+
 /** A spot id as `src/config/spots.ts` writes them: a short lowercase slug. */
 export function isSpotIdShape(raw: string): boolean {
   return /^[a-z0-9-]{1,64}$/.test(raw);
