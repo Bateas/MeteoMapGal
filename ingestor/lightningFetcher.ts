@@ -33,6 +33,7 @@ import {
   reportSuccess as reportLightningSuccess,
 } from './lightningBreaker.js';
 import { SERVER_USER_AGENT } from '../src/config/serverIdentity.js';
+import { dispatchOpsNotice } from './alertDispatcher.js';
 
 const JSON_RAIOS_URL = 'https://servizos.meteogalicia.gal/mgrss/observacion/jsonRaios.action';
 /** A storm day is ~730 KB (6-oct: 9,467 strikes), answered in under a second. */
@@ -42,6 +43,8 @@ const USER_AGENT = SERVER_USER_AGENT;
 const DAY_EDGE_MS = 30 * 60_000;
 /** Rows per INSERT: 7 parameters each, and PostgreSQL takes at most 65,535 per statement. */
 const INSERT_CHUNK = 1000;
+/** Without a good answer for this long, the owner is told (the breaker opens after ~15 min). */
+const FEED_SILENT_NOTICE_MS = 20 * 60_000;
 
 // ── Types ─────────────────────────────────────────────
 
@@ -98,14 +101,19 @@ export function isInGaliciaScope(lat: number, lon: number): boolean {
  * Parse a jsonRaios.action body: `{raios: [{data, numRaiosTotal, numRaiosGalicia, listaRaios:
  * [{fecha (UTC, no offset), lat, lon, peakCurrent}]}, ...]}`, one element per day asked.
  * Entries without a valid time or position are dropped.
+ *
+ * Null when the body does not have that shape (no `raios` list, an empty one, or a day without
+ * its `listaRaios` list). A quiet day comes as `listaRaios: []` (26-nov-2026), so anything else is
+ * an outage or a format change, and it must count as a failed poll: read as «no strikes», a
+ * broken feed in the middle of a storm looked like calm to the map and to the alerts.
  */
-export function parseJsonRaios(body: unknown): JsonRaio[] {
+export function parseJsonRaios(body: unknown): JsonRaio[] | null {
   const days = (body as { raios?: unknown } | null)?.raios;
-  if (!Array.isArray(days)) return [];
+  if (!Array.isArray(days) || days.length === 0) return null;
   const out: JsonRaio[] = [];
   for (const day of days) {
     const list = (day as { listaRaios?: unknown } | null)?.listaRaios;
-    if (!Array.isArray(list)) continue;
+    if (!Array.isArray(list)) return null;
     for (const r of list) {
       const o = r as Record<string, unknown> | null;
       if (!o) continue;
@@ -165,12 +173,30 @@ export function isStormActive(strikes: PersistedStrike[], nowMs: number): boolea
   return n5 >= 1 || n15 >= 5;
 }
 
+const madridHm = (ms: number) => new Date(ms).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
+
+/**
+ * The owner's notice when the feed has given no good answer for FEED_SILENT_NOTICE_MS, or null.
+ * Counts from the last good poll, or from the start of the process when there was none yet.
+ * Plain words only: the error itself stays in the log (it could carry characters that break the
+ * Telegram formatting).
+ */
+export function feedSilentNotice(nowMs: number, lastOkAt: number | null, startedAt: number): string | null {
+  const since = lastOkAt ?? startedAt;
+  if (nowMs - since < FEED_SILENT_NOTICE_MS) return null;
+  const from = lastOkAt == null ? `desde que arrancó el ingestor, a las ${madridHm(startedAt)}` : `desde las ${madridHm(lastOkAt)}`;
+  return `El servicio de rayos de MeteoGalicia no da una respuesta buena ${from}. `
+    + 'Mientras tanto el mapa y los avisos no ven rayos: que no salgan no quiere decir que no los haya. '
+    + 'El motivo está en el registro del ingestor.';
+}
+
 const median = (a: number[]) => { const s = [...a].sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
 
 // ── Fetcher ───────────────────────────────────────────
 
 /** Last poll whose strikes all reached the table. */
 let lastSuccessAt: number | null = null;
+const startedAt = Date.now();
 let lastStormActive = false;
 let announced = false;
 /** Strikes already seen near Galicia (last 48 h), to measure how late new ones are published. */
@@ -191,6 +217,11 @@ async function fetchRaios(nowMs: number): Promise<JsonRaio[] | null> {
       return null;
     }
     const strikes = parseJsonRaios(await res.json());
+    if (!strikes) {
+      reportLightningFailure('sin lista de rayos');
+      log.warn('[Lightning] jsonRaios respondió sin la lista de rayos: cuenta como fallo, no como calma');
+      return null;
+    }
     reportLightningSuccess();
     if (!announced) {
       log.info('[Lightning] fuente: jsonRaios.action de MeteoGalicia (servicio oficial), cada 5 min');
@@ -269,7 +300,11 @@ export async function runLightningCycle(): Promise<{ stormActive: boolean }> {
   const polledAt = Date.now();
   const firstPoll = lastSuccessAt == null;
   const raw = await fetchRaios(polledAt);
-  if (!raw) return { stormActive: lastStormActive };
+  if (!raw) {
+    const notice = feedSilentNotice(polledAt, lastSuccessAt, startedAt);
+    if (notice) void dispatchOpsNotice('lightning-feed', 'Rayos sin dato', notice);
+    return { stormActive: lastStormActive };
+  }
 
   const strikes = toPersisted(raw);
   lastStormActive = isStormActive(strikes, polledAt);

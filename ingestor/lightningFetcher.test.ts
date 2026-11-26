@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { parseJsonRaios, toPersisted, isInGaliciaScope } from './lightningFetcher';
+import { parseJsonRaios, toPersisted, isInGaliciaScope, feedSilentNotice } from './lightningFetcher';
 
 // ── parseJsonRaios ───────────────────────────────────
 
@@ -26,7 +26,7 @@ describe('parseJsonRaios', () => {
         numRaiosTotal: 3,
       }],
     };
-    const strikes = parseJsonRaios(body);
+    const strikes = parseJsonRaios(body)!;
     expect(strikes).toHaveLength(2);
     expect(strikes[1].time.toISOString()).toBe('2026-10-07T01:51:46.000Z');
     expect(strikes[1]).toMatchObject({ lat: 43.7784, lon: -6.6218, peakCurrent: -14 });
@@ -39,20 +39,59 @@ describe('parseJsonRaios', () => {
         { data: '2026-10-12T00:00:00', listaRaios: [{ fecha: '2026-10-12T00:01:02', lat: 42.31, lon: -8.61, peakCurrent: -8 }] },
       ],
     };
-    expect(parseJsonRaios(body).map((s) => s.time.toISOString())).toEqual(['2026-10-11T23:58:10.000Z', '2026-10-12T00:01:02.000Z']);
+    expect(parseJsonRaios(body)!.map((s) => s.time.toISOString())).toEqual(['2026-10-11T23:58:10.000Z', '2026-10-12T00:01:02.000Z']);
   });
 
-  it('an empty or odd body gives no strikes, never a throw', () => {
-    expect(parseJsonRaios({})).toEqual([]);
-    expect(parseJsonRaios(null)).toEqual([]);
-    expect(parseJsonRaios({ raios: 'x' })).toEqual([]);
-    expect(parseJsonRaios({ raios: [{ data: '2026-10-08T00:00:00', listaRaios: null }, null] })).toEqual([]);
+  it('a quiet day is an empty list, not a failure (real body of 26-nov-2026)', () => {
+    const quiet = { raios: [{ data: '2026-11-26T00:00:00', listaRaios: [], numRaiosGalicia: 0, numRaiosTotal: 0 }] };
+    expect(parseJsonRaios(quiet)).toEqual([]);
+  });
+
+  it('a body without the list of strikes is a failure (null), never «no strikes», and never a throw', () => {
+    expect(parseJsonRaios({})).toBeNull();
+    expect(parseJsonRaios(null)).toBeNull();
+    expect(parseJsonRaios({ raios: null })).toBeNull();
+    expect(parseJsonRaios({ raios: 'x' })).toBeNull();
+    expect(parseJsonRaios({ raios: [] })).toBeNull();
+    expect(parseJsonRaios({ raios: [null] })).toBeNull();
+    expect(parseJsonRaios({ raios: [{ data: '2026-10-08T00:00:00', listaRaios: null }] })).toBeNull();
+    // One good day does not hide a broken one.
+    expect(parseJsonRaios({ raios: [{ listaRaios: [] }, { data: '2026-10-08T00:00:00' }] })).toBeNull();
+  });
+
+  it('inside a good list, a strike without valid time or position is dropped', () => {
     expect(parseJsonRaios({ raios: [{ listaRaios: [null, { fecha: '2026-10-08T10:00:00', lat: 'x', lon: -8 }] }] })).toEqual([]);
   });
 
   it('a strike without current keeps its position (current null)', () => {
-    const [s] = parseJsonRaios({ raios: [{ listaRaios: [{ fecha: '2026-10-08T10:00:00', lat: 42, lon: -8 }] }] });
+    const [s] = parseJsonRaios({ raios: [{ listaRaios: [{ fecha: '2026-10-08T10:00:00', lat: 42, lon: -8 }] }] })!;
     expect(s.peakCurrent).toBeNull();
+  });
+});
+
+// ── feedSilentNotice ─────────────────────────────────
+
+describe('feedSilentNotice — the owner hears when the lightning feed goes silent', () => {
+  const min = 60_000;
+  const t0 = Date.parse('2026-11-26T15:40:00Z'); // 16:40 in Madrid
+
+  it('stays quiet under 20 minutes without a good answer', () => {
+    expect(feedSilentNotice(t0 + 19 * min, t0, t0 - 60 * min)).toBeNull();
+  });
+
+  it('speaks from 20 minutes, with the time of the last good answer in Madrid', () => {
+    const text = feedSilentNotice(t0 + 20 * min, t0, t0 - 60 * min);
+    expect(text).toContain('desde las 16:40');
+    expect(text).toContain('no ven rayos');
+  });
+
+  it('without any good answer since the start, counts from the start of the process', () => {
+    expect(feedSilentNotice(t0 + 10 * min, null, t0)).toBeNull();
+    expect(feedSilentNotice(t0 + 25 * min, null, t0)).toContain('desde que arrancó el ingestor, a las 16:40');
+  });
+
+  it('carries no Telegram formatting characters', () => {
+    expect(feedSilentNotice(t0 + 30 * min, t0, t0)).not.toMatch(/[_*`[\]]/);
   });
 });
 
