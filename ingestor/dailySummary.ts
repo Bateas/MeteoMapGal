@@ -86,6 +86,8 @@ interface SectorSummary {
   outlook: DayOutlook | null;      // null = light all day
   favoredSpots: string[];          // spots whose patterns suit the outlook dir
   hazard: DayHazard;               // rain / storm risk today (O2)
+  /** No forecast hour for today at all (both models down, no cache): nothing can be said. */
+  noForecast?: boolean;
   maxWaveHeight: number | null;    // coastal only
   maxWaveStation: string;
   waterTemp: number | null;        // coastal only
@@ -202,6 +204,16 @@ interface DayHazard {
   stormHour?: number;
   /** Nearest strike already down (km from the sector centre), on a storm-risk day only. */
   strikesNearKm?: number;
+  /** Today's hours came without CAPE (Open-Meteo, which brings the convection, failed and only the
+   *  WRF answered): the storm risk cannot be judged. Without this, null CAPE counted as 0 and the
+   *  summary said nothing about storms on any day (F-02 of the 26-nov-2026 audit). */
+  stormUnknown?: true;
+}
+
+/** Whether the forecast has any hour of today. False = both models down and nothing cached (F-04). */
+export function hasForecastToday(hourly: HourlyForecast[], now: Date): boolean {
+  const today = now.toDateString();
+  return hourly.some((f) => f.time.toDateString() === today);
 }
 
 /**
@@ -213,11 +225,13 @@ export function summarizeDayHazard(hourly: HourlyForecast[], now: Date): DayHaza
   const today = now.toDateString();
   const fromHour = Math.max(now.getHours(), DAY_START);
 
-  let rainHour = -1, rainProb = 0, stormHour = -1;
+  let rainHour = -1, rainProb = 0, stormHour = -1, judged = 0, withCape = 0;
   for (const f of hourly) {
     if (f.time.toDateString() !== today) continue;
     const h = f.time.getHours();
     if (h < fromHour || h > DAY_END) continue;
+    judged++;
+    if (f.cape != null) withCape++;
 
     // Rain: keep the most-probable wet hour.
     if (f.precipProbability != null && f.precipProbability >= RAIN_PROB
@@ -235,6 +249,7 @@ export function summarizeDayHazard(hourly: HourlyForecast[], now: Date): DayHaza
     rain: rainHour >= 0 ? { hour: rainHour, prob: Math.round(rainProb) } : null,
     storm: stormHour >= 0,
     ...(stormHour >= 0 ? { stormHour } : {}),
+    ...(judged > 0 && withCape === 0 ? { stormUnknown: true as const } : {}),
   };
 }
 
@@ -245,6 +260,8 @@ export function formatHazard(h: DayHazard): string {
     const from = h.stormHour != null ? ` desde ~${h.stormHour}h` : '';
     const near = h.strikesNearKm != null ? ` · ya hay rayos a ${h.strikesNearKm} km` : '';
     parts.push(`⛈️ Riesgo de tormenta${from}${near}`);
+  } else if (h.stormUnknown) {
+    parts.push('Tormentas: sin dato del modelo');
   }
   if (h.rain) parts.push(`🌧️ Lluvia ~${h.rain.hour}h (${h.rain.prob}%)`);
   return parts.join('\n');
@@ -326,7 +343,10 @@ async function querySectorSummary(
     // The spots a SW favours are the afternoon-breeze ones (their primary pattern is
     // "Brisa/Viento SW (tardes)"); with the front aloft there is no breeze to name them for.
     const favoredSpots = outlook && outlook.pattern !== 'de frente' && outlook.pattern !== 'brisa poco probable' ? spotsFavoredByDir(sectorId, outlook.dirDeg) : [];
+    const noForecast = !hasForecastToday(hourly, now);
     const hazard = summarizeDayHazard(hourly, now);
+    if (noForecast) log.warn(`[Resumen] ${sector.name}: sin previsión para hoy (los dos modelos caídos y sin copia)`);
+    else if (hazard.stormUnknown) log.warn(`[Resumen] ${sector.name}: previsión sin convección (falta Open-Meteo): tormentas sin dato`);
     if (hazard.storm) {
       const near = await queryStrikesNear(sector, now);
       if (near != null) hazard.strikesNearKm = near;
@@ -363,6 +383,7 @@ async function querySectorSummary(
       outlook,
       favoredSpots,
       hazard,
+      ...(noForecast ? { noForecast: true } : {}),
       maxWaveHeight: maxWave > 0 ? maxWave : null,
       maxWaveStation,
       waterTemp,
@@ -381,6 +402,8 @@ export const BUOY_CREDIT = '_Boyas: Puertos del Estado (portus.puertos.es) y Obs
 /** Per-sector block. Exported pure for testing. */
 export function buildSectorBlock(s: SectorSummary): string {
   let block = `*${s.name}*\n`;
+  // No forecast at all: say so, not «Flojo hoy», and promise neither wind nor hazards (F-04).
+  if (s.noForecast) return block + 'Sin previsión disponible ahora\n' + marineLine(s);
   const storm = s.hazard.storm;
   // A storm-risk day leads with the hazard, and the wind no longer comes as a breeze to plan
   // around: the cloud and the outflows of a storm kill the thermal or turn it (6-oct).
@@ -388,8 +411,9 @@ export function buildSectorBlock(s: SectorSummary): string {
   const outlook = storm && s.outlook?.pattern === 'térmico' ? { ...s.outlook, pattern: '' as const } : s.outlook;
   block += formatOutlook(outlook) + (storm && outlook && !outlook.strong ? ' · si no hay tormenta' : '') + '\n';
 
-  // Spots the outlook direction favours (cap 4 to stay concise). Not on a storm-risk day.
-  if (!storm && s.outlook && s.favoredSpots.length > 0) {
+  // Spots the outlook direction favours (cap 4 to stay concise). Not on a storm-risk day, nor
+  // when the storm risk cannot be judged: they are the afternoon-breeze spots (F-02).
+  if (!storm && !s.hazard.stormUnknown && s.outlook && s.favoredSpots.length > 0) {
     const shown = s.favoredSpots.slice(0, 4).join(' · ');
     const extra = s.favoredSpots.length > 4 ? ' …' : '';
     block += `🏄 ${shown}${extra}\n`;
@@ -399,14 +423,16 @@ export function buildSectorBlock(s: SectorSummary): string {
   const hazardLine = formatHazard(storm ? { ...s.hazard, storm: false } : s.hazard);
   if (hazardLine) block += hazardLine + '\n';
 
-  if (s.coastal) {
-    const marine: string[] = [];
-    if (s.maxWaveHeight != null) marine.push(`Olas ${s.maxWaveHeight.toFixed(1)}m${s.maxWaveStation ? ` (${s.maxWaveStation})` : ''}`);
-    if (s.waterTemp != null) marine.push(`Agua ${s.waterTemp.toFixed(0)}°`);
-    if (marine.length > 0) block += marine.join(' · ') + '\n';
-  }
+  return block + marineLine(s);
+}
 
-  return block;
+/** Waves and water, measured by the buoys: coastal sectors only (the reservoir has none). */
+function marineLine(s: SectorSummary): string {
+  if (!s.coastal) return '';
+  const marine: string[] = [];
+  if (s.maxWaveHeight != null) marine.push(`Olas ${s.maxWaveHeight.toFixed(1)}m${s.maxWaveStation ? ` (${s.maxWaveStation})` : ''}`);
+  if (s.waterTemp != null) marine.push(`Agua ${s.waterTemp.toFixed(0)}°`);
+  return marine.length > 0 ? marine.join(' · ') + '\n' : '';
 }
 
 /** Full message. Exported pure for testing. */

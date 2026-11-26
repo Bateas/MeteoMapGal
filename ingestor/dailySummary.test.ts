@@ -8,7 +8,7 @@ import { log } from './logger';
 import { checkAndSendDailySummary, seedDailySummary,
   summarizeDayOutlook, spotsFavoredByDir, formatOutlook,
   summarizeDayHazard, formatHazard, nearestStrikeKm,
-  buildSectorBlock, buildMessage, withSynopticRegime,
+  buildSectorBlock, buildMessage, withSynopticRegime, hasForecastToday,
 } from './dailySummary';
 import type { HourlyForecast } from '../src/types/forecast';
 
@@ -138,6 +138,19 @@ describe('summarizeDayHazard', () => {
     expect(h.stormHour).toBe(13);
   });
 
+  it('F-02: today without CAPE (only the WRF answered) -> storm risk unknown, never «no storm»', () => {
+    const h = summarizeDayHazard([14, 16, 18].map((hr) => fcHour(hr, ms(10), 225)), NOW); // cape null
+    expect(h.storm).toBe(false);
+    expect(h.stormUnknown).toBe(true);
+  });
+
+  it('one hour with CAPE is enough to judge; no hours left today says nothing', () => {
+    const judged = summarizeDayHazard([fcHour(14, ms(8), 225), fcHour(16, ms(8), 225, { cape: 50, liftedIndex: 2, cin: 0 })], NOW);
+    expect(judged.stormUnknown).toBeUndefined();
+    const late = new Date('2026-06-01T22:30:00'); // after DAY_END
+    expect(summarizeDayHazard([fcHour(23, ms(8), 225)], late).stormUnknown).toBeUndefined();
+  });
+
   it('CAPE under 300 or LI above -2 stays quiet', () => {
     expect(summarizeDayHazard([fcHour(15, ms(6), 225, { cape: 280, liftedIndex: -3, cin: 0 })], NOW).storm).toBe(false);
     expect(summarizeDayHazard([fcHour(15, ms(6), 225, { cape: 800, liftedIndex: -1.5, cin: 0 })], NOW).storm).toBe(false);
@@ -166,6 +179,11 @@ describe('formatHazard', () => {
     expect(s).toMatch(/⛈️ Riesgo de tormenta/);
     expect(s).toMatch(/🌧️ Lluvia ~16h \(70%\)/);
   });
+  it('F-02: without convection data it says so, and a real risk always wins', () => {
+    expect(formatHazard({ rain: null, storm: false, stormUnknown: true })).toBe('Tormentas: sin dato del modelo');
+    expect(formatHazard({ rain: null, storm: true, stormUnknown: true })).toMatch(/^⛈️ Riesgo de tormenta/);
+  });
+
   it('storm line with its hour and the strikes already down', () => {
     expect(formatHazard({ rain: null, storm: true, stormHour: 13, strikesNearKm: 45 }))
       .toBe('⛈️ Riesgo de tormenta desde ~13h · ya hay rayos a 45 km');
@@ -230,11 +248,42 @@ describe('buildSectorBlock', () => {
     expect(block).not.toMatch(/si no hay tormenta/);
   });
 
+  it('F-02: storm risk unknown -> says so and names no breeze spots', () => {
+    const block = buildSectorBlock(sector({
+      outlook: { startHour: 14, endHour: 19, peakKt: 14, dirDeg: 225, dir: 'SW', pattern: 'térmico', strong: false },
+      favoredSpots: ['Cesantes', 'Lourido'],
+      hazard: { rain: null, storm: false, stormUnknown: true },
+    }));
+    expect(block).toMatch(/Navegable 14-19h/);
+    expect(block).toMatch(/Tormentas: sin dato del modelo/);
+    expect(block).not.toMatch(/Cesantes/);
+  });
+
+  it('F-04: no forecast at all -> «Sin previsión disponible ahora», never «Flojo hoy», no hazards, buoys kept', () => {
+    const block = buildSectorBlock(sector({
+      noForecast: true, outlook: null, favoredSpots: [],
+      hazard: { rain: null, storm: false, stormUnknown: true },
+      maxWaveHeight: 1.1, maxWaveStation: 'Cabo Silleiro', waterTemp: 15,
+    }));
+    expect(block).toBe('*Rías Baixas*\nSin previsión disponible ahora\nOlas 1.1m (Cabo Silleiro) · Agua 15°\n');
+    expect(block).not.toMatch(/Flojo hoy|Tormentas|tormenta/);
+  });
+
   it('light day → no favoured-spots line', () => {
     const block = buildSectorBlock(sector({ outlook: null, favoredSpots: [], waterTemp: 16 }));
     expect(block).toMatch(/Flojo hoy/);
     expect(block).not.toMatch(/🏄/);
     expect(block).toMatch(/Agua 16°/);
+  });
+});
+
+describe('hasForecastToday (F-04)', () => {
+  it('true with any hour of today, false with none or only other days', () => {
+    expect(hasForecastToday([fcHour(5, ms(4), 0)], NOW)).toBe(true);
+    expect(hasForecastToday([], NOW)).toBe(false);
+    const tomorrow = fcHour(12, ms(4), 0);
+    tomorrow.time = new Date(tomorrow.time.getTime() + 24 * 3_600_000);
+    expect(hasForecastToday([tomorrow], NOW)).toBe(false);
   });
 });
 
