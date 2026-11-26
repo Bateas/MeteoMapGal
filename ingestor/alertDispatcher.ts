@@ -7,6 +7,7 @@
  */
 
 import { log } from './logger.js';
+import { escapeTelegramMarkdown } from './telegramText.js';
 import { webcamSite } from '../src/config/webcams.js';
 import { LIGHTNING_DANGER_KM, LIGHTNING_OVERHEAD_KM } from '../src/services/lightningProximityService.js';
 import {
@@ -232,7 +233,7 @@ export async function dispatchSpotAlert(
   let msg = `${emoji} *${short}* ${verdict}\n`;
   if (verdict === 'OLEAJE' && extras?.hardGate) {
     // Closed by the SEA: the sea leads and the wind is context (Cíes 21-oct: «FUERTE / E 4kt»).
-    msg += `${extras.hardGate}\n`;
+    msg += `${escapeTelegramMarkdown(extras.hardGate)}\n`; // may carry a buoy name (S-03)
     msg += `Viento ${direction} ${windKt}kt\n`;
   } else {
     msg += `${direction} ${windKt}kt`;
@@ -240,7 +241,7 @@ export async function dispatchSpotAlert(
     if (extras?.waterTemp) msg += ` · Agua ${extras.waterTemp.toFixed(0)}°C`;
     msg += '\n';
     // A verdict set by the spot's own limit says which: «FUERTE» with 4 kt read as a bug (15-oct).
-    if (extras?.hardGate) msg += `Motivo: ${extras.hardGate}\n`;
+    if (extras?.hardGate) msg += `Motivo: ${escapeTelegramMarkdown(extras.hardGate)}\n`;
   }
   if (dirNote) msg += dirNote;
   if (extras?.thermalProb && extras.thermalProb >= 40) {

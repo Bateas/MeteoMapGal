@@ -20,6 +20,7 @@
 import { getPool } from './db.js';
 import { log } from './logger.js';
 import { noteSent, type PastSend } from './alertDispatcher.js';
+import { escapeTelegramMarkdown } from './telegramText.js';
 import { msToKnots, degreesToCardinal, angleDifference } from '../src/services/windUtils.js';
 import { haversineDistance } from '../src/services/geoUtils.js';
 import { isStormRiskHour } from '../src/services/stormRiskRule.js';
@@ -430,7 +431,7 @@ export function buildSectorBlock(s: SectorSummary): string {
 function marineLine(s: SectorSummary): string {
   if (!s.coastal) return '';
   const marine: string[] = [];
-  if (s.maxWaveHeight != null) marine.push(`Olas ${s.maxWaveHeight.toFixed(1)}m${s.maxWaveStation ? ` (${s.maxWaveStation})` : ''}`);
+  if (s.maxWaveHeight != null) marine.push(`Olas ${s.maxWaveHeight.toFixed(1)}m${s.maxWaveStation ? ` (${escapeTelegramMarkdown(s.maxWaveStation)})` : ''}`);
   if (s.waterTemp != null) marine.push(`Agua ${s.waterTemp.toFixed(0)}°`);
   return marine.length > 0 ? marine.join(' · ') + '\n' : '';
 }

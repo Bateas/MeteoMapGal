@@ -20,6 +20,7 @@ import { isWindBlacklisted, WATER_LEVEL_MAX_ALTITUDE_M } from '../src/services/s
 import { LAND_STATION_BUOY_COPIES } from '../src/services/buoyUtils.js';
 import { getSpotsForSector } from '../src/config/spots.js';
 import type { BuoyWind, StationReading } from './analyzerLogic.js';
+import { escapeTelegramMarkdown } from './telegramText.js';
 
 export type WindSafetyLevel = 'aviso' | 'peligro';
 export type WindSector = 'rias' | 'embalse';
@@ -287,7 +288,8 @@ export function formatWindSafetyMessage(a: WindSafetyAssessment, nowMs?: number)
   const isOld = (e: WindEvidence) => nowMs != null && e.atMs != null && nowMs - e.atMs > WIND_NOW_MAX_AGE_MIN * 60_000;
   const someOld = shown.some(isOld);
   const lines = shown.map((e) => {
-    const figures = `${e.name}: rachas ${Math.round(e.gustKt)} kt (media ${Math.round(e.meanKt)})`;
+    // Station names are third-party text: escaped, or one `_` loses the whole alert (S-03).
+    const figures = `${escapeTelegramMarkdown(e.name)}: rachas ${Math.round(e.gustKt)} kt (media ${Math.round(e.meanKt)})`;
     if (!someOld) return figures;
     return isOld(e) ? `${figures}, a las ${localHour(e.atMs!)}` : `${figures}, ahora`;
   });

@@ -123,6 +123,15 @@ describe('windAlertDue — one message per episode, one more if it escalates', (
 });
 
 describe('formatWindSafetyMessage', () => {
+  it('S-03: a station name with Markdown characters is escaped, so Telegram does not reject the alert', () => {
+    const a = rias([station('Estacion_Vigo*', 42.38, -8.93, 29, 44), station('Cabo Udra', 42.34, -8.83, 28, 44)]);
+    const { message } = formatWindSafetyMessage(a);
+    expect(message).toContain('Estacion\\_Vigo\\*: rachas 44 kt (media 29)');
+    // Only our title stays in bold: one pair of asterisks, nothing unpaired.
+    expect(message.replace(/\\[_*`[]/g, '').match(/\*/g)).toHaveLength(2);
+    expect(message.replace(/\\[_*`[]/g, '')).not.toMatch(/[_`[]/);
+  });
+
   it('gives the measured figures with their source, and only the danger level carries advice', () => {
     const a = rias([station('Ons', 42.38, -8.93, 29, 44), station('Cabo Udra', 42.34, -8.83, 28, 44)]);
     const { title, message } = formatWindSafetyMessage(a);
